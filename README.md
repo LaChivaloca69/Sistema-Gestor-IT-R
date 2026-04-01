@@ -73,7 +73,7 @@ source venv/bin/activate
 venv\Scripts\activate
 
 # Salir del entorno
-deactive
+deactivate
 
 ```
 
