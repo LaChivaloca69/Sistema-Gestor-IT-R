@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'rest_framework', # agregar Django REST Framework
     'GestorITapps', # agregar aplicaciones 
 ]
 
@@ -55,7 +56,7 @@ ROOT_URLCONF = 'GestorIT.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': ['templates'], # agrega la carpeta de templates 
+        'DIRS': [BASE_DIR / 'Templates'], # agrega la carpeta de templates
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -76,8 +77,8 @@ WSGI_APPLICATION = 'GestorIT.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'GestorITDB',
-        'USER': 'Admin',
+        'NAME': 'GestorIT',
+        'USER': 'ad',
         'PASSWORD': '12345678',
         'HOST': 'localhost',
         'PORT': '5432',

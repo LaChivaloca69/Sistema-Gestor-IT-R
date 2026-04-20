@@ -1,0 +1,5 @@
+# ignora los archivos compilados de Python y el entorno virtual
+__pycache__/
+*.pyc
+.env
+venv/

@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+
+{% block title %}Inicio - Gestor IT{% endblock %}
+
+{% block content %}
+<h1>Panel de modelos</h1>
+<p>Selecciona un modelo para administrar sus registros.</p>
+
+<ul class="model-grid">
+	{% for item in modelos %}
+	<li>
+		<a href="{% url 'modelo-list' model_slug=item.slug %}">{{ item.nombre }}</a>
+	</li>
+	{% endfor %}
+</ul>
+{% endblock %}
