@@ -1,0 +1,15 @@
+﻿{% extends 'base.html' %}
+
+{% block title %}Formulario - {{ modelo_nombre }}{% endblock %}
+
+{% block content %}
+<h1>Proveedor</h1>
+
+<form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button class="btn btn-primary" type="submit">Guardar</button>
+    <a class="btn" href="{% url 'modelo-list' model_slug=model_slug %}">Cancelar</a>
+</form>
+{% endblock %}
+

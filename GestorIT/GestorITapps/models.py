@@ -1,4 +1,5 @@
 from django.db import models
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 
 class Area(models.Model):
@@ -188,40 +189,142 @@ class AgendaMantenimiento(models.Model):
     enviado = models.BooleanField(default=False)
 
 
-class PrioridadTicket(models.TextChoices):
-    BAJA = "Baja", "Baja"
-    MEDIA = "Media", "Media"
-    ALTA = "Alta", "Alta"
-    CRITICA = "Crítica", "Crítica"
+class TipoTicketSupport(models.TextChoices):
+    ADMINISTRACION = "ADMINISTRACION", "ADMINISTRACION"
+    BPCS = "BPCS", "BPCS"
+    HARDWARE = "HARDWARE", "HARDWARE"
+    HELPDESK = "HELPDESK", "HELPDESK"
+    TELEFONIA = "TELEFONIA", "TELEFONIA"
+    SOFTWARE = "SOFTWARE", "SOFTWARE"
 
 
-class EstadoTicket(models.TextChoices):
+class TipoEquipoSupport(models.TextChoices):
+    COMPUTADORA = "Computadora", "Computadora"
+    LAPTOP = "Laptop", "Laptop"
+    IMPRESORA = "Impresora", "Impresora"
+    TELEFONO = "Telefono", "Telefono"
+    ESCANER = "Escaner", "Escaner"
+    TABLET = "Tablet", "Tablet"
+    OTRO = "Otro", "Otro"
+
+
+class EstadoSupport(models.TextChoices):
     ABIERTO = "Abierto", "Abierto"
+    EN_REVISION = "En Revision", "En Revision"
     EN_PROCESO = "En Proceso", "En Proceso"
-    RESUELTO = "Resuelto", "Resuelto"
     CERRADO = "Cerrado", "Cerrado"
 
 
 class TicketIT(models.Model):
     folio_ticket = models.CharField(max_length=30, unique=True)
-    fecha_creacion = models.DateTimeField(auto_now_add=True)
-    personal_solicitante = models.ForeignKey(Personal, on_delete=models.PROTECT)
+    fecha_support = models.DateTimeField(default=timezone.now)
+    requerimiento = models.CharField(max_length=180, default='')
+    departamento = models.ForeignKey(Area, on_delete=models.SET_NULL, null=True, blank=True, related_name='tickets_support')
+    tipo_ticket = models.CharField(max_length=30, choices=TipoTicketSupport.choices, default=TipoTicketSupport.HELPDESK)
+    sub_tipo_ticket = models.CharField(max_length=150, blank=True, null=True)
     equipo = models.ForeignKey(Equipo, on_delete=models.SET_NULL, null=True, blank=True)
-    titulo = models.CharField(max_length=150)
+    tipo_equipo = models.CharField(max_length=20, choices=TipoEquipoSupport.choices, default=TipoEquipoSupport.COMPUTADORA)
+    otro_tipo_equipo = models.CharField(max_length=120, blank=True, null=True)
+    identificador_reporte = models.CharField(max_length=80, blank=True, null=True, verbose_name='ID')
+    detalle = models.CharField(max_length=255, blank=True, null=True)
     descripcion = models.TextField()
-    prioridad = models.CharField(max_length=10, choices=PrioridadTicket.choices, default=PrioridadTicket.MEDIA)
-    estado_ticket = models.CharField(max_length=20, choices=EstadoTicket.choices, default=EstadoTicket.ABIERTO)
-    tecnico_asignado = models.CharField(max_length=150, blank=True, null=True)
-    fecha_cierre = models.DateTimeField(blank=True, null=True)
-    solucion = models.TextField(blank=True, null=True)
+    imagen_url = models.URLField(blank=True, null=True)
+    status = models.CharField(max_length=20, choices=EstadoSupport.choices, default=EstadoSupport.ABIERTO)
+
+    class Meta:
+        verbose_name = 'Support'
+        verbose_name_plural = 'Support'
+
+    def clean(self):
+        if self.folio_ticket and not self.folio_ticket.upper().startswith('SPRT-'):
+            raise ValidationError({'folio_ticket': 'El folio del Support debe iniciar con SPRT-.'})
+        if self.tipo_equipo == TipoEquipoSupport.OTRO and not self.otro_tipo_equipo:
+            raise ValidationError({'otro_tipo_equipo': 'Especifica el tipo de equipo cuando seleccionas "Otro".'})
+
+    def save(self, *args, **kwargs):
+        if self.folio_ticket:
+            self.folio_ticket = self.folio_ticket.upper()
+        if self.tipo_equipo != TipoEquipoSupport.OTRO:
+            self.otro_tipo_equipo = None
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.folio_ticket
 
 
 class SeguimientoTicket(models.Model):
-    ticket = models.ForeignKey(TicketIT, on_delete=models.CASCADE, related_name='seguimientos')
-    fecha_evento = models.DateTimeField(auto_now_add=True)
-    comentario = models.TextField()
-    usuario_evento = models.CharField(max_length=150)
-    cambio_estado = models.CharField(max_length=100, blank=True, null=True)
+    ticket = models.ForeignKey(TicketIT, on_delete=models.CASCADE, related_name='checks')
+    folio_check = models.CharField(max_length=30, blank=True, null=True)
+    fecha_check = models.DateTimeField(default=timezone.now)
+    usuario = models.CharField(max_length=150, default='')
+    solucion = models.TextField(default='')
+    observacion = models.TextField(blank=True, null=True)
+    ya_terminado = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = 'Check'
+        verbose_name_plural = 'Check'
+
+    def clean(self):
+        if self.folio_check and not self.folio_check.upper().startswith('SPRT-'):
+            raise ValidationError({'folio_check': 'El folio de Check debe iniciar con SPRT-'})
+
+    def save(self, *args, **kwargs):
+        if self.folio_check:
+            self.folio_check = self.folio_check.upper()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.folio_check or f'Check {self.pk}'
+
+
+class Bitacora(models.Model):
+    folio_bitacora = models.CharField(max_length=30, unique=True)
+    fecha_bitacora = models.DateTimeField(default=timezone.now)
+    situacion = models.CharField(max_length=180)
+    descripcion_situacion = models.TextField()
+
+    class Meta:
+        verbose_name = 'Bitacora'
+        verbose_name_plural = 'Bitacora'
+
+    def clean(self):
+        if self.folio_bitacora and not self.folio_bitacora.upper().startswith('BIT-'):
+            raise ValidationError({'folio_bitacora': 'El folio de Bitacora debe iniciar con BIT-.'})
+
+    def save(self, *args, **kwargs):
+        if self.folio_bitacora:
+            self.folio_bitacora = self.folio_bitacora.upper()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.folio_bitacora
+
+
+class Answer(models.Model):
+    bitacora = models.ForeignKey(Bitacora, on_delete=models.CASCADE, related_name='answers')
+    folio_answer = models.CharField(max_length=30)
+    fecha_answer = models.DateTimeField(default=timezone.now)
+    solucion = models.CharField(max_length=180)
+    descripcion_solucion = models.TextField()
+
+    class Meta:
+        verbose_name = 'Answer'
+        verbose_name_plural = 'Answer'
+
+    def clean(self):
+        if self.folio_answer and not self.folio_answer.upper().startswith('BIT-'):
+            raise ValidationError({'folio_answer': 'El folio de Answer debe iniciar con BIT-.'})
+        if self.bitacora_id and self.folio_answer and self.folio_answer.upper() != self.bitacora.folio_bitacora:
+            raise ValidationError({'folio_answer': 'El folio de Answer debe coincidir con el folio de la Bitacora seleccionada.'})
+
+    def save(self, *args, **kwargs):
+        if self.folio_answer:
+            self.folio_answer = self.folio_answer.upper()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f'{self.folio_answer} - {self.solucion}'
 
 
 class Presupuesto(models.Model):

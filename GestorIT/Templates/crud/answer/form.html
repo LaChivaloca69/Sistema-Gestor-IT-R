@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+
+{% block title %}Formulario Answer{% endblock %}
+
+{% block content %}
+<h1>Answer</h1>
+
+<style>
+    .answer-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 0.9rem;
+    }
+    .answer-field {
+        margin-bottom: 0.8rem;
+    }
+    .answer-field label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 0.3rem;
+    }
+    .answer-full {
+        grid-column: 1 / -1;
+    }
+</style>
+
+<form method="post">
+    {% csrf_token %}
+
+    <div class="answer-grid">
+        <div class="answer-field">
+            {{ form.bitacora.label_tag }}
+            {{ form.bitacora }}
+            {{ form.bitacora.errors }}
+        </div>
+        <div class="answer-field">
+            {{ form.folio_answer.label_tag }}
+            {{ form.folio_answer }}
+            {{ form.folio_answer.errors }}
+        </div>
+        <div class="answer-field">
+            {{ form.fecha_answer.label_tag }}
+            {{ form.fecha_answer }}
+            {{ form.fecha_answer.errors }}
+        </div>
+        <div class="answer-field answer-full">
+            {{ form.solucion.label_tag }}
+            {{ form.solucion }}
+            {{ form.solucion.errors }}
+        </div>
+        <div class="answer-field answer-full">
+            {{ form.descripcion_solucion.label_tag }}
+            {{ form.descripcion_solucion }}
+            {{ form.descripcion_solucion.errors }}
+        </div>
+    </div>
+
+    <button class="btn btn-primary" type="submit">Guardar</button>
+    <a class="btn" href="{% url 'modelo-list' model_slug=model_slug %}">Cancelar</a>
+</form>
+{% endblock %}

@@ -1,0 +1,94 @@
+﻿{% extends 'base.html' %}
+
+{% block title %}Support - Gestor IT{% endblock %}
+
+{% block content %}
+<h1>Support</h1>
+
+<div class="actions">
+	<a class="btn btn-primary" href="{% url 'modelo-create' model_slug=model_slug %}">Nuevo support</a>
+	<a class="btn" href="{% url 'home' %}">Volver al inicio</a>
+</div>
+
+<style>
+	.ticket-chip {
+		display: inline-block;
+		padding: 0.2rem 0.5rem;
+		border-radius: 999px;
+		font-size: 0.82rem;
+		font-weight: 600;
+		white-space: nowrap;
+	}
+	.prio-baja { background: #dcfce7; color: #166534; }
+	.prio-media { background: #fef3c7; color: #92400e; }
+	.prio-alta { background: #fee2e2; color: #991b1b; }
+	.prio-critica { background: #111827; color: #f9fafb; }
+	.estado-abierto { background: #dbeafe; color: #1e3a8a; }
+	.estado-en-revision { background: #fef9c3; color: #854d0e; }
+	.estado-en-proceso { background: #fef3c7; color: #92400e; }
+	.estado-cerrado { background: #e5e7eb; color: #374151; }
+</style>
+
+{% if objetos %}
+<table>
+	<thead>
+		<tr>
+			<th>Folio</th>
+			<th>Fecha</th>
+			<th>Requerimiento</th>
+			<th>Departamento</th>
+			<th>Tipo</th>
+			<th>Sub tipo</th>
+			<th>Equipo</th>
+			<th>Tipo de equipo</th>
+			<th>ID</th>
+			<th>Detalle</th>
+			<th>Imagen</th>
+			<th>Estado</th>
+			<th>Acciones</th>
+		</tr>
+	</thead>
+	<tbody>
+		{% for support in objetos %}
+		<tr>
+			<td><strong>{{ support.folio_ticket }}</strong></td>
+			<td>{{ support.fecha_support|date:"Y-m-d H:i" }}</td>
+			<td>{{ support.requerimiento }}</td>
+			<td>{{ support.departamento|default:"Sin departamento" }}</td>
+			<td>{{ support.tipo_ticket }}</td>
+			<td>{{ support.sub_tipo_ticket|default:"-" }}</td>
+			<td>{{ support.equipo|default:"Sin equipo" }}</td>
+			<td>
+				{{ support.tipo_equipo }}
+				{% if support.otro_tipo_equipo %}({{ support.otro_tipo_equipo }}){% endif %}
+			</td>
+			<td>{{ support.identificador_reporte|default:"-" }}</td>
+			<td>{{ support.detalle|default:"-" }}</td>
+			<td>
+				{% if support.imagen_url %}
+					<a href="{{ support.imagen_url }}" target="_blank" rel="noopener noreferrer">Ver imagen</a>
+				{% else %}
+					-
+				{% endif %}
+			</td>
+			<td>
+				<span class="ticket-chip
+					{% if support.status == 'Abierto' %}estado-abierto{% endif %}
+					{% if support.status == 'En Revision' %}estado-en-revision{% endif %}
+					{% if support.status == 'En Proceso' %}estado-en-proceso{% endif %}
+					{% if support.status == 'Cerrado' %}estado-cerrado{% endif %}
+				">{{ support.status }}</span>
+			</td>
+			<td>
+				<a class="btn" href="{% url 'modelo-update' model_slug=model_slug pk=support.pk %}">Editar</a>
+				<a class="btn btn-danger" href="{% url 'modelo-delete' model_slug=model_slug pk=support.pk %}">Eliminar</a>
+			</td>
+		</tr>
+		{% endfor %}
+	</tbody>
+</table>
+{% else %}
+<p>No hay registros de Support.</p>
+{% endif %}
+{% endblock %}
+

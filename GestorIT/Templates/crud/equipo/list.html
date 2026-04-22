@@ -1,0 +1,41 @@
+﻿{% extends 'base.html' %}
+
+{% block title %}{{ modelo_nombre }} - Gestor IT{% endblock %}
+
+{% block content %}
+<h1>{{ modelo_nombre }}</h1>
+
+<div class="actions">
+    <a class="btn btn-primary" href="{% url 'modelo-create' model_slug=model_slug %}">Nuevo registro</a>
+    <a class="btn" href="{% url 'home' %}">Volver al inicio</a>
+</div>
+
+{% if objetos %}
+<table>
+    <thead>
+        <tr>
+            {% for field in fields %}
+            <th>{{ field.verbose_name }}</th>
+            {% endfor %}
+            <th>Acciones</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in rows %}
+        <tr>
+            {% for value in row.values %}
+            <td>{{ value }}</td>
+            {% endfor %}
+            <td>
+                <a class="btn" href="{% url 'modelo-update' model_slug=model_slug pk=row.obj.pk %}">Editar</a>
+                <a class="btn btn-danger" href="{% url 'modelo-delete' model_slug=model_slug pk=row.obj.pk %}">Eliminar</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>No hay registros para este modelo.</p>
+{% endif %}
+{% endblock %}
+

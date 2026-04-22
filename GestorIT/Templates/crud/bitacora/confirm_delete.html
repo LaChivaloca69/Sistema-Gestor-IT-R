@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+
+{% block title %}Eliminar Bitacora{% endblock %}
+
+{% block content %}
+<h1>Eliminar bitacora</h1>
+<p>Esta accion no se puede deshacer.</p>
+
+<table>
+    <tbody>
+        <tr>
+            <th>Folio</th>
+            <td>{{ object.folio_bitacora }}</td>
+        </tr>
+        <tr>
+            <th>Situacion</th>
+            <td>{{ object.situacion }}</td>
+        </tr>
+    </tbody>
+</table>
+
+<form method="post" style="margin-top: 1rem;">
+    {% csrf_token %}
+    <button class="btn btn-danger" type="submit">Si, eliminar</button>
+    <a class="btn" href="{% url 'modelo-list' model_slug=model_slug %}">Cancelar</a>
+</form>
+{% endblock %}

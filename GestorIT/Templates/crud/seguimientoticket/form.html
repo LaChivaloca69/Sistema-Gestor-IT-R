@@ -1,0 +1,72 @@
+﻿{% extends 'base.html' %}
+
+{% block title %}Formulario Check{% endblock %}
+
+{% block content %}
+<h1>Check</h1>
+
+<style>
+    .check-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 0.9rem;
+    }
+    .check-field {
+        margin-bottom: 0.8rem;
+    }
+    .check-field label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 0.3rem;
+    }
+    .check-full {
+        grid-column: 1 / -1;
+    }
+</style>
+
+<form method="post">
+    {% csrf_token %}
+
+    <div class="check-grid">
+        <div class="check-field">
+            {{ form.ticket.label_tag }}
+            {{ form.ticket }}
+            {{ form.ticket.errors }}
+        </div>
+        <div class="check-field">
+            {{ form.folio_check.label_tag }}
+            {{ form.folio_check }}
+            {{ form.folio_check.errors }}
+        </div>
+        <div class="check-field">
+            {{ form.fecha_check.label_tag }}
+            {{ form.fecha_check }}
+            {{ form.fecha_check.errors }}
+        </div>
+        <div class="check-field">
+            {{ form.usuario.label_tag }}
+            {{ form.usuario }}
+            {{ form.usuario.errors }}
+        </div>
+        <div class="check-field check-full">
+            {{ form.solucion.label_tag }}
+            {{ form.solucion }}
+            {{ form.solucion.errors }}
+        </div>
+        <div class="check-field check-full">
+            {{ form.observacion.label_tag }}
+            {{ form.observacion }}
+            {{ form.observacion.errors }}
+        </div>
+        <div class="check-field">
+            {{ form.ya_terminado.label_tag }}
+            {{ form.ya_terminado }}
+            {{ form.ya_terminado.errors }}
+        </div>
+    </div>
+
+    <button class="btn btn-primary" type="submit">Guardar</button>
+    <a class="btn" href="{% url 'modelo-list' model_slug=model_slug %}">Cancelar</a>
+</form>
+{% endblock %}
+

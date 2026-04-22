@@ -1,0 +1,49 @@
+﻿{% extends 'base.html' %}
+
+{% block title %}Check - Gestor IT{% endblock %}
+
+{% block content %}
+<h1>Check</h1>
+
+<div class="actions">
+    <a class="btn btn-primary" href="{% url 'modelo-create' model_slug=model_slug %}">Nuevo check</a>
+    <a class="btn" href="{% url 'home' %}">Volver al inicio</a>
+</div>
+
+{% if objetos %}
+<table>
+    <thead>
+        <tr>
+            <th>Support</th>
+            <th>Folio check</th>
+            <th>Fecha</th>
+            <th>Usuario</th>
+            <th>Solucion</th>
+            <th>Observacion</th>
+            <th>Terminado</th>
+            <th>Acciones</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for check in objetos %}
+        <tr>
+            <td>{{ check.ticket }}</td>
+            <td>{{ check.folio_check|default:"-" }}</td>
+            <td>{{ check.fecha_check|date:"Y-m-d H:i" }}</td>
+            <td>{{ check.usuario }}</td>
+            <td>{{ check.solucion }}</td>
+            <td>{{ check.observacion|default:"-" }}</td>
+            <td>{% if check.ya_terminado %}Si{% else %}No{% endif %}</td>
+            <td>
+                <a class="btn" href="{% url 'modelo-update' model_slug=model_slug pk=check.pk %}">Editar</a>
+                <a class="btn btn-danger" href="{% url 'modelo-delete' model_slug=model_slug pk=check.pk %}">Eliminar</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>No hay registros de Check.</p>
+{% endif %}
+{% endblock %}
+

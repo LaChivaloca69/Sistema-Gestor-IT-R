@@ -1,0 +1,124 @@
+﻿{% extends 'base.html' %}
+
+{% block title %}Formulario Support{% endblock %}
+
+{% block content %}
+<h1>Support</h1>
+<p>Registra o actualiza la informacion del support.</p>
+
+<style>
+	.ticket-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+		gap: 0.9rem;
+	}
+	.ticket-field {
+		margin-bottom: 0.8rem;
+	}
+	.ticket-field label {
+		display: block;
+		font-weight: 600;
+		margin-bottom: 0.3rem;
+	}
+	.ticket-full {
+		grid-column: 1 / -1;
+	}
+	.section-title {
+		margin-top: 1rem;
+		margin-bottom: 0.4rem;
+		color: #0f172a;
+	}
+</style>
+
+<form method="post">
+	{% csrf_token %}
+
+	{% if form.non_field_errors %}
+	<div class="errorlist">{{ form.non_field_errors }}</div>
+	{% endif %}
+
+	<h3 class="section-title">Datos principales</h3>
+	<div class="ticket-grid">
+		<div class="ticket-field">
+			{{ form.folio_ticket.label_tag }}
+			{{ form.folio_ticket }}
+			{{ form.folio_ticket.errors }}
+		</div>
+		<div class="ticket-field">
+			{{ form.fecha_support.label_tag }}
+			{{ form.fecha_support }}
+			{{ form.fecha_support.errors }}
+		</div>
+		<div class="ticket-field ticket-full">
+			{{ form.requerimiento.label_tag }}
+			{{ form.requerimiento }}
+			{{ form.requerimiento.errors }}
+		</div>
+		<div class="ticket-field ticket-full">
+			{{ form.descripcion.label_tag }}
+			{{ form.descripcion }}
+			{{ form.descripcion.errors }}
+		</div>
+	</div>
+
+	<h3 class="section-title">Clasificacion y equipo</h3>
+	<div class="ticket-grid">
+		<div class="ticket-field">
+			{{ form.departamento.label_tag }}
+			{{ form.departamento }}
+			{{ form.departamento.errors }}
+		</div>
+		<div class="ticket-field">
+			{{ form.tipo_ticket.label_tag }}
+			{{ form.tipo_ticket }}
+			{{ form.tipo_ticket.errors }}
+		</div>
+		<div class="ticket-field ticket-full">
+			{{ form.sub_tipo_ticket.label_tag }}
+			{{ form.sub_tipo_ticket }}
+			{{ form.sub_tipo_ticket.errors }}
+		</div>
+		<div class="ticket-field">
+			{{ form.equipo.label_tag }}
+			{{ form.equipo }}
+			{{ form.equipo.errors }}
+		</div>
+		<div class="ticket-field">
+			{{ form.tipo_equipo.label_tag }}
+			{{ form.tipo_equipo }}
+			{{ form.tipo_equipo.errors }}
+		</div>
+		<div class="ticket-field">
+			{{ form.otro_tipo_equipo.label_tag }}
+			{{ form.otro_tipo_equipo }}
+			{{ form.otro_tipo_equipo.errors }}
+		</div>
+		<div class="ticket-field">
+			{{ form.identificador_reporte.label_tag }}
+			{{ form.identificador_reporte }}
+			{{ form.identificador_reporte.errors }}
+		</div>
+		<div class="ticket-field ticket-full">
+			{{ form.detalle.label_tag }}
+			{{ form.detalle }}
+			{{ form.detalle.errors }}
+		</div>
+		<div class="ticket-field ticket-full">
+			{{ form.imagen_url.label_tag }}
+			{{ form.imagen_url }}
+			{{ form.imagen_url.errors }}
+		</div>
+		<div class="ticket-field ticket-full">
+			{{ form.status.label_tag }}
+			{{ form.status }}
+			{{ form.status.errors }}
+		</div>
+	</div>
+
+	<div class="actions" style="margin-top: 0.8rem;">
+		<button class="btn btn-primary" type="submit">Guardar support</button>
+		<a class="btn" href="{% url 'modelo-list' model_slug=model_slug %}">Cancelar</a>
+	</div>
+</form>
+{% endblock %}
+

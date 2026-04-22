@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+
+{% block title %}Formulario Bitacora{% endblock %}
+
+{% block content %}
+<h1>Bitacora</h1>
+
+<style>
+    .bitacora-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 0.9rem;
+    }
+    .bitacora-field {
+        margin-bottom: 0.8rem;
+    }
+    .bitacora-field label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 0.3rem;
+    }
+    .bitacora-full {
+        grid-column: 1 / -1;
+    }
+</style>
+
+<form method="post">
+    {% csrf_token %}
+
+    <div class="bitacora-grid">
+        <div class="bitacora-field">
+            {{ form.folio_bitacora.label_tag }}
+            {{ form.folio_bitacora }}
+            {{ form.folio_bitacora.errors }}
+        </div>
+        <div class="bitacora-field">
+            {{ form.fecha_bitacora.label_tag }}
+            {{ form.fecha_bitacora }}
+            {{ form.fecha_bitacora.errors }}
+        </div>
+        <div class="bitacora-field bitacora-full">
+            {{ form.situacion.label_tag }}
+            {{ form.situacion }}
+            {{ form.situacion.errors }}
+        </div>
+        <div class="bitacora-field bitacora-full">
+            {{ form.descripcion_situacion.label_tag }}
+            {{ form.descripcion_situacion }}
+            {{ form.descripcion_situacion.errors }}
+        </div>
+    </div>
+
+    <button class="btn btn-primary" type="submit">Guardar</button>
+    <a class="btn" href="{% url 'modelo-list' model_slug=model_slug %}">Cancelar</a>
+</form>
+{% endblock %}

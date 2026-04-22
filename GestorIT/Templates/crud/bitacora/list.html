@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+
+{% block title %}Bitacora - Gestor IT{% endblock %}
+
+{% block content %}
+<h1>Bitacora</h1>
+
+<div class="actions">
+    <a class="btn btn-primary" href="{% url 'modelo-create' model_slug=model_slug %}">Nueva bitacora</a>
+    <a class="btn" href="{% url 'home' %}">Volver al inicio</a>
+</div>
+
+{% if objetos %}
+<table>
+    <thead>
+        <tr>
+            <th>Folio</th>
+            <th>Fecha</th>
+            <th>Situacion</th>
+            <th>Descripcion de la situacion</th>
+            <th>Acciones</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for bitacora in objetos %}
+        <tr>
+            <td><strong>{{ bitacora.folio_bitacora }}</strong></td>
+            <td>{{ bitacora.fecha_bitacora|date:"Y-m-d H:i" }}</td>
+            <td>{{ bitacora.situacion }}</td>
+            <td>{{ bitacora.descripcion_situacion }}</td>
+            <td>
+                <a class="btn" href="{% url 'modelo-update' model_slug=model_slug pk=bitacora.pk %}">Editar</a>
+                <a class="btn btn-danger" href="{% url 'modelo-delete' model_slug=model_slug pk=bitacora.pk %}">Eliminar</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>No hay registros de bitacora.</p>
+{% endif %}
+{% endblock %}

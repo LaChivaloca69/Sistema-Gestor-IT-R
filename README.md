@@ -123,6 +123,7 @@ A continuacion se mostrara un breve repaso de funciones segun los apartados del 
 ## Documentacion tecnica
 - Models: MODELS.md
 - Views CRUD: DocViews.md
+- Templates: DocTemplates.md
 
 ## Inventario (CRUD)
 Modulo para gestionar todo el apartado de IT consultas de equipos, bajas y altas, salidas y entradas de equipos, mantenimientos con sus respectivo seguimiento y calendarios

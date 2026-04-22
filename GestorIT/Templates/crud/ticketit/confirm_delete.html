@@ -1,0 +1,40 @@
+﻿{% extends 'base.html' %}
+
+{% block title %}Eliminar Support{% endblock %}
+
+{% block content %}
+<h1>Eliminar support</h1>
+<p>Esta accion no se puede deshacer. Verifica el registro antes de confirmar.</p>
+
+<table>
+	<tbody>
+		<tr>
+			<th>Folio</th>
+			<td>{{ object.folio_ticket }}</td>
+		</tr>
+		<tr>
+			<th>Requerimiento</th>
+			<td>{{ object.requerimiento }}</td>
+		</tr>
+		<tr>
+			<th>Departamento</th>
+			<td>{{ object.departamento|default:"Sin departamento" }}</td>
+		</tr>
+		<tr>
+			<th>Tipo</th>
+			<td>{{ object.tipo_ticket }}</td>
+		</tr>
+		<tr>
+			<th>Status</th>
+			<td>{{ object.status }}</td>
+		</tr>
+	</tbody>
+</table>
+
+<form method="post" style="margin-top: 1rem;">
+	{% csrf_token %}
+	<button class="btn btn-danger" type="submit">Si, eliminar support</button>
+	<a class="btn" href="{% url 'modelo-list' model_slug=model_slug %}">Cancelar</a>
+</form>
+{% endblock %}
+

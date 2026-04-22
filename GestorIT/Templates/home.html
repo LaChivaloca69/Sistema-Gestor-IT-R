@@ -4,13 +4,19 @@
 
 {% block content %}
 <h1>Panel de modelos</h1>
-<p>Selecciona un modelo para administrar sus registros.</p>
+<p>Selecciona una seccion y despues el modelo que deseas administrar.</p>
 
-<ul class="model-grid">
-	{% for item in modelos %}
-	<li>
-		<a href="{% url 'modelo-list' model_slug=item.slug %}">{{ item.nombre }}</a>
-	</li>
-	{% endfor %}
-</ul>
+{% for section in model_sections %}
+<section style="margin-bottom: 1.25rem;">
+	<h2 style="margin-bottom: 0.25rem;">{{ section.titulo }}</h2>
+	<p style="margin-top: 0; color: #475569;">{{ section.descripcion }}</p>
+	<ul class="model-grid">
+		{% for item in section.items %}
+		<li>
+			<a href="{% url 'modelo-list' model_slug=item.slug %}">{{ item.nombre }}</a>
+		</li>
+		{% endfor %}
+	</ul>
+</section>
+{% endfor %}
 {% endblock %}

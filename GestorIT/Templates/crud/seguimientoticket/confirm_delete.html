@@ -1,0 +1,32 @@
+﻿{% extends 'base.html' %}
+
+{% block title %}Eliminar Check{% endblock %}
+
+{% block content %}
+<h1>Eliminar check</h1>
+<p>Seguro que deseas eliminar este check?</p>
+
+<table>
+    <tbody>
+        <tr>
+            <th>Support</th>
+            <td>{{ object.ticket }}</td>
+        </tr>
+        <tr>
+            <th>Folio check</th>
+            <td>{{ object.folio_check|default:"-" }}</td>
+        </tr>
+        <tr>
+            <th>Usuario</th>
+            <td>{{ object.usuario }}</td>
+        </tr>
+    </tbody>
+</table>
+
+<form method="post" style="margin-top: 1rem;">
+    {% csrf_token %}
+    <button class="btn btn-danger" type="submit">Si, eliminar</button>
+    <a class="btn" href="{% url 'modelo-list' model_slug=model_slug %}">Cancelar</a>
+</form>
+{% endblock %}
+

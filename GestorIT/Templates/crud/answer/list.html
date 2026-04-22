@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+
+{% block title %}Answer - Gestor IT{% endblock %}
+
+{% block content %}
+<h1>Answer</h1>
+
+<div class="actions">
+    <a class="btn btn-primary" href="{% url 'modelo-create' model_slug=model_slug %}">Nuevo answer</a>
+    <a class="btn" href="{% url 'home' %}">Volver al inicio</a>
+</div>
+
+{% if objetos %}
+<table>
+    <thead>
+        <tr>
+            <th>Bitacora</th>
+            <th>Folio</th>
+            <th>Fecha</th>
+            <th>Solucion</th>
+            <th>Descripcion de solucion</th>
+            <th>Acciones</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for answer in objetos %}
+        <tr>
+            <td>{{ answer.bitacora }}</td>
+            <td><strong>{{ answer.folio_answer }}</strong></td>
+            <td>{{ answer.fecha_answer|date:"Y-m-d H:i" }}</td>
+            <td>{{ answer.solucion }}</td>
+            <td>{{ answer.descripcion_solucion }}</td>
+            <td>
+                <a class="btn" href="{% url 'modelo-update' model_slug=model_slug pk=answer.pk %}">Editar</a>
+                <a class="btn btn-danger" href="{% url 'modelo-delete' model_slug=model_slug pk=answer.pk %}">Eliminar</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>No hay registros de answer.</p>
+{% endif %}
+{% endblock %}
