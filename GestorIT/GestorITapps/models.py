@@ -1,4 +1,6 @@
-from django.db import models
+import re
+
+from django.db import IntegrityError, models
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 
@@ -216,6 +218,9 @@ class EstadoSupport(models.TextChoices):
 
 
 class TicketIT(models.Model):
+    FOLIO_PREFIX = 'SPR0-'
+    FOLIO_WIDTH = 6
+
     folio_ticket = models.CharField(max_length=30, unique=True)
     fecha_support = models.DateTimeField(default=timezone.now)
     requerimiento = models.CharField(max_length=180, default='')
@@ -235,25 +240,59 @@ class TicketIT(models.Model):
         verbose_name = 'Support'
         verbose_name_plural = 'Support'
 
+    @classmethod
+    def _next_folio_ticket(cls):
+        folios = cls.objects.filter(
+            folio_ticket__startswith=cls.FOLIO_PREFIX
+        ).order_by('-folio_ticket').values_list('folio_ticket', flat=True)
+
+        for folio in folios:
+            suffix = folio[len(cls.FOLIO_PREFIX):]
+            if suffix.isdigit():
+                next_number = int(suffix) + 1
+                return f'{cls.FOLIO_PREFIX}{next_number:0{cls.FOLIO_WIDTH}d}'
+
+        return f'{cls.FOLIO_PREFIX}{1:0{cls.FOLIO_WIDTH}d}'
+
     def clean(self):
-        if self.folio_ticket and not self.folio_ticket.upper().startswith('SPRT-'):
-            raise ValidationError({'folio_ticket': 'El folio del Support debe iniciar con SPRT-.'})
+        if self.folio_ticket:
+            folio = self.folio_ticket.upper()
+            if not re.fullmatch(r'SPR0-\d{6}', folio):
+                # Permite editar registros legacy sin cambiarles el folio.
+                if not self.pk:
+                    raise ValidationError({'folio_ticket': 'El folio del Support debe tener formato SPR0-000001.'})
+                original_folio = TicketIT.objects.filter(pk=self.pk).values_list('folio_ticket', flat=True).first()
+                if not original_folio or original_folio.upper() != folio:
+                    raise ValidationError({'folio_ticket': 'El folio del Support debe tener formato SPR0-000001.'})
         if self.tipo_equipo == TipoEquipoSupport.OTRO and not self.otro_tipo_equipo:
             raise ValidationError({'otro_tipo_equipo': 'Especifica el tipo de equipo cuando seleccionas "Otro".'})
 
     def save(self, *args, **kwargs):
-        if self.folio_ticket:
-            self.folio_ticket = self.folio_ticket.upper()
         if self.tipo_equipo != TipoEquipoSupport.OTRO:
             self.otro_tipo_equipo = None
-        super().save(*args, **kwargs)
+
+        if self.folio_ticket:
+            self.folio_ticket = self.folio_ticket.upper()
+            super().save(*args, **kwargs)
+            return
+
+        # Genera folio automatico y reintenta ante colision de concurrencia.
+        for _ in range(3):
+            self.folio_ticket = self._next_folio_ticket()
+            try:
+                super().save(*args, **kwargs)
+                return
+            except IntegrityError:
+                self.folio_ticket = None
+
+        raise IntegrityError('No se pudo generar un folio unico para Support.')
 
     def __str__(self):
         return self.folio_ticket
 
 
 class SeguimientoTicket(models.Model):
-    ticket = models.ForeignKey(TicketIT, on_delete=models.CASCADE, related_name='checks')
+    ticket = models.OneToOneField(TicketIT, on_delete=models.CASCADE, related_name='ticket_check')
     folio_check = models.CharField(max_length=30, blank=True, null=True)
     fecha_check = models.DateTimeField(default=timezone.now)
     usuario = models.CharField(max_length=150, default='')
@@ -266,10 +305,16 @@ class SeguimientoTicket(models.Model):
         verbose_name_plural = 'Check'
 
     def clean(self):
-        if self.folio_check and not self.folio_check.upper().startswith('SPRT-'):
-            raise ValidationError({'folio_check': 'El folio de Check debe iniciar con SPRT-'})
+        if self.folio_check:
+            folio = self.folio_check.upper()
+            if not (re.fullmatch(r'SPR0-\d{6}', folio) or folio.startswith('SPRT-')):
+                raise ValidationError({'folio_check': 'El folio de Check debe tener formato SPR0-000001.'})
+        if self.ticket_id and self.folio_check and self.folio_check.upper() != self.ticket.folio_ticket:
+            raise ValidationError({'folio_check': 'El folio de Check debe coincidir con el folio del Support seleccionado.'})
 
     def save(self, *args, **kwargs):
+        if self.ticket_id and self.ticket and self.ticket.folio_ticket:
+            self.folio_check = self.ticket.folio_ticket
         if self.folio_check:
             self.folio_check = self.folio_check.upper()
         super().save(*args, **kwargs)
@@ -319,6 +364,8 @@ class Answer(models.Model):
             raise ValidationError({'folio_answer': 'El folio de Answer debe coincidir con el folio de la Bitacora seleccionada.'})
 
     def save(self, *args, **kwargs):
+        if self.bitacora_id and self.bitacora and self.bitacora.folio_bitacora:
+            self.folio_answer = self.bitacora.folio_bitacora
         if self.folio_answer:
             self.folio_answer = self.folio_answer.upper()
         super().save(*args, **kwargs)

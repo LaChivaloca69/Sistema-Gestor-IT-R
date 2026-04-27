@@ -28,6 +28,11 @@
 		margin-bottom: 0.4rem;
 		color: #0f172a;
 	}
+	.ticket-hint {
+		font-size: 0.9rem;
+		color: #475569;
+		margin-bottom: 0.6rem;
+	}
 </style>
 
 <form method="post">
@@ -38,12 +43,12 @@
 	{% endif %}
 
 	<h3 class="section-title">Datos principales</h3>
+	{% if object and object.folio_ticket %}
+		<p class="ticket-hint">Folio asignado: <strong>{{ object.folio_ticket }}</strong></p>
+	{% else %}
+		<p class="ticket-hint">El folio se genera automaticamente al guardar (SPR0-000001, SPR0-000002, ...).</p>
+	{% endif %}
 	<div class="ticket-grid">
-		<div class="ticket-field">
-			{{ form.folio_ticket.label_tag }}
-			{{ form.folio_ticket }}
-			{{ form.folio_ticket.errors }}
-		</div>
 		<div class="ticket-field">
 			{{ form.fecha_support.label_tag }}
 			{{ form.fecha_support }}

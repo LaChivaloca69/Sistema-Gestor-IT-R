@@ -2,6 +2,8 @@ from django.forms import modelform_factory
 from django.http import Http404
 from django.urls import reverse
 from django.views.generic import CreateView, DeleteView, ListView, TemplateView, UpdateView
+
+from .forms import AnswerForm, SeguimientoTicketForm, TicketITForm
 # Modelos importados para registro y mapeo dinamico en vistas genericas.
 from .models import (
 	AgendaMantenimiento,
@@ -160,6 +162,12 @@ class ModelContextMixin:
 		return super().dispatch(request, *args, **kwargs)
 
 	def get_form_class(self):
+		if self.model is TicketIT:
+			return TicketITForm
+		if self.model is SeguimientoTicket:
+			return SeguimientoTicketForm
+		if self.model is Answer:
+			return AnswerForm
 		# Evita exponer IDs/autocampos en formularios dinamicos.
 		form_fields = [
 			field.name

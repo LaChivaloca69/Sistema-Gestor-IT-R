@@ -22,6 +22,11 @@
     .answer-full {
         grid-column: 1 / -1;
     }
+    .answer-hint {
+        font-size: 0.85rem;
+        color: #475569;
+        margin-top: 0.2rem;
+    }
 </style>
 
 <form method="post">
@@ -32,11 +37,7 @@
             {{ form.bitacora.label_tag }}
             {{ form.bitacora }}
             {{ form.bitacora.errors }}
-        </div>
-        <div class="answer-field">
-            {{ form.folio_answer.label_tag }}
-            {{ form.folio_answer }}
-            {{ form.folio_answer.errors }}
+            <p class="answer-hint">El folio se toma de la Bitacora seleccionada.</p>
         </div>
         <div class="answer-field">
             {{ form.fecha_answer.label_tag }}

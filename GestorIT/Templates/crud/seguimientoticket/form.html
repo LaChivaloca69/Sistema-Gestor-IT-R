@@ -22,6 +22,11 @@
     .check-full {
         grid-column: 1 / -1;
     }
+    .check-hint {
+        font-size: 0.85rem;
+        color: #475569;
+        margin-top: 0.2rem;
+    }
 </style>
 
 <form method="post">
@@ -32,11 +37,7 @@
             {{ form.ticket.label_tag }}
             {{ form.ticket }}
             {{ form.ticket.errors }}
-        </div>
-        <div class="check-field">
-            {{ form.folio_check.label_tag }}
-            {{ form.folio_check }}
-            {{ form.folio_check.errors }}
+            <p class="check-hint">El folio se toma del Support seleccionado.</p>
         </div>
         <div class="check-field">
             {{ form.fecha_check.label_tag }}
