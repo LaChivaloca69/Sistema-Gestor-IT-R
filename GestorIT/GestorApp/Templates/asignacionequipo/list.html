@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}Asignaciones de equipo{% endblock %}
+
+{% block content %}
+<h1>Asignaciones de equipo</h1>
+<div class="actions">
+	<a class="btn btn-primary" href="{% url 'asignacionequipo_create' %}">Nueva Asignacion</a>
+</div>
+<table>
+	<thead>
+		<tr>
+			<th>Equipo</th>
+			<th>Personal</th>
+			<th>Fecha asignacion</th>
+			<th>Fecha devolucion</th>
+			<th>Estado</th>
+			<th>Acciones</th>
+		</tr>
+	</thead>
+	<tbody>
+		{% for item in items %}
+		<tr>
+			<td>{{ item.equipo }}</td>
+			<td>{{ item.personal }}</td>
+			<td>{{ item.fecha_asignacion }}</td>
+			<td>{{ item.fecha_devolucion }}</td>
+			<td>{{ item.estado_asignacion }}</td>
+			<td>
+				<a class="btn" href="{% url 'asignacionequipo_update' item.pk %}">Editar</a>
+				<a class="btn btn-danger" href="{% url 'asignacionequipo_delete' item.pk %}">Eliminar</a>
+			</td>
+		</tr>
+		{% empty %}
+		<tr>
+			<td colspan="6">No hay registros.</td>
+		</tr>
+		{% endfor %}
+	</tbody>
+</table>
+{% endblock %}

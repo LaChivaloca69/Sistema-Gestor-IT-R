@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Ubicaciones{% endblock %}
+
+{% block content %}
+<h1>Ubicaciones</h1>
+<div class="actions">
+	<a class="btn btn-primary" href="{% url 'ubicacion_create' %}">Nueva Ubicacion</a>
+</div>
+<table>
+	<thead>
+		<tr>
+			<th>Edificio</th>
+			<th>Zona</th>
+			<th>Pasillo</th>
+			<th>Rack</th>
+			<th>Anaquel</th>
+			<th>Referencia</th>
+			<th>Activo</th>
+			<th>Acciones</th>
+		</tr>
+	</thead>
+	<tbody>
+		{% for item in items %}
+		<tr>
+			<td>{{ item.edificio }}</td>
+			<td>{{ item.zona }}</td>
+			<td>{{ item.pasillo }}</td>
+			<td>{{ item.rack }}</td>
+			<td>{{ item.anaquel }}</td>
+			<td>{{ item.referencia }}</td>
+			<td>{{ item.activo|yesno:"Si,No" }}</td>
+			<td>
+				<a class="btn" href="{% url 'ubicacion_update' item.pk %}">Editar</a>
+				<a class="btn btn-danger" href="{% url 'ubicacion_delete' item.pk %}">Eliminar</a>
+			</td>
+		</tr>
+		{% empty %}
+		<tr>
+			<td colspan="8">No hay registros.</td>
+		</tr>
+		{% endfor %}
+	</tbody>
+</table>
+{% endblock %}

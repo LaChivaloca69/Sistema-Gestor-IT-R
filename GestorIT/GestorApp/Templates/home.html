@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}Inicio{% endblock %}
+
+{% block content %}
+<h1>Bienvenido a Gestor IT</h1>
+{% if user.is_authenticated %}
+<p>Hola {{ user.username }}, usa el menu lateral para navegar.</p>
+{% else %}
+<p>Inicia sesion para acceder al sistema.</p>
+<div class="actions">
+	<a class="btn btn-primary" href="{% url 'login' %}">Iniciar sesion</a>
+	<a class="btn" href="{% url 'signup' %}">Crear usuario</a>
+</div>
+{% endif %}
+{% endblock %}

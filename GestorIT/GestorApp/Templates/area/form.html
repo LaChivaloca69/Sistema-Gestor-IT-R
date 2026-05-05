@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Editar Area{% else %}Nueva Area{% endif %}{% endblock %}
+
+{% block content %}
+<h1>{% if object %}Editar Area{% else %}Nueva Area{% endif %}</h1>
+<div class="actions">
+	<a class="btn" href="{% url 'area_list' %}">Volver</a>
+</div>
+<form method="post">
+	{% csrf_token %}
+	{{ form.as_p }}
+	<button class="btn btn-primary" type="submit">Guardar</button>
+</form>
+{% endblock %}

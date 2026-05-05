@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}Categorias de equipo{% endblock %}
+
+{% block content %}
+<h1>Categorias de equipo</h1>
+<div class="actions">
+	<a class="btn btn-primary" href="{% url 'categoriaequipo_create' %}">Nueva Categoria</a>
+</div>
+<table>
+	<thead>
+		<tr>
+			<th>Nombre</th>
+			<th>Descripcion</th>
+			<th>Activo</th>
+			<th>Acciones</th>
+		</tr>
+	</thead>
+	<tbody>
+		{% for item in items %}
+		<tr>
+			<td>{{ item.nombre_categoria }}</td>
+			<td>{{ item.descripcion_categoria }}</td>
+			<td>{{ item.activo|yesno:"Si,No" }}</td>
+			<td>
+				<a class="btn" href="{% url 'categoriaequipo_update' item.pk %}">Editar</a>
+				<a class="btn btn-danger" href="{% url 'categoriaequipo_delete' item.pk %}">Eliminar</a>
+			</td>
+		</tr>
+		{% empty %}
+		<tr>
+			<td colspan="4">No hay registros.</td>
+		</tr>
+		{% endfor %}
+	</tbody>
+</table>
+{% endblock %}

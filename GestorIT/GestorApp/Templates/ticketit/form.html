@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Editar Support{% else %}Nuevo Support{% endif %}{% endblock %}
+
+{% block content %}
+<h1>{% if object %}Editar Support{% else %}Nuevo Support{% endif %}</h1>
+<div class="actions">
+	<a class="btn" href="{% url 'ticketit_list' %}">Volver</a>
+</div>
+<form method="post">
+	{% csrf_token %}
+	{{ form.as_p }}
+	<button class="btn btn-primary" type="submit">Guardar</button>
+</form>
+
+<script>
+	(function () {
+		const tipoField = document.getElementById("id_tipo_ticket");
+		const subtipoField = document.getElementById("id_sub_tipo_ticket");
+		if (!tipoField || !subtipoField) {
+			return;
+		}
+
+		const endpoint = "{% url 'ticketit_subtipo_choices' %}";
+
+		const updateSubtipos = (tipoTicket) => {
+			if (!tipoTicket) {
+				subtipoField.innerHTML = '<option value="">---------</option>';
+				return;
+			}
+
+			fetch(`${endpoint}?tipo_ticket=${encodeURIComponent(tipoTicket)}`)
+				.then((response) => response.json())
+				.then((data) => {
+					const currentValue = subtipoField.value;
+					subtipoField.innerHTML = "";
+					data.choices.forEach((choice) => {
+						const option = document.createElement("option");
+						option.value = choice.value;
+						option.textContent = choice.label;
+						subtipoField.appendChild(option);
+					});
+
+					if (currentValue) {
+						const optionToSelect = Array.from(subtipoField.options).find(
+							(option) => option.value === currentValue
+						);
+						if (optionToSelect) {
+							optionToSelect.selected = true;
+						}
+					}
+				})
+				.catch(() => {
+					// Keep current choices on error.
+				});
+		};
+
+		tipoField.addEventListener("change", (event) => {
+			updateSubtipos(event.target.value);
+		});
+
+		if (tipoField.value) {
+			updateSubtipos(tipoField.value);
+		}
+	})();
+</script>
+{% endblock %}

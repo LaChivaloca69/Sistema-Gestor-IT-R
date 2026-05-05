@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}Eliminar Zona de edificio{% endblock %}
+
+{% block content %}
+<h1>Eliminar Zona de edificio</h1>
+<p>Estas seguro que deseas eliminar "{{ object }}"?</p>
+<div class="actions">
+	<a class="btn" href="{% url 'zonaedificio_list' %}">Volver</a>
+</div>
+<form method="post">
+	{% csrf_token %}
+	<button class="btn btn-danger" type="submit">Eliminar</button>
+</form>
+{% endblock %}
