@@ -1,7 +1,10 @@
 import re
 from django.conf import settings
-from django.db import IntegrityError, models
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from django.db import IntegrityError, models
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
 from django.utils import timezone
 
 class Area(models.Model):
@@ -25,6 +28,13 @@ class Puesto(models.Model):
 
 class Personal(models.Model):
     numero_empleado = models.CharField(max_length=30, unique=True)
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='personal_profile',
+    )
     nombre = models.CharField(max_length=100)
     apellido_paterno = models.CharField(max_length=100)
     apellido_materno = models.CharField(max_length=100, blank=True, null=True)
@@ -38,6 +48,12 @@ class Personal(models.Model):
 
     def __str__(self):
         return f"{self.numero_empleado} - {self.nombre} {self.apellido_paterno}"
+
+
+@receiver(post_delete, sender=Personal)
+def delete_user_for_personal(sender, instance, **kwargs):
+    if instance.user_id:
+        get_user_model().objects.filter(pk=instance.user_id).delete()
 
 
 class Proveedor(models.Model):
@@ -392,6 +408,13 @@ class Answer(models.Model):
         return f'{self.folio_answer} - {self.solucion}'
 
 
+class EstadoPresupuesto(models.TextChoices):
+    BORRADOR = "Borrador", "Borrador"
+    EN_PROCESO = "En Proceso", "En Proceso"
+    TERMINADO = "Terminado", "Terminado"
+    CANCELADO = "Cancelado", "Cancelado"
+
+
 class Presupuesto(models.Model):
     folio_presupuesto = models.CharField(max_length=30, unique=True)
     cliente_o_area = models.CharField(max_length=150)
@@ -400,7 +423,11 @@ class Presupuesto(models.Model):
     numero_importacion = models.CharField(max_length=50, null=True)
     fecha_compra = models.DateField(null=True)
     archivo_pdf = models.FileField(upload_to='presupuestos', blank=True, null=True)
-    estado_presupuesto = models.CharField(max_length=30, default='Borrador')
+    estado_presupuesto = models.CharField(
+        max_length=30,
+        choices=EstadoPresupuesto.choices,
+        default=EstadoPresupuesto.BORRADOR,
+    )
     notas = models.CharField(max_length=255, blank=True, null=True)
 
 
@@ -418,10 +445,16 @@ class CompraMaterial(models.Model):
     fecha_compra = models.DateField()
     proveedor = models.ForeignKey(Proveedor, on_delete=models.SET_NULL, null=True, blank=True)
     solicitado_por = models.CharField(max_length=150, blank=True, null=True)
-    subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    impuestos = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    estado_compra = models.CharField(max_length=30, default='Solicitada')
+    estado_compra = models.CharField(
+        max_length=30,
+        choices=(
+            ("Solicitada", "Solicitada"),
+            ("En Proceso", "En Proceso"),
+            ("Terminado", "Terminado"),
+            ("Cancelada", "Cancelada"),
+        ),
+        default="Solicitada",
+    )
     observaciones = models.CharField(max_length=255, blank=True, null=True)
 
 

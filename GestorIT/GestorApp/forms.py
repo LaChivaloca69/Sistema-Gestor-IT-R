@@ -182,6 +182,7 @@ class UserRegisterForm(UserCreationForm):
         with transaction.atomic():
             user = super().save(commit=True)
             Personal.objects.create(
+                user=user,
                 numero_empleado=self.cleaned_data["numero_empleado"],
                 nombre=self.cleaned_data["nombre"],
                 apellido_paterno=self.cleaned_data["apellido_paterno"],

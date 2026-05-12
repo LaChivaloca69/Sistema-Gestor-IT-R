@@ -369,9 +369,7 @@
                 <div class="sidebar-section">
                     <p class="sidebar-section-title">Gestion economica</p>
                     <a class="sidebar-link {% if request.resolver_match.url_name == 'presupuesto_list' %}active{% endif %}" href="{% url 'presupuesto_list' %}">Presupuestos</a>
-                    <a class="sidebar-link {% if request.resolver_match.url_name == 'detallepresupuesto_list' %}active{% endif %}" href="{% url 'detallepresupuesto_list' %}">Detalle presupuesto</a>
                     <a class="sidebar-link {% if request.resolver_match.url_name == 'compramaterial_list' %}active{% endif %}" href="{% url 'compramaterial_list' %}">Compras material</a>
-                    <a class="sidebar-link {% if request.resolver_match.url_name == 'detallecompramaterial_list' %}active{% endif %}" href="{% url 'detallecompramaterial_list' %}">Detalle compra</a>
                 </div>
             </div>
             </div>

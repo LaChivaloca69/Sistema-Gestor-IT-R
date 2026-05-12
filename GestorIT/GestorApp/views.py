@@ -1,6 +1,8 @@
 from django import forms
 from django.contrib import messages
-from django.contrib.auth import login
+from django.contrib.auth import get_user_model, login
+from django.contrib.auth.password_validation import validate_password
+from django.db import transaction
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
@@ -126,12 +128,148 @@ def puesto_delete(request, pk):
 
 # ============  Personal views ==============
 class PersonalForm(forms.ModelForm):
+    account_action = forms.ChoiceField(
+        choices=(
+            ("none", "Sin usuario"),
+            ("assign", "Asignar usuario existente"),
+            ("create", "Crear usuario nuevo"),
+        ),
+        required=False,
+        label="Accion de usuario",
+    )
+    user_existing = forms.ModelChoiceField(
+        queryset=get_user_model().objects.none(),
+        required=False,
+        label="Usuario existente",
+    )
+    username = forms.CharField(
+        max_length=150,
+        required=False,
+        label="Nuevo usuario",
+    )
+    email = forms.EmailField(
+        required=False,
+        label="Correo del usuario",
+    )
+    password1 = forms.CharField(
+        widget=forms.PasswordInput,
+        required=False,
+        label="Contrasena",
+    )
+    password2 = forms.CharField(
+        widget=forms.PasswordInput,
+        required=False,
+        label="Confirmar contrasena",
+    )
+
     class Meta:
         model = Personal
-        fields = "__all__"
+        exclude = ["user"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        User = get_user_model()
+        qs = User.objects.filter(personal_profile__isnull=True)
+        if self.instance and self.instance.pk and self.instance.user_id:
+            qs = User.objects.filter(pk=self.instance.user_id) | qs
+            self.fields["account_action"].initial = "assign"
+            self.fields["user_existing"].initial = self.instance.user
+        self.fields["user_existing"].queryset = qs.distinct()
+        if not self.instance or not self.instance.pk:
+            self.fields["account_action"].initial = "none"
+        self.fields["account_action"].help_text = "Selecciona crear o asignar un usuario."
+        self.account_fields = (
+            "account_action",
+            "user_existing",
+            "username",
+            "email",
+            "password1",
+            "password2",
+        )
+
+    def clean(self):
+        cleaned = super().clean()
+        action = cleaned.get("account_action") or "none"
+        existing_user = cleaned.get("user_existing")
+        username = (cleaned.get("username") or "").strip()
+        email = (cleaned.get("email") or "").strip()
+        password1 = cleaned.get("password1") or ""
+        password2 = cleaned.get("password2") or ""
+
+        if action == "none":
+            if existing_user or username or email or password1 or password2:
+                self.add_error(
+                    "account_action",
+                    "No llenes datos de usuario si eliges Sin usuario.",
+                )
+        elif action == "assign":
+            if not existing_user:
+                self.add_error("user_existing", "Selecciona un usuario.")
+            if username or email or password1 or password2:
+                self.add_error(
+                    "username",
+                    "No llenes los datos de usuario nuevo si asignas uno existente.",
+                )
+        elif action == "create":
+            if existing_user:
+                self.add_error(
+                    "user_existing",
+                    "No selecciones un usuario existente si vas a crear uno.",
+                )
+            if not username:
+                self.add_error("username", "Captura un nombre de usuario.")
+            elif get_user_model().objects.filter(username__iexact=username).exists():
+                self.add_error("username", "Ese nombre de usuario ya existe.")
+            if not email:
+                self.add_error("email", "Captura un correo de usuario.")
+            if not password1 or not password2:
+                self.add_error("password1", "Captura la contrasena.")
+            elif password1 != password2:
+                self.add_error("password2", "Las contrasenas no coinciden.")
+            else:
+                try:
+                    validate_password(password1)
+                except forms.ValidationError as exc:
+                    self.add_error("password1", exc)
+
+        if action == "assign" and existing_user:
+            conflict_qs = Personal.objects.filter(user=existing_user)
+            if self.instance and self.instance.pk:
+                conflict_qs = conflict_qs.exclude(pk=self.instance.pk)
+            if conflict_qs.exists():
+                self.add_error(
+                    "user_existing",
+                    "Ese usuario ya esta asignado a otro personal.",
+                )
+
+        return cleaned
+
+    def save(self, commit=True):
+        action = self.cleaned_data.get("account_action") or "none"
+        if action == "create":
+            with transaction.atomic():
+                user = get_user_model().objects.create_user(
+                    username=self.cleaned_data["username"].strip(),
+                    email=self.cleaned_data["email"].strip(),
+                    password=self.cleaned_data["password1"],
+                )
+                personal = super().save(commit=False)
+                personal.user = user
+                if commit:
+                    personal.save()
+                return personal
+
+        personal = super().save(commit=False)
+        if action == "assign":
+            personal.user = self.cleaned_data.get("user_existing")
+        elif action == "none":
+            personal.user = None
+        if commit:
+            personal.save()
+        return personal
 
 def personal_list(request):
-    items = Personal.objects.all()
+    items = Personal.objects.select_related("user").all()
     return render(request, "personal/list.html", {"items": items})
 
 
@@ -809,7 +947,25 @@ def answer_delete(request, pk):
 class PresupuestoForm(forms.ModelForm):
     class Meta:
         model = Presupuesto
-        fields = "__all__"
+        fields = [
+            "folio_presupuesto",
+            "cliente_o_area",
+            "elaborado_por",
+            "numero_pedimiento",
+            "numero_importacion",
+            "fecha_compra",
+            "archivo_pdf",
+            "estado_presupuesto",
+            "notas",
+        ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        field = self.fields.get("estado_presupuesto")
+        if field and self.instance and self.instance.pk:
+            current = self.instance.estado_presupuesto
+            if current and current not in dict(field.choices):
+                field.choices = list(field.choices) + [(current, current)]
 
     def clean_archivo_pdf(self):
         archivo = self.cleaned_data.get("archivo_pdf")
@@ -912,7 +1068,22 @@ def Detallepresupuesto_delete(request, pk):
 class CompraMaterialForm(forms.ModelForm):
     class Meta:
         model = CompraMaterial
-        fields = "__all__"
+        fields = [
+            "folio_compra",
+            "fecha_compra",
+            "proveedor",
+            "solicitado_por",
+            "estado_compra",
+            "observaciones",
+        ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        field = self.fields.get("estado_compra")
+        if field and self.instance and self.instance.pk:
+            current = self.instance.estado_compra
+            if current and current not in dict(field.choices):
+                field.choices = list(field.choices) + [(current, current)]
 
 def compramaterial_list(request):
     items = CompraMaterial.objects.all()

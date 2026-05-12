@@ -9,7 +9,71 @@
 </div>
 <form method="post">
 	{% csrf_token %}
-	{{ form.as_p }}
+	{{ form.non_field_errors }}
+	<fieldset>
+		<legend>Usuario</legend>
+		{% for field in form %}
+			{% if field.name in form.account_fields %}
+			<div class="form-row" id="row-{{ field.name }}">
+				<p>
+					{{ field.label_tag }}
+					{{ field }}
+					{{ field.errors }}
+					{% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+				</p>
+			</div>
+			{% endif %}
+		{% endfor %}
+	</fieldset>
+	<fieldset>
+		<legend>Datos del personal</legend>
+		{% for field in form %}
+			{% if field.name not in form.account_fields %}
+			<p>
+				{{ field.label_tag }}
+				{{ field }}
+				{{ field.errors }}
+				{% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+			</p>
+			{% endif %}
+		{% endfor %}
+	</fieldset>
 	<button class="btn btn-primary" type="submit">Guardar</button>
 </form>
+
+<script>
+	(function () {
+		var actionSelect = document.getElementById("id_account_action");
+		var rowExisting = document.getElementById("row-user_existing");
+		var rowUsername = document.getElementById("row-username");
+		var rowEmail = document.getElementById("row-email");
+		var rowPassword1 = document.getElementById("row-password1");
+		var rowPassword2 = document.getElementById("row-password2");
+
+		function setVisible(el, visible) {
+			if (!el) {
+				return;
+			}
+			el.style.display = visible ? "" : "none";
+		}
+
+		function syncAccountFields() {
+			if (!actionSelect) {
+				return;
+			}
+			var value = actionSelect.value || "none";
+			setVisible(rowExisting, value === "assign");
+			var showCreate = value === "create";
+			setVisible(rowUsername, showCreate);
+			setVisible(rowEmail, showCreate);
+			setVisible(rowPassword1, showCreate);
+			setVisible(rowPassword2, showCreate);
+		}
+
+		if (actionSelect) {
+			actionSelect.addEventListener("change", syncAccountFields);
+		}
+		syncAccountFields();
+	})();
+</script>
 {% endblock %}
