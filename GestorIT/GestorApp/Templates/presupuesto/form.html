@@ -7,9 +7,28 @@
 <div class="actions">
 	<a class="btn" href="{% url 'presupuesto_list' %}">Volver</a>
 </div>
-<form method="post">
+<form method="post" enctype="multipart/form-data">
 	{% csrf_token %}
-	{{ form.as_p }}
+	{{ form.non_field_errors }}
+	{% for field in form %}
+		{% if field.is_hidden %}
+			{{ field }}
+		{% else %}
+			<p>
+				{{ field.label_tag }}
+				{{ field }}
+				{% if field.help_text %}
+					<span class="helptext">{{ field.help_text }}</span>
+				{% endif %}
+				{% if field.name == "archivo_pdf" %}
+					<span class="helptext">Archivo opcional. Maximo 50 MB. Formato permitido: PDF.</span>
+				{% endif %}
+				{% for error in field.errors %}
+					<span class="error">{{ error }}</span>
+				{% endfor %}
+			</p>
+		{% endif %}
+	{% endfor %}
 	<button class="btn btn-primary" type="submit">Guardar</button>
 </form>
 {% endblock %}

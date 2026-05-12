@@ -1,12 +1,14 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
+from django.db import transaction
 from django.db.models import Q
 
 from .models import (
     Answer,
     CategoriaEquipo,
     EstadoSupport,
+    Personal,
     SeguimientoTicket,
     TicketIT,
     Ubicacion,
@@ -17,38 +19,37 @@ from .models import (
 def get_subtipo_ticket_choices(tipo_ticket):
     opciones_por_tipo = {
         # "HELPDESK": [("SUBTIPO_1", "Subtipo 1"), ("SUBTIPO_2", "Subtipo 2")],
-        "ADMINISTRACION": [("Subtipo_1", "AAF COMPARTIR ARCHIVOS"), ("Subtipo_2", "INTRANET"), ("subtipo_3", "BACKUP/RESTORE"), ("Subtipo_4", "BARRACUDA SPAM FIREWALL"), 
-                           ("Subtipo_5", "CADENCY"), ("Subtipo_6", "CER"), ("Subtipo_7", "IMPRESORAS KONICA"), ("Subtipo_8", "ADMINISTRACION LAN"), ("Subtipo_9", "MICROSOFT 365"), 
-                           ("Subtipo_10", "MICROSOFT TEAMS"), ("Subtipo_11", "MITEL"), ("Subtipo_12", "PROBLEMAS DE PASSWORD (DESBLOQUEAR)"), ("Subtipo_13", "APLICACIONES DEL TELEFONO"), 
-                           ("Subtipo_14", "SOLICITUD DE PROYECTO"), ("Subtipo_15", "PETICION DE COMPRA (HARDWARE/SOFTWARE)"), ("Subtipo_16", "QLICKVIEW"), 
-                           ("Subtipo_17", "DAIKIN CORNERSTONE"), ("Subtipo_18", "SAP"), ("Subtipo_19", "SAP GUIXT"), ("Subtipo_20", "SEGURIDAD"), ("Subtipo_21", "SERVIDORES"), ("Subtipo_22", "SHAREPOINT"), 
-                           ("Subtipo_23", "TRUSTWAVE"), ("Subtipo_24", "VIDEOCONFERENCIA"), ("Subtipo_25", "CORREO DE VOZ"), ("Subtipo_26", "VPN"), ("Subtipo_27", "WINDOWS 10"), ("Subtipo_28", "WINDOWS SERVER"), 
-                           ("Subtipo_29", "WIRELESS ACCES POINTS"), ("Subtipo_30", "OTRO")],
-        "BPCS": [("Subtipo_1", "BPCS SEGURIDAD"), ("Subtipo_2", "BPCS CAMBIOS"), ("Subtipo_3", "BPCS PROBLEMAS CON ORDENES"), ("Subtipo_5", "BPCS PROBLEMAS CON IMPRESIONES"), ("Subtipo_7", "OTRO")],
-        "HARDWARE": [("Subtipo_1", "ALARMA DE SEGURIDAD"), ("Subtipo_2", "CAMARAS DE SEGURIDAD"), ("subtipo_3", "TELEFONO DE ESCRITORIO"), ("Subtipo_4", "DESKTOP"), 
-                           ("Subtipo_5", "LAPTOP"), ("Subtipo_6", "MANTENIMIENTO"), ("Subtipo_7", "MONITOR"), ("Subtipo_8", "IMPRESORA"), ("Subtipo_9", "PETICIPON DE COMPRA (HARDWARE/SOFTWARE)"), 
-                           ("Subtipo_10", "ESCANER RF"), ("Subtipo_11", "ESCANER 1D/2D"), ("Subtipo_12", "TABLET"), ("Subtipo_13", "CHECADOR"), 
-                           ("Subtipo_14", "RELOJ"), ("Subtipo_15", "WIRELESS ACCES POINTS"), ("Subtipo_16", "PROBLEMAS CON EQUIPO"), ("Subtipo_17", "OTRO")],
-        "HELPDESK": [("Subtipo_1", "ALARMA DE SEGURIDAD"), ("Subtipo_2", "AAF COMPARTIR ARCHIVOS"), ("subtipo_3", "ADOBE"), ("Subtipo_4", "AUTOCAD SOFTWARE"), 
-                           ("Subtipo_5", "TRESS SOFTWARE"), ("Subtipo_6", "CONTRAQ SOFTWARE"), ("Subtipo_7", "BACKUP/RESTORE"), ("Subtipo_8", "IXPORT SOFTWARE"), ("Subtipo_9", "BARRACUDA SPAM FIREWALL"), 
-                           ("Subtipo_10", "COPIADORA/EQUIPO MULTIFUNCIONAL"), ("Subtipo_11", "DESKTOP"), ("Subtipo_12", "HARD DRIVE"), ("Subtipo_13", "TECLADO/MOUSE"), 
-                           ("Subtipo_14", "LAPTOP"), ("Subtipo_15", "PROBLEMAS DE PASSWORD (DESBLOQUEAR)"), ("Subtipo_16", "IMPRESORA"), ("Subtipo_17", "IMPRESIONES"), 
-                           ("Subtipo_18", "ESCANER RF"), ("Subtipo_19", "ESCANER 1D/2D"), ("Subtipo_20", "VIDEO CONFERENCIA"), ("Subtipo_21", "WINDOWS 10"), ("Subtipo_22", "INTERNET"), 
-                           ("Subtipo_23", "OTRO")],
-        "TELEFONIA": [("Subtipo_1", "CONFIGURACION (NUEVO/TERMINACION/CAMBIO)"), ("Subtipo_2", "TELEFONO CELULAR"), ("Subtipo_3", "TARJETA AT&T"), ("Subtipo_4", "TELEFONO DE ESCRITORIO"), 
-                      ("Subtipo_5", "FAX"), ("Subtipo_6", "COMUNICACION MITEL"), ("Subtipo_7", "ACTUALIZACION DIRECTORIO TELEFONICO"), ("Subtipo_8", "REEMPLAZO DE TELEFONO"), ("Subtipo_9", "PROBLEMAS CON LLAMADAS"), 
-                      ("Subtipo_10", "CORREO DE VOZ"), ("Subtipo_11", "OTRO")],
-        "SOFTWARE": [("Subtipo_1", "TIENDA WEB PARA EMPLEADOS"), ("Subtipo_2", "AAF COMPARTIR ARCHIVOS"), ("subtipo_3", "ADOBE"), ("Subtipo_4", "BUG/ERROR EN APLICACION"), 
-                           ("Subtipo_5", "PROBLEMAS DE DATOS APLICACION"), ("Subtipo_6", "AS/400"), ("Subtipo_7", "AUTOCAD SOFTWARE"), ("Subtipo_8", "TRESS SOFTWARE"), ("Subtipo_9", "CONTRAQ SOFTWARE"), 
-                           ("Subtipo_10", "IXPORT SOFTWARE"), ("Subtipo_11", "BARRACUDA SPAM FIREWALL"), ("Subtipo_12", "BPCS ACCESO A CLIENTES"), ("Subtipo_13", "CADENCY"), 
-                           ("Subtipo_14", "CONFIGIT"), ("Subtipo_15", "PORTAL DE CLIENTES"), ("Subtipo_16", "BPCS"), ("Subtipo_17", "SERVICIOS DE INGENIERIA"), 
-                           ("Subtipo_18", "FEDEX SHIP MANAGER"), ("Subtipo_19", "JAVA"), ("Subtipo_20", "MANTENIMIENTO"), ("Subtipo_21", "MICROSOFT 365"), ("Subtipo_22", "MICROSOFT EXCEL"), ("Subtipo_23", "MICROSOFT OFFICE"), 
-                           ("Subtipo_24", "MICROSOFT ONE NOTE"), ("Subtipo_25", "MICROSOFT POWER POINT"), ("Subtipo_26", "MICROSOFT OUTLOOK"), ("Subtipo_27", "MICROSOFT PROJECT"), ("Subtipo_28", "MICROSOFT TEAMS"), ("Subtipo_29", "MICROSOFT VISIO"), 
-                           ("Subtipo_30", "MICROSOFT WORD"),("Subtipo_31", "MINITAB"), ("Subtipo_32", "NUEVA APLICACION/OTRO"), ("Subtipo_33", "APLICACIONES DEL TELEFONO"), ("Subtipo_34", "POLICIES TECH"), ("Subtipo_35", "IMPRESIONES"), 
-                           ("Subtipo_36", "QLICKVIEW"), ("Subtipo_37", "DAIKIN CORNERSTONE"), ("Subtipo_38", "SAP"), ("Subtipo_39", "SAP SEGURIDAD"), ("Subtipo_40", "SAP MANTENIMIENTO DE DATOS"), ("Subtipo_41", "SAP FORMS"), 
-                           ("Subtipo_42", "SAP GUIXT"), ("Subtipo_43", "SAP INTERFACES"), ("Subtipo_44", "SAP REPORTS"), ("Subtipo_45", "CAMARAS DE SEGURIDAD"), ("Subtipo_46", "SHAREPOINT"), ("Subtipo_47", "SMOPTHIE MAMBO"), 
-                           ("Subtipo_48", "TRUSTWAVE"), ("Subtipo_49", "UPS WORLDSHIP"), ("Subtipo_50", "FTP"), ("Subtipo_51", "VPN"), 
-                           ("Subtipo_52", "OTRO")],
+        "ADMINISTRACION": [("AAF Compartir Archivos", "AAF COMPARTIR ARCHIVOS"), ("Intranet", "INTRANET"), ("Backup/Restore", "BACKUP/RESTORE"), ("Barracuda SPAM FIREWALL", "BARRACUDA SPAM FIREWALL"), 
+                           ("Cadency", "CADENCY"), ("CER", "CER"), ("Impresoras Kónica", "IMPRESORAS KONICA"), ("Administracion LAN", "ADMINISTRACION LAN"), ("Microsoft 365", "MICROSOFT 365"), 
+                           ("Microsoft Teams", "MICROSOFT TEAMS"), ("Mitel", "MITEL"), ("Problemas de Password", "PROBLEMAS DE PASSWORD (DESBLOQUEAR)"), ("Aplicaciones del Teléfono", "APLICACIONES DEL TELEFONO"), 
+                           ("Solicitud de Proyecto", "SOLICITUD DE PROYECTO"), ("Petición de Compra", "PETICION DE COMPRA (HARDWARE/SOFTWARE)"), ("QlikView", "QLICKVIEW"), 
+                           ("DAIKIN CORNERSTONE", "DAIKIN CORNERSTONE"), ("SAP", "SAP"), ("SAP GUIXT", "SAP GUIXT"), ("Seguridad", "SEGURIDAD"), ("Servidores", "SERVIDORES"), ("SharePoint", "SHAREPOINT"), 
+                           ("Trustwave", "TRUSTWAVE"), ("Videoconferencia", "VIDEOCONFERENCIA"), ("Correo de Voz", "CORREO DE VOZ"), ("VPN", "VPN"), ("WINDOWS 10", "WINDOWS 10"), ("WINDOWS SERVER", "WINDOWS SERVER"), 
+                           ("WIRELESS ACCESS POINTS", "WIRELESS ACCES POINTS"), ("Otro", "OTRO")],
+        "BPCS": [("BPCS SEGURIDAD", "BPCS SEGURIDAD"), ("BPCS CAMBIOS", "BPCS CAMBIOS"), ("BPCS PROBLEMAS CON ORDENES", "BPCS PROBLEMAS CON ORDENES"), ("BPCS PROBLEMAS CON IMPRESIONES", "BPCS PROBLEMAS CON IMPRESIONES"), ("OTRO", "OTRO")],
+        "HARDWARE": [("Alarma de seguridad", "ALARMA DE SEGURIDAD"), ("Camaras de Seguridad", "CAMARAS DE SEGURIDAD"), ("Telefono de escritorio", "TELEFONO DE ESCRITORIO"), ("Desktop", "DESKTOP"), 
+                           ("Laptop", "LAPTOP"), ("Mantenimiento", "MANTENIMIENTO"), ("Monitor", "MONITOR"), ("Impresora", "IMPRESORA"), ("Petición de Compra", "PETICION DE COMPRA (HARDWARE/SOFTWARE)"), 
+                           ("Escaner RF", "ESCANER RF"), ("Escaner 1D/2D", "ESCANER 1D/2D"), ("Tablet", "TABLET"), ("Checador", "CHECADOR"), 
+                           ("Reloj", "RELOJ"), ("WIRELESS ACCESS POINTS", "WIRELESS ACCES POINTS"), ("Problemas con equipo", "PROBLEMAS CON EQUIPO"), ("Otro", "OTRO")],
+        "HELPDESK": [("Alarma de seguridad", "ALARMA DE SEGURIDAD"), ("AAF Compartir Archivos", "AAF COMPARTIR ARCHIVOS"), ("ADOBE", "ADOBE"), ("AUTOCAD Software", "AUTOCAD SOFTWARE"), 
+                           ("TRESS Software", "TRESS SOFTWARE"), ("CONTRAQ Software", "CONTRAQ SOFTWARE"), ("Backup/Restore", "BACKUP/RESTORE"), ("Import Software", "IXPORT SOFTWARE"), ("Barracuda SPAM FIREWALL", "BARRACUDA SPAM FIREWALL"), 
+                           ("Copiadora/Equipo Multifuncional", "COPIADORA/EQUIPO MULTIFUNCIONAL"), ("Desktop", "DESKTOP"), ("Hard Drive", "HARD DRIVE"), ("Teclado/Mouse", "TECLADO/MOUSE"), 
+                           ("Laptop", "LAPTOP"), ("Problemas de Password", "PROBLEMAS DE PASSWORD (DESBLOQUEAR)"), ("Impresora", "IMPRESORA"), ("Impresiones", "IMPRESIONES"), 
+                           ("Escaner RF", "ESCANER RF"), ("Escaner 1D/2D", "ESCANER 1D/2D"), ("Videoconferencia", "VIDEO CONFERENCIA"), ("Windows 10", "WINDOWS 10"), ("Internet", "INTERNET"), 
+                           ("Otro", "OTRO")],
+        "TELEFONIA": [("Configuracion", "CONFIGURACION (NUEVO/TERMINACION/CAMBIO)"), ("Telefono Celular", "TELEFONO CELULAR"), ("Tarjeta AT&T", "TARJETA AT&T"), ("Telefono De Escritorio", "TELEFONO DE ESCRITORIO"), 
+                      ("FAX", "FAX"), ("Comunicacion Mitel", "COMUNICACION MITEL"), ("Actualizacion Directorio Telefonico", "ACTUALIZACION DIRECTORIO TELEFONICO"), ("Reemplazo de telefono", "REEMPLAZO DE TELEFONO"), ("Problemas con llamadas", "PROBLEMAS CON LLAMADAS"), 
+                      ("Correo de Voz", "CORREO DE VOZ"), ("Otro", "OTRO")],
+        "SOFTWARE": [("Tienda Web para Empleados", "TIENDA WEB PARA EMPLEADOS"), ("AAF Compartir Archivos", "AAF COMPARTIR ARCHIVOS"), ("Adobe", "ADOBE"), ("Bug/Error en Aplicacion", "BUG/ERROR EN APLICACION"), 
+                           ("Problemas de Datos Aplicacion", "PROBLEMAS DE DATOS APLICACION"), ("AS/400", "AS/400"), ("AUTOCAD Software", "AUTOCAD SOFTWARE"), ("TRESS Software", "TRESS SOFTWARE"), ("CONTRAQ Software", "CONTRAQ SOFTWARE"), 
+                           ("IXPORT SOFTWARE", "IXPORT SOFTWARE"), ("BARRACUDA SPAM FIREWALL", "BARRACUDA SPAM FIREWALL"), ("BPCS ACCESO A CLIENTES", "BPCS ACCESO A CLIENTES"), ("Cadency", "CADENCY"), 
+                           ("CONFIGIT", "CONFIGIT"), ("Portal de Clientes", "PORTAL DE CLIENTES"), ("BPCS", "BPCS"), ("Servicios de Ingenieria", "SERVICIOS DE INGENIERIA"), 
+                           ("FEDEX SHIP MANAGER", "FEDEX SHIP MANAGER"), ("JAVA", "JAVA"), ("Mantenimiento", "MANTENIMIENTO"), ("Microsoft 365", "MICROSOFT 365"), ("Microsoft Excel", "MICROSOFT EXCEL"), ("Microsoft Office", "MICROSOFT OFFICE"), 
+                           ("Microsoft One Note", "MICROSOFT ONE NOTE"), ("Microsoft Power Point", "MICROSOFT POWER POINT"), ("Microsoft Outlook", "MICROSOFT OUTLOOK"), ("Microsoft Project", "MICROSOFT PROJECT"), ("Microsoft Teams", "MICROSOFT TEAMS"), 
+                           ("Microsoft Visio", "MICROSOFT VISIO"), ("Microsoft Word", "MICROSOFT WORD"),("Minitab", "MINITAB"), ("Nueva Aplicacion/Otro", "NUEVA APLICACION/OTRO"), ("Aplicaciones del Telefono", "APLICACIONES DEL TELEFONO"), ("Policies Tech", "POLICIES TECH"), 
+                           ("Impresiones", "IMPRESIONES"), ("QLICKVIEW", "QLICKVIEW"), ("Daikin Cornerstone", "DAIKIN CORNERSTONE"), ("SAP", "SAP"), ("SAP Seguridad", "SAP SEGURIDAD"), ("SAP Mantenimiento de Datos", "SAP MANTENIMIENTO DE DATOS"), ("SAP Forms", "SAP FORMS"), 
+                           ("SAP GUIXT", "SAP GUIXT"), ("SAP Interfaces", "SAP INTERFACES"), ("SAP Reports", "SAP REPORTS"), ("Camaras de Seguridad", "CAMARAS DE SEGURIDAD"), ("SHAREPOINT", "SHAREPOINT"), ("SMOTHIE MAMBO", "SMOPTHIE MAMBO"), 
+                           ("Trustwave", "TRUSTWAVE"), ("Ups Worldship", "UPS WORLDSHIP"), ("FTP", "FTP"), ("VPN", "VPN"), ("Otro", "OTRO")],
     }
     opciones = opciones_por_tipo.get(tipo_ticket, [])
     return [("", "---------")] + list(opciones)
@@ -81,6 +82,22 @@ class TicketITForm(forms.ModelForm):
         if self.instance and self.instance.pk:
             current_tipo_equipo = self.instance.tipo_equipo
         self.fields["tipo_equipo"].queryset = get_tipo_equipo_queryset(current_tipo_equipo)
+
+    def clean_imagen(self):
+        imagen = self.cleaned_data.get("imagen")
+        if not imagen:
+            return imagen
+
+        max_size = 50 * 1024 * 1024
+        if imagen.size > max_size:
+            raise forms.ValidationError("La imagen debe pesar menos de 50 MB.")
+
+        allowed_types = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+        content_type = getattr(imagen, "content_type", None)
+        if content_type and content_type not in allowed_types:
+            raise forms.ValidationError("Formato no permitido. Usa JPG, JPEG, PNG, GIF o WEBP.")
+
+        return imagen
 
 
 class UbicacionForm(forms.ModelForm):
@@ -143,6 +160,31 @@ class AnswerForm(forms.ModelForm):
 
 
 class UserRegisterForm(UserCreationForm):
+    numero_empleado = forms.CharField(max_length=30, label="Numero de empleado")
+    nombre = forms.CharField(max_length=100, label="Nombre")
+    apellido_paterno = forms.CharField(max_length=100, label="Apellido paterno")
+    apellido_materno = forms.CharField(max_length=100, label="Apellido materno", required=False)
+
     class Meta:
         model = User
         fields = ["username", "password1", "password2"]
+
+    def clean_numero_empleado(self):
+        numero_empleado = self.cleaned_data.get("numero_empleado", "").strip()
+        if Personal.objects.filter(numero_empleado__iexact=numero_empleado).exists():
+            raise forms.ValidationError("El numero de empleado ya esta registrado.")
+        return numero_empleado
+
+    def save(self, commit=True):
+        if not commit:
+            return super().save(commit=False)
+
+        with transaction.atomic():
+            user = super().save(commit=True)
+            Personal.objects.create(
+                numero_empleado=self.cleaned_data["numero_empleado"],
+                nombre=self.cleaned_data["nombre"],
+                apellido_paterno=self.cleaned_data["apellido_paterno"],
+                apellido_materno=self.cleaned_data.get("apellido_materno") or None,
+            )
+        return user

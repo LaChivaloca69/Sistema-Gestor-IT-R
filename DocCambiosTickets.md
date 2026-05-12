@@ -173,26 +173,3 @@ Estado de aplicacion:
 
 - Migracion aplicada correctamente en entorno SQLite de prueba.
 
-## 5) Nota sobre datos de prueba
-
-Para destrabar el flujo de migraciones se ejecuto la estrategia sin conservar datos anteriores de prueba.
-
-Esto implica que:
-
-- El objetivo fue dejar claro el nuevo esquema funcional.
-- Se priorizo consistencia estructural sobre mapeo historico de campos antiguos.
-
-## 6) Pendiente opcional recomendado
-
-Actualmente sub_tipo_ticket esta como texto libre.
-
-Siguiente mejora sugerida:
-
-- Crear catalogo controlado Tipo/Subtipo para que el formulario de Support filtre subtipos por tipo y evite capturas inconsistentes.
-
-## 7) Comando de referencia para migrar
-
-Desde la carpeta GestorIT:
-
-- python manage.py makemigrations GestorITapps --settings=GestorIT.settings_sqlite --noinput
-- python manage.py migrate --settings=GestorIT.settings_sqlite

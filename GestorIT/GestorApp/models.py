@@ -1,4 +1,5 @@
 import re
+from django.conf import settings
 from django.db import IntegrityError, models
 from django.core.exceptions import ValidationError
 from django.utils import timezone
@@ -106,6 +107,7 @@ class Equipo(models.Model):
     marca = models.CharField(max_length=80, blank=True, null=True)
     modelo = models.CharField(max_length=80, blank=True, null=True)
     descripcion_equipo = models.CharField(max_length=255, blank=True, null=True)
+    imagen = models.ImageField(upload_to='equipos', blank=True, null=True)
     fecha_compra = models.DateField(blank=True, null=True)
     costo_compra = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True)
     garantia_meses = models.IntegerField(default=0)
@@ -216,6 +218,13 @@ class EstadoSupport(models.TextChoices):
     CERRADO = "Cerrado", "Cerrado"
 
 
+class PrioridadSupport(models.TextChoices):
+    BAJA = "Baja", "Baja"
+    MEDIA = "Media", "Media"
+    ALTA = "Alta", "Alta"
+    URGENTE = "Urgente", "Urgente"
+
+
 class TicketIT(models.Model):
     FOLIO_PREFIX = 'SPR0-'
     FOLIO_WIDTH = 6
@@ -224,15 +233,24 @@ class TicketIT(models.Model):
     fecha_support = models.DateTimeField(default=timezone.now)
     requerimiento = models.CharField(max_length=180, default='')
     departamento = models.ForeignKey(Area, on_delete=models.SET_NULL, null=True, blank=True, related_name='tickets_support')
+    solicitado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='tickets_support_solicitados',
+        verbose_name='Solicitado por',
+    )
     tipo_ticket = models.CharField(max_length=30, choices=TipoTicketSupport.choices, default=TipoTicketSupport.HELPDESK)
     sub_tipo_ticket = models.CharField(max_length=150, blank=True, null=True)
+    prioridad = models.CharField(max_length=10, choices=PrioridadSupport.choices, default=PrioridadSupport.MEDIA)
     equipo = models.ForeignKey(Equipo, on_delete=models.SET_NULL, null=True, blank=True)
     tipo_equipo = models.ForeignKey(CategoriaEquipo, on_delete=models.PROTECT, null=True, blank=True)
     otro_tipo_equipo = models.CharField(max_length=120, blank=True, null=True)
     identificador_reporte = models.CharField(max_length=80, blank=True, null=True, verbose_name='ID')
     detalle = models.CharField(max_length=255, blank=True, null=True)
     descripcion = models.TextField()
-    imagen_url = models.URLField(blank=True, null=True)
+    imagen = models.ImageField(upload_to='support', blank=True, null=True)
     status = models.CharField(max_length=20, choices=EstadoSupport.choices, default=EstadoSupport.ABIERTO)
 
     class Meta:
@@ -376,12 +394,12 @@ class Answer(models.Model):
 
 class Presupuesto(models.Model):
     folio_presupuesto = models.CharField(max_length=30, unique=True)
-    fecha_presupuesto = models.DateField()
     cliente_o_area = models.CharField(max_length=150)
     elaborado_por = models.CharField(max_length=150)
-    subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    impuestos = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    numero_pedimiento = models.CharField(max_length=50, null=True)
+    numero_importacion = models.CharField(max_length=50, null=True)
+    fecha_compra = models.DateField(null=True)
+    archivo_pdf = models.FileField(upload_to='presupuestos', blank=True, null=True)
     estado_presupuesto = models.CharField(max_length=30, default='Borrador')
     notas = models.CharField(max_length=255, blank=True, null=True)
 

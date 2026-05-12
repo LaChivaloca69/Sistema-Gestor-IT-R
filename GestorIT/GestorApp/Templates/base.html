@@ -20,11 +20,37 @@
             justify-content: space-between;
             gap: 1rem;
         }
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
         header .brand {
             color: #fff;
             text-decoration: none;
             font-weight: bold;
             font-size: 1.1rem;
+        }
+        .sidebar-toggle {
+            width: 38px;
+            height: 38px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.08);
+            display: inline-flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+            padding: 0;
+        }
+        .sidebar-toggle span {
+            width: 18px;
+            height: 2px;
+            background: #fff;
+            display: block;
+            border-radius: 2px;
         }
         .header-actions {
             display: flex;
@@ -50,6 +76,9 @@
             gap: 1rem;
             align-items: flex-start;
         }
+        .app-shell.sidebar-collapsed {
+            gap: 0;
+        }
         .app-shell--auth {
             max-width: 720px;
         }
@@ -63,6 +92,23 @@
             padding: 1rem;
             position: sticky;
             top: 1rem;
+            transition: width 0.2s ease, min-width 0.2s ease, padding 0.2s ease;
+        }
+        .sidebar-content {
+            transition: opacity 0.2s ease;
+        }
+        .app-shell.sidebar-collapsed .sidebar {
+            width: 0;
+            min-width: 0;
+            padding: 0;
+            border: none;
+            box-shadow: none;
+        }
+        .app-shell.sidebar-collapsed .sidebar-content {
+            opacity: 0;
+            pointer-events: none;
+            height: 0;
+            overflow: hidden;
         }
         .sidebar h2 {
             margin: 0 0 0.75rem;
@@ -249,7 +295,16 @@
         {% csrf_token %}
     </form>
     <header>
-        <a class="brand" href="{% url 'home' %}">Gestor IT</a>
+        <div class="header-left">
+            {% if user.is_authenticated %}
+            <button class="sidebar-toggle" type="button" aria-label="Mostrar u ocultar menu" aria-expanded="true">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+            {% endif %}
+            <a class="brand" href="{% url 'home' %}">Gestor IT</a>
+        </div>
         <div class="header-actions">
             {% if user.is_authenticated %}
             <span class="user-chip">Usuario: {{ user.username }}</span>
@@ -263,9 +318,10 @@
             {% endif %}
         </div>
     </header>
-    <div class="app-shell {% if not user.is_authenticated %}app-shell--auth{% endif %}">
+    <div class="app-shell {% if not user.is_authenticated %}app-shell--auth{% endif %}{% if user.is_authenticated and request.path != '/' %} sidebar-collapsed{% endif %}" data-sidebar-default="{% if user.is_authenticated and request.path != '/' %}collapsed{% else %}expanded{% endif %}">
         {% if user.is_authenticated %}
         <aside class="sidebar">
+            <div class="sidebar-content">
             <h2>Accesos rapidos</h2>
             <div class="sidebar-columns">
                 <div class="sidebar-section">
@@ -317,6 +373,7 @@
                     <a class="sidebar-link {% if request.resolver_match.url_name == 'compramaterial_list' %}active{% endif %}" href="{% url 'compramaterial_list' %}">Compras material</a>
                     <a class="sidebar-link {% if request.resolver_match.url_name == 'detallecompramaterial_list' %}active{% endif %}" href="{% url 'detallecompramaterial_list' %}">Detalle compra</a>
                 </div>
+            </div>
             </div>
         </aside>
         {% endif %}
@@ -382,6 +439,33 @@
                     .catch(() => {
                         window.location = link.href;
                     });
+            });
+        })();
+    </script>
+    <script>
+        (function () {
+            const appShell = document.querySelector(".app-shell");
+            const toggle = document.querySelector(".sidebar-toggle");
+            if (!appShell || !toggle) {
+                return;
+            }
+
+            const storageKey = "sidebar-collapsed";
+            const setCollapsed = (isCollapsed) => {
+                appShell.classList.toggle("sidebar-collapsed", isCollapsed);
+                toggle.setAttribute("aria-expanded", (!isCollapsed).toString());
+            };
+
+            const defaultCollapsed = appShell.dataset.sidebarDefault === "collapsed";
+            const storedValue = localStorage.getItem(storageKey);
+            const shouldUseStored = !defaultCollapsed && storedValue !== null;
+            const initialCollapsed = shouldUseStored ? storedValue === "1" : defaultCollapsed;
+            setCollapsed(initialCollapsed);
+
+            toggle.addEventListener("click", () => {
+                const nextState = !appShell.classList.contains("sidebar-collapsed");
+                setCollapsed(nextState);
+                localStorage.setItem(storageKey, nextState ? "1" : "0");
             });
         })();
     </script>

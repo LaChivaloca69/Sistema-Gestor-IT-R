@@ -221,17 +221,26 @@ Diseñar y documentar una base de datos para la gestión integral del área de T
 
 ## 6.6 Tickets IT
 
+Tickets IT a sido reestructurado de la siguiente manera
+
+### Tabla Support 
+
 ### Tabla: `ticket_it`
 | Campo | Tipo | Nulo | Restricción | Descripción |
 |---|---|---|---|---|
-| id | PK | No | Autoincremental | Identificador |
-| folio_ticket | varchar(30) | No | unique | Folio |
-| fecha_creacion | datetime | No | auto_now_add | Fecha de alta |
+| folio_ticket | Auto incremental | No | unique | Folio |
+| fecha_support | datetime | No | auto_now_add | Fecha de alta |
+| requerimiento | varchar(180) | No || No | requerimiento solicitado |
+| departamento | FK | Si | No | de que departamento se solicita |
 | personal_solicitante_id | FK | No | personal(id) | Solicitante |
+| tipo_ticket | varchar(30) | No | No | Tipo de ticket | 
+| Sub_ticket | varchar(150) | Si | No | Subtipo de ticket |
 | equipo_id | FK | Sí | equipo(id) | Equipo relacionado |
-| titulo | varchar(150) | No |  | Resumen del problema |
+| tipo_equipo | FK | Si | No | Especificacion de tipo de equipo| 
+| otro_tipo_equipo | varchar(80) | Si | No | Otro tipo de equipo |
+| detalle | varchar(150) | No |  | Resumen del problema |
 | descripcion | text | No |  | Detalle del caso |
-| prioridad | varchar(10) | No | choices | Baja/Media/Alta/Crítica |
+| prioridad | varchar(10) | No | choices | Baja/Media/Alta/Urgente |
 | estado_ticket | varchar(20) | No | choices | Abierto/En Proceso/Resuelto/Cerrado |
 | tecnico_asignado | varchar(150) | Sí |  | Técnico responsable |
 | fecha_cierre | datetime | Sí |  | Fecha de cierre |

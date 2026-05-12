@@ -394,6 +394,22 @@ class EquipoForm(forms.ModelForm):
         model = Equipo
         fields = "__all__"
 
+    def clean_imagen(self):
+        imagen = self.cleaned_data.get("imagen")
+        if not imagen:
+            return imagen
+
+        max_size = 50 * 1024 * 1024
+        if imagen.size > max_size:
+            raise forms.ValidationError("La imagen debe pesar menos de 50 MB.")
+
+        allowed_types = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+        content_type = getattr(imagen, "content_type", None)
+        if content_type and content_type not in allowed_types:
+            raise forms.ValidationError("Formato no permitido. Usa JPG, JPEG, PNG, GIF o WEBP.")
+
+        return imagen
+
 def equipo_list(request):
     items = Equipo.objects.all()
     return render(request, "equipo/list.html", {"items": items})
@@ -401,7 +417,7 @@ def equipo_list(request):
 
 def equipo_create(request):
     if request.method == "POST":
-        form = EquipoForm(request.POST)
+        form = EquipoForm(request.POST, request.FILES)
         if form.is_valid():
             form.save()
             messages.success(request, "Equipo creado correctamente.")
@@ -414,7 +430,7 @@ def equipo_create(request):
 def equipo_update(request, pk):
     equipo = get_object_or_404(Equipo, pk=pk)
     if request.method == "POST":
-        form = EquipoForm(request.POST, instance=equipo)
+        form = EquipoForm(request.POST, request.FILES, instance=equipo)
         if form.is_valid():
             form.save()
             messages.success(request, "Equipo actualizado correctamente.")
@@ -620,7 +636,7 @@ def ticketit_list(request):
 
 def ticketit_create(request):
     if request.method == "POST":
-        form = TicketITForm(request.POST)
+        form = TicketITForm(request.POST, request.FILES)
         if form.is_valid():
             form.save()
             messages.success(request, "Support creado correctamente.")
@@ -633,7 +649,7 @@ def ticketit_create(request):
 def ticketit_update(request, pk):
     ticket = get_object_or_404(TicketIT, pk=pk)
     if request.method == "POST":
-        form = TicketITForm(request.POST, instance=ticket)
+        form = TicketITForm(request.POST, request.FILES, instance=ticket)
         if form.is_valid():
             form.save()
             messages.success(request, "Support actualizado correctamente.")
@@ -795,13 +811,32 @@ class PresupuestoForm(forms.ModelForm):
         model = Presupuesto
         fields = "__all__"
 
+    def clean_archivo_pdf(self):
+        archivo = self.cleaned_data.get("archivo_pdf")
+        if not archivo:
+            return archivo
+
+        max_size = 50 * 1024 * 1024
+        if archivo.size > max_size:
+            raise forms.ValidationError("El archivo debe pesar menos de 50 MB.")
+
+        allowed_types = {"application/pdf"}
+        content_type = getattr(archivo, "content_type", None)
+        if content_type and content_type not in allowed_types:
+            raise forms.ValidationError("Formato no permitido. Solo PDF.")
+
+        if not archivo.name.lower().endswith(".pdf"):
+            raise forms.ValidationError("El archivo debe tener extension .pdf.")
+
+        return archivo
+
 def presupuesto_list(request):
     items = Presupuesto.objects.all()
     return render(request, "presupuesto/list.html", {"items": items})
 
 def presupuesto_create(request):
     if request.method == "POST":
-        form = PresupuestoForm(request.POST)
+        form = PresupuestoForm(request.POST, request.FILES)
         if form.is_valid():
             form.save()
             messages.success(request, "Presupuesto creado correctamente.")
@@ -813,7 +848,7 @@ def presupuesto_create(request):
 def presupuesto_update(request, pk):
     presupuesto = get_object_or_404(Presupuesto, pk=pk)
     if request.method == "POST":
-        form = PresupuestoForm(request.POST, instance=presupuesto)
+        form = PresupuestoForm(request.POST, request.FILES, instance=presupuesto)
         if form.is_valid():
             form.save()
             messages.success(request, "Presupuesto actualizado correctamente.")
