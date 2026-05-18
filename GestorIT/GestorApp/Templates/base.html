@@ -121,13 +121,43 @@
         .sidebar-section:last-child {
             margin-bottom: 0;
         }
+        .sidebar-section-toggle {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            padding: 0.48rem 0.55rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: #f1f5f9;
+            cursor: pointer;
+            text-align: left;
+        }
+        .sidebar-section-toggle:hover {
+            background: #e2e8f0;
+        }
         .sidebar-section-title {
-            margin: 0 0 0.35rem;
+            margin: 0;
             font-size: 0.82rem;
             color: #64748b;
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.02em;
+        }
+        .sidebar-section-chevron {
+            font-size: 0.9rem;
+            color: #64748b;
+            transition: transform 0.2s ease;
+        }
+        .sidebar-section-links {
+            margin-top: 0.4rem;
+        }
+        .sidebar-section.collapsed .sidebar-section-links {
+            display: none;
+        }
+        .sidebar-section.collapsed .sidebar-section-chevron {
+            transform: rotate(-90deg);
         }
         .sidebar-link {
             display: block;
@@ -324,53 +354,105 @@
             <div class="sidebar-content">
             <h2>Accesos rapidos</h2>
             <div class="sidebar-columns">
-                <div class="sidebar-section">
-                    <p class="sidebar-section-title">General</p>
-                    <a class="sidebar-link {% if request.path == '/' %}active{% endif %}" href="{% url 'home' %}">Inicio</a>
+                <div class="sidebar-section" data-section="general">
+                    <button class="sidebar-section-toggle" type="button" aria-expanded="true">
+                        <span class="sidebar-section-title">General</span>
+                        <span class="sidebar-section-chevron" aria-hidden="true">v</span>
+                    </button>
+                    <div class="sidebar-section-links">
+                        <a class="sidebar-link {% if request.path == '/' %}active{% endif %}" href="{% url 'home' %}">Inicio</a>
+                    </div>
                 </div>
 
-                <div class="sidebar-section">
-                    <p class="sidebar-section-title">Organizacion</p>
-                    <a class="sidebar-link {% if request.resolver_match.url_name == 'area_list' %}active{% endif %}" href="{% url 'area_list' %}">Areas</a>
-                    <a class="sidebar-link {% if request.resolver_match.url_name == 'puesto_list' %}active{% endif %}" href="{% url 'puesto_list' %}">Puestos</a>
-                    <a class="sidebar-link {% if request.resolver_match.url_name == 'personal_list' %}active{% endif %}" href="{% url 'personal_list' %}">Personal</a>
+                
+                <div class="sidebar-section" data-section="soporte">
+                    <button class="sidebar-section-toggle" type="button" aria-expanded="true">
+                        <span class="sidebar-section-title">Soporte</span>
+                        <span class="sidebar-section-chevron" aria-hidden="true">v</span>
+                    </button>
+                    <div class="sidebar-section-links">
+                        <a class="sidebar-link {% if request.resolver_match.url_name == 'ticketit_list' %}active{% endif %}" href="{% url 'ticketit_list' %}">Support</a>
+                        {% if user.is_staff or user.is_superuser %}
+                        <a class="sidebar-link {% if request.resolver_match.url_name == 'seguimientoticket_list' %}active{% endif %}" href="{% url 'seguimientoticket_list' %}">Check</a>
+                        <a class="sidebar-link {% if request.resolver_match.url_name == 'bitacora_list' %}active{% endif %}" href="{% url 'bitacora_list' %}">Bitacora</a>
+                        <a class="sidebar-link {% if request.resolver_match.url_name == 'answer_list' %}active{% endif %}" href="{% url 'answer_list' %}">Answer</a>
+                        {% endif %}
+                    </div>
                 </div>
 
-                <div class="sidebar-section">
-                    <p class="sidebar-section-title">Ubicaciones</p>
-                    <a class="sidebar-link {% if request.resolver_match.url_name == 'edificio_list' %}active{% endif %}" href="{% url 'edificio_list' %}">Edificios</a>
-                    <a class="sidebar-link {% if request.resolver_match.url_name == 'zonaedificio_list' %}active{% endif %}" href="{% url 'zonaedificio_list' %}">Zonas</a>
-                    <a class="sidebar-link {% if request.resolver_match.url_name == 'ubicacion_list' %}active{% endif %}" href="{% url 'ubicacion_list' %}">Ubicaciones</a>
+                <div class="sidebar-section" data-section="gestion-economica">
+                    <button class="sidebar-section-toggle" type="button" aria-expanded="true">
+                        <span class="sidebar-section-title">Gestion economica</span>
+                        <span class="sidebar-section-chevron" aria-hidden="true">v</span>
+                    </button>
+                    <div class="sidebar-section-links">
+                        <a class="sidebar-link {% if request.resolver_match.url_name == 'presupuesto_list' %}active{% endif %}" href="{% url 'presupuesto_list' %}">Presupuestos</a>
+                        <a class="sidebar-link {% if request.resolver_match.url_name == 'compramaterial_list' %}active{% endif %}" href="{% url 'compramaterial_list' %}">Compras material</a>
+                    </div>
                 </div>
 
-                <div class="sidebar-section">
-                    <p class="sidebar-section-title">Inventario</p>
-                    <a class="sidebar-link {% if request.resolver_match.url_name == 'categoriaequipo_list' %}active{% endif %}" href="{% url 'categoriaequipo_list' %}">Categorias equipo</a>
-                    <a class="sidebar-link {% if request.resolver_match.url_name == 'equipo_list' %}active{% endif %}" href="{% url 'equipo_list' %}">Equipos</a>
-                    <a class="sidebar-link {% if request.resolver_match.url_name == 'proveedor_list' %}active{% endif %}" href="{% url 'proveedor_list' %}">Proveedores</a>
+                {% if user.is_staff or user.is_superuser %}
+                <div class="sidebar-section" data-section="organizacion">
+                    <button class="sidebar-section-toggle" type="button" aria-expanded="true">
+                        <span class="sidebar-section-title">Organizacion</span>
+                        <span class="sidebar-section-chevron" aria-hidden="true">v</span>
+                    </button>
+                    <div class="sidebar-section-links">
+                        <a class="sidebar-link {% if request.resolver_match.url_name == 'area_list' %}active{% endif %}" href="{% url 'area_list' %}">Areas</a>
+                        <a class="sidebar-link {% if request.resolver_match.url_name == 'puesto_list' %}active{% endif %}" href="{% url 'puesto_list' %}">Puestos</a>
+                        <a class="sidebar-link {% if request.resolver_match.url_name == 'personal_list' %}active{% endif %}" href="{% url 'personal_list' %}">Personal</a>
+                    </div>
                 </div>
 
-                <div class="sidebar-section">
-                    <p class="sidebar-section-title">Operaciones</p>
-                    <a class="sidebar-link {% if request.resolver_match.url_name == 'movimientoequipo_list' %}active{% endif %}" href="{% url 'movimientoequipo_list' %}">Movimientos</a>
-                    <a class="sidebar-link {% if request.resolver_match.url_name == 'asignacionequipo_list' %}active{% endif %}" href="{% url 'asignacionequipo_list' %}">Asignaciones</a>
-                    <a class="sidebar-link {% if request.resolver_match.url_name == 'mantenimiento_list' %}active{% endif %}" href="{% url 'mantenimiento_list' %}">Mantenimientos</a>
-                    <a class="sidebar-link {% if request.resolver_match.url_name == 'agendamantenimiento_list' %}active{% endif %}" href="{% url 'agendamantenimiento_list' %}">Agenda mantenimiento</a>
+                <div class="sidebar-section" data-section="admin">
+                    <button class="sidebar-section-toggle" type="button" aria-expanded="true">
+                        <span class="sidebar-section-title">Admin</span>
+                        <span class="sidebar-section-chevron" aria-hidden="true">v</span>
+                    </button>
+                    <div class="sidebar-section-links">
+                        <a class="sidebar-link {% if request.resolver_match.url_name == 'personal_admin_requests' %}active{% endif %}" href="{% url 'personal_admin_requests' %}">Solicitudes admin</a>
+                        <a class="sidebar-link {% if request.resolver_match.url_name == 'personal_admin_remove' %}active{% endif %}" href="{% url 'personal_admin_remove' %}">Quitar admin</a>
+                    </div>
                 </div>
 
-                <div class="sidebar-section">
-                    <p class="sidebar-section-title">Soporte</p>
-                    <a class="sidebar-link {% if request.resolver_match.url_name == 'ticketit_list' %}active{% endif %}" href="{% url 'ticketit_list' %}">Support</a>
-                    <a class="sidebar-link {% if request.resolver_match.url_name == 'seguimientoticket_list' %}active{% endif %}" href="{% url 'seguimientoticket_list' %}">Check</a>
-                    <a class="sidebar-link {% if request.resolver_match.url_name == 'bitacora_list' %}active{% endif %}" href="{% url 'bitacora_list' %}">Bitacora</a>
-                    <a class="sidebar-link {% if request.resolver_match.url_name == 'answer_list' %}active{% endif %}" href="{% url 'answer_list' %}">Answer</a>
+                <div class="sidebar-section" data-section="ubicaciones">
+                    <button class="sidebar-section-toggle" type="button" aria-expanded="true">
+                        <span class="sidebar-section-title">Ubicaciones</span>
+                        <span class="sidebar-section-chevron" aria-hidden="true">v</span>
+                    </button>
+                    <div class="sidebar-section-links">
+                        <a class="sidebar-link {% if request.resolver_match.url_name == 'edificio_list' %}active{% endif %}" href="{% url 'edificio_list' %}">Edificios</a>
+                        <a class="sidebar-link {% if request.resolver_match.url_name == 'zonaedificio_list' %}active{% endif %}" href="{% url 'zonaedificio_list' %}">Zonas</a>
+                        <a class="sidebar-link {% if request.resolver_match.url_name == 'ubicacion_list' %}active{% endif %}" href="{% url 'ubicacion_list' %}">Ubicaciones</a>
+                    </div>
                 </div>
 
-                <div class="sidebar-section">
-                    <p class="sidebar-section-title">Gestion economica</p>
-                    <a class="sidebar-link {% if request.resolver_match.url_name == 'presupuesto_list' %}active{% endif %}" href="{% url 'presupuesto_list' %}">Presupuestos</a>
-                    <a class="sidebar-link {% if request.resolver_match.url_name == 'compramaterial_list' %}active{% endif %}" href="{% url 'compramaterial_list' %}">Compras material</a>
+                <div class="sidebar-section" data-section="inventario">
+                    <button class="sidebar-section-toggle" type="button" aria-expanded="true">
+                        <span class="sidebar-section-title">Inventario</span>
+                        <span class="sidebar-section-chevron" aria-hidden="true">v</span>
+                    </button>
+                    <div class="sidebar-section-links">
+                        <a class="sidebar-link {% if request.resolver_match.url_name == 'categoriaequipo_list' %}active{% endif %}" href="{% url 'categoriaequipo_list' %}">Categorias equipo</a>
+                        <a class="sidebar-link {% if request.resolver_match.url_name == 'equipo_list' %}active{% endif %}" href="{% url 'equipo_list' %}">Equipos</a>
+                        <a class="sidebar-link {% if request.resolver_match.url_name == 'proveedor_list' %}active{% endif %}" href="{% url 'proveedor_list' %}">Proveedores</a>
+                    </div>
                 </div>
+
+                <div class="sidebar-section" data-section="operaciones">
+                    <button class="sidebar-section-toggle" type="button" aria-expanded="true">
+                        <span class="sidebar-section-title">Operaciones</span>
+                        <span class="sidebar-section-chevron" aria-hidden="true">v</span>
+                    </button>
+                    <div class="sidebar-section-links">
+                        <a class="sidebar-link {% if request.resolver_match.url_name == 'movimientoequipo_list' %}active{% endif %}" href="{% url 'movimientoequipo_list' %}">Movimientos</a>
+                        <a class="sidebar-link {% if request.resolver_match.url_name == 'asignacionequipo_list' %}active{% endif %}" href="{% url 'asignacionequipo_list' %}">Asignaciones</a>
+                        <a class="sidebar-link {% if request.resolver_match.url_name == 'mantenimiento_list' %}active{% endif %}" href="{% url 'mantenimiento_list' %}">Mantenimientos</a>
+                        <a class="sidebar-link {% if request.resolver_match.url_name == 'agendamantenimiento_list' %}active{% endif %}" href="{% url 'agendamantenimiento_list' %}">Agenda mantenimiento</a>
+                    </div>
+                </div>
+                {% endif %}
+
             </div>
             </div>
         </aside>
@@ -464,6 +546,41 @@
                 const nextState = !appShell.classList.contains("sidebar-collapsed");
                 setCollapsed(nextState);
                 localStorage.setItem(storageKey, nextState ? "1" : "0");
+            });
+        })();
+    </script>
+    <script>
+        (function () {
+            const sections = Array.from(document.querySelectorAll(".sidebar-section"));
+            if (!sections.length) {
+                return;
+            }
+
+            const setCollapsed = (section, isCollapsed) => {
+                section.classList.toggle("collapsed", isCollapsed);
+                const toggle = section.querySelector(".sidebar-section-toggle");
+                if (toggle) {
+                    toggle.setAttribute("aria-expanded", (!isCollapsed).toString());
+                }
+            };
+
+            sections.forEach((section, index) => {
+                const toggle = section.querySelector(".sidebar-section-toggle");
+                if (!toggle) {
+                    return;
+                }
+                const key = section.dataset.section || `section-${index}`;
+                const storageKey = `sidebar-section-${key}`;
+                const hasActive = Boolean(section.querySelector(".sidebar-link.active"));
+                const stored = localStorage.getItem(storageKey);
+                const initialCollapsed = stored === null ? !hasActive : stored === "1";
+                setCollapsed(section, initialCollapsed);
+
+                toggle.addEventListener("click", () => {
+                    const nextCollapsed = !section.classList.contains("collapsed");
+                    setCollapsed(section, nextCollapsed);
+                    localStorage.setItem(storageKey, nextCollapsed ? "1" : "0");
+                });
             });
         })();
     </script>

@@ -35,6 +35,7 @@ class Personal(models.Model):
         blank=True,
         related_name='personal_profile',
     )
+    admin_requested = models.BooleanField(default=False, verbose_name="Solicita admin")
     nombre = models.CharField(max_length=100)
     apellido_paterno = models.CharField(max_length=100)
     apellido_materno = models.CharField(max_length=100, blank=True, null=True)
@@ -443,6 +444,7 @@ class DetallePresupuesto(models.Model):
 class CompraMaterial(models.Model):
     folio_compra = models.CharField(max_length=30, unique=True)
     fecha_compra = models.DateField()
+    archivo_pdf = models.FileField(upload_to='compras_material', blank=True, null=True)
     proveedor = models.ForeignKey(Proveedor, on_delete=models.SET_NULL, null=True, blank=True)
     solicitado_por = models.CharField(max_length=150, blank=True, null=True)
     estado_compra = models.CharField(

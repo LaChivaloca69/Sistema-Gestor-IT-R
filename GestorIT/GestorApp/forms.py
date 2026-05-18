@@ -1,8 +1,11 @@
+from datetime import datetime
+
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 from django.db import transaction
 from django.db.models import Q
+from django.utils import timezone
 
 from .models import (
     Answer,
@@ -64,10 +67,11 @@ def get_tipo_equipo_queryset(current_value=None):
 
 class TicketITForm(forms.ModelForm):
     sub_tipo_ticket = forms.ChoiceField(required=False, choices=[])
+    fecha_support_client = forms.CharField(required=False, widget=forms.HiddenInput())
 
     class Meta:
         model = TicketIT
-        exclude = ["folio_ticket"]
+        exclude = ["folio_ticket", "fecha_support"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -82,6 +86,10 @@ class TicketITForm(forms.ModelForm):
         if self.instance and self.instance.pk:
             current_tipo_equipo = self.instance.tipo_equipo
         self.fields["tipo_equipo"].queryset = get_tipo_equipo_queryset(current_tipo_equipo)
+        if "equipo" in self.fields:
+            self.fields["equipo"].label_from_instance = (
+                lambda obj: f"{obj.codigo_inventario} - {obj.categoria}"
+            )
 
     def clean_imagen(self):
         imagen = self.cleaned_data.get("imagen")
@@ -98,6 +106,35 @@ class TicketITForm(forms.ModelForm):
             raise forms.ValidationError("Formato no permitido. Usa JPG, JPEG, PNG, GIF o WEBP.")
 
         return imagen
+
+    def _parse_client_datetime(self, value):
+        if not value:
+            return None
+
+        normalized = value.strip()
+        if normalized.endswith("Z"):
+            normalized = normalized[:-1] + "+00:00"
+
+        try:
+            parsed = datetime.fromisoformat(normalized)
+        except ValueError:
+            return None
+
+        if timezone.is_naive(parsed):
+            return timezone.make_aware(parsed, timezone.get_current_timezone())
+        return parsed
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        client_value = self.cleaned_data.get("fecha_support_client")
+        client_datetime = self._parse_client_datetime(client_value)
+        if client_datetime and not instance.pk:
+            instance.fecha_support = client_datetime
+
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance
 
 
 class UbicacionForm(forms.ModelForm):
@@ -164,6 +201,11 @@ class UserRegisterForm(UserCreationForm):
     nombre = forms.CharField(max_length=100, label="Nombre")
     apellido_paterno = forms.CharField(max_length=100, label="Apellido paterno")
     apellido_materno = forms.CharField(max_length=100, label="Apellido materno", required=False)
+    solicitar_admin = forms.BooleanField(
+        required=False,
+        label="Solicitar admin",
+        help_text="Un admin debe aprobar la solicitud.",
+    )
 
     class Meta:
         model = User
@@ -187,5 +229,6 @@ class UserRegisterForm(UserCreationForm):
                 nombre=self.cleaned_data["nombre"],
                 apellido_paterno=self.cleaned_data["apellido_paterno"],
                 apellido_materno=self.cleaned_data.get("apellido_materno") or None,
+                admin_requested=self.cleaned_data.get("solicitar_admin", False),
             )
         return user

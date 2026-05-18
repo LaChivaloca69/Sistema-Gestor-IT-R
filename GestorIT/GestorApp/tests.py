@@ -9,6 +9,9 @@ class AuthFlowTests(TestCase):
 			reverse("signup"),
 			{
 				"username": "testuser",
+				"numero_empleado": "EMP-100",
+				"nombre": "Test",
+				"apellido_paterno": "User",
 				"password1": "StrongPass123!",
 				"password2": "StrongPass123!",
 			},

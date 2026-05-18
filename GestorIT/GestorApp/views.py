@@ -1,3 +1,5 @@
+from functools import wraps
+
 from django import forms
 from django.contrib import messages
 from django.contrib.auth import get_user_model, login
@@ -38,6 +40,25 @@ from .models import (
     Ubicacion,
     ZonaEdificio,
 )
+
+
+def is_admin_user(user):
+    if not user or not user.is_authenticated:
+        return False
+    return user.is_superuser or user.is_staff
+
+
+def admin_required(view_func):
+    @wraps(view_func)
+    def _wrapped(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return redirect("login")
+        if not is_admin_user(request.user):
+            messages.error(request, "No tienes permisos para acceder a esta seccion.")
+            return redirect("home")
+        return view_func(request, *args, **kwargs)
+
+    return _wrapped
 
 # =========== Area views ==============
 class AreaForm(forms.ModelForm):
@@ -137,6 +158,11 @@ class PersonalForm(forms.ModelForm):
         required=False,
         label="Accion de usuario",
     )
+    es_admin = forms.BooleanField(
+        required=False,
+        label="Admin",
+        help_text="Solo admins pueden asignar este permiso.",
+    )
     user_existing = forms.ModelChoiceField(
         queryset=get_user_model().objects.none(),
         required=False,
@@ -167,6 +193,7 @@ class PersonalForm(forms.ModelForm):
         exclude = ["user"]
 
     def __init__(self, *args, **kwargs):
+        self.request_user = kwargs.pop("request_user", None)
         super().__init__(*args, **kwargs)
         User = get_user_model()
         qs = User.objects.filter(personal_profile__isnull=True)
@@ -186,6 +213,12 @@ class PersonalForm(forms.ModelForm):
             "password1",
             "password2",
         )
+        if not is_admin_user(self.request_user):
+            self.fields.pop("es_admin", None)
+            self.fields.pop("admin_requested", None)
+        elif "es_admin" in self.fields:
+            current_user = self.instance.user if self.instance and self.instance.pk else None
+            self.fields["es_admin"].initial = bool(current_user and current_user.is_staff)
 
     def clean(self):
         cleaned = super().clean()
@@ -242,10 +275,20 @@ class PersonalForm(forms.ModelForm):
                     "Ese usuario ya esta asignado a otro personal.",
                 )
 
+        if "es_admin" in self.cleaned_data and self.cleaned_data.get("es_admin"):
+            if action == "none":
+                self.add_error(
+                    "es_admin",
+                    "No puedes asignar admin si no hay usuario.",
+                )
+
         return cleaned
 
     def save(self, commit=True):
         action = self.cleaned_data.get("account_action") or "none"
+        make_admin = None
+        if "es_admin" in self.cleaned_data:
+            make_admin = bool(self.cleaned_data.get("es_admin"))
         if action == "create":
             with transaction.atomic():
                 user = get_user_model().objects.create_user(
@@ -253,8 +296,13 @@ class PersonalForm(forms.ModelForm):
                     email=self.cleaned_data["email"].strip(),
                     password=self.cleaned_data["password1"],
                 )
+                if make_admin is not None:
+                    user.is_staff = make_admin
+                    user.save(update_fields=["is_staff"])
                 personal = super().save(commit=False)
                 personal.user = user
+                if make_admin:
+                    personal.admin_requested = False
                 if commit:
                     personal.save()
                 return personal
@@ -266,6 +314,13 @@ class PersonalForm(forms.ModelForm):
             personal.user = None
         if commit:
             personal.save()
+            if make_admin is not None and personal.user:
+                if personal.user.is_staff != make_admin:
+                    personal.user.is_staff = make_admin
+                    personal.user.save(update_fields=["is_staff"])
+                if make_admin and personal.admin_requested:
+                    personal.admin_requested = False
+                    personal.save(update_fields=["admin_requested"])
         return personal
 
 def personal_list(request):
@@ -273,28 +328,86 @@ def personal_list(request):
     return render(request, "personal/list.html", {"items": items})
 
 
+def personal_admin_requests(request):
+    if request.method == "POST":
+        personal_id = request.POST.get("personal_id")
+        action = (request.POST.get("action") or "approve").strip().lower()
+        personal = get_object_or_404(Personal, pk=personal_id, admin_requested=True)
+        if action not in {"approve", "reject"}:
+            messages.error(request, "Accion no valida.")
+            return redirect("personal_admin_requests")
+        if action == "approve":
+            if not personal.user_id:
+                messages.error(request, "El personal no tiene usuario asignado.")
+                return redirect("personal_admin_requests")
+            if not personal.user.is_staff:
+                personal.user.is_staff = True
+                personal.user.save(update_fields=["is_staff"])
+            if personal.admin_requested:
+                personal.admin_requested = False
+                personal.save(update_fields=["admin_requested"])
+            messages.success(request, "Solicitud aprobada.")
+        else:
+            if personal.admin_requested:
+                personal.admin_requested = False
+                personal.save(update_fields=["admin_requested"])
+            messages.success(request, "Solicitud rechazada.")
+        return redirect("personal_admin_requests")
+    items = Personal.objects.select_related("user").filter(admin_requested=True)
+    return render(request, "personal/admin_requests.html", {"items": items})
+
+
+def personal_admin_remove(request):
+    if request.method == "POST":
+        personal_id = request.POST.get("personal_id")
+        personal = get_object_or_404(Personal, pk=personal_id)
+        if not personal.user_id:
+            messages.error(request, "El personal no tiene usuario asignado.")
+            return redirect("personal_admin_remove")
+        if personal.user.is_superuser:
+            messages.error(request, "No se puede quitar admin a un superusuario.")
+            return redirect("personal_admin_remove")
+        if request.user.pk == personal.user_id:
+            messages.error(request, "No puedes quitarte admin a ti mismo.")
+            return redirect("personal_admin_remove")
+        if personal.user.is_staff:
+            personal.user.is_staff = False
+            personal.user.save(update_fields=["is_staff"])
+        if personal.admin_requested:
+            personal.admin_requested = False
+            personal.save(update_fields=["admin_requested"])
+        messages.success(request, "Admin retirado correctamente.")
+        return redirect("personal_admin_remove")
+    items = (
+        Personal.objects.select_related("user")
+        .filter(user__is_staff=True)
+        .exclude(user__is_superuser=True)
+    )
+    return render(request, "personal/admin_remove.html", {"items": items})
+
+
 def personal_create(request):
     if request.method == "POST":
-        form = PersonalForm(request.POST)
+        form = PersonalForm(request.POST, request_user=request.user)
         if form.is_valid():
             form.save()
             messages.success(request, "Personal creado correctamente.")
             return redirect("personal_list")
     else:
-        form = PersonalForm()
+        form = PersonalForm(request_user=request.user)
     return render(request, "personal/form.html", {"form": form})
 
 
 def personal_update(request, pk):
     personal = get_object_or_404(Personal, pk=pk)
     if request.method == "POST":
-        form = PersonalForm(request.POST, instance=personal)
+        form = PersonalForm(request.POST, instance=personal, request_user=request.user)
         if form.is_valid():
             form.save()
             messages.success(request, "Personal actualizado correctamente.")
             return redirect("personal_list")
     else:
-        form = PersonalForm(instance=personal)
+        form = PersonalForm(instance=personal, request_user=request.user)
     return render(request, "personal/form.html", {"form": form, "object": personal})
 
 
@@ -680,6 +793,13 @@ class MantenimientoForm(forms.ModelForm):
     class Meta:
         model = Mantenimiento
         fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if "equipo" in self.fields:
+            self.fields["equipo"].label_from_instance = (
+                lambda obj: f"{obj.codigo_inventario} - {obj.categoria}"
+            )
 
 def mantenimiento_list(request):
     items = Mantenimiento.objects.all()
@@ -1071,6 +1191,7 @@ class CompraMaterialForm(forms.ModelForm):
         fields = [
             "folio_compra",
             "fecha_compra",
+            "archivo_pdf",
             "proveedor",
             "solicitado_por",
             "estado_compra",
@@ -1085,6 +1206,25 @@ class CompraMaterialForm(forms.ModelForm):
             if current and current not in dict(field.choices):
                 field.choices = list(field.choices) + [(current, current)]
 
+    def clean_archivo_pdf(self):
+        archivo = self.cleaned_data.get("archivo_pdf")
+        if not archivo:
+            return archivo
+
+        max_size = 50 * 1024 * 1024
+        if archivo.size > max_size:
+            raise forms.ValidationError("El archivo debe pesar menos de 50 MB.")
+
+        allowed_types = {"application/pdf"}
+        content_type = getattr(archivo, "content_type", None)
+        if content_type and content_type not in allowed_types:
+            raise forms.ValidationError("Formato no permitido. Solo PDF.")
+
+        if not archivo.name.lower().endswith(".pdf"):
+            raise forms.ValidationError("El archivo debe tener extension .pdf.")
+
+        return archivo
+
 def compramaterial_list(request):
     items = CompraMaterial.objects.all()
     return render(request, "compramaterial/list.html", {"items": items})
@@ -1092,7 +1232,7 @@ def compramaterial_list(request):
 
 def compramaterial_create(request):
     if request.method == "POST":
-        form = CompraMaterialForm(request.POST)
+        form = CompraMaterialForm(request.POST, request.FILES)
         if form.is_valid():
             form.save()
             messages.success(request, "Compra creada correctamente.")
@@ -1105,7 +1245,7 @@ def compramaterial_create(request):
 def compramaterial_update(request, pk):
     compra = get_object_or_404(CompraMaterial, pk=pk)
     if request.method == "POST":
-        form = CompraMaterialForm(request.POST, instance=compra)
+        form = CompraMaterialForm(request.POST, request.FILES, instance=compra)
         if form.is_valid():
             form.save()
             messages.success(request, "Compra actualizada correctamente.")

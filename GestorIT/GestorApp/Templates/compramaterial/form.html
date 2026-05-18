@@ -7,7 +7,7 @@
 <div class="actions">
 	<a class="btn" href="{% url 'compramaterial_list' %}">Volver</a>
 </div>
-<form method="post">
+<form method="post" enctype="multipart/form-data">
 	{% csrf_token %}
 	{{ form.non_field_errors }}
 	{% for field in form %}
@@ -19,6 +19,9 @@
 				{{ field }}
 				{% if field.help_text %}
 					<span class="helptext">{{ field.help_text }}</span>
+				{% endif %}
+				{% if field.name == "archivo_pdf" %}
+					<span class="helptext">Archivo opcional. Maximo 50 MB. Formato permitido: PDF.</span>
 				{% endif %}
 				{% for error in field.errors %}
 					<span class="error">{{ error }}</span>

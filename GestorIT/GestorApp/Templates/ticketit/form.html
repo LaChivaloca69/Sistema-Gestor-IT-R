@@ -36,7 +36,18 @@
 	(function () {
 		const tipoField = document.getElementById("id_tipo_ticket");
 		const subtipoField = document.getElementById("id_sub_tipo_ticket");
+		const fechaSupportField = document.getElementById("id_fecha_support_client");
 		if (!tipoField || !subtipoField) {
+			if (fechaSupportField) {
+				const form = fechaSupportField.closest("form");
+				const setClientTime = () => {
+					fechaSupportField.value = new Date().toISOString();
+				};
+				setClientTime();
+				if (form) {
+					form.addEventListener("submit", setClientTime);
+				}
+			}
 			return;
 		}
 
@@ -80,6 +91,17 @@
 
 		if (tipoField.value) {
 			updateSubtipos(tipoField.value);
+		}
+
+		if (fechaSupportField) {
+			const form = fechaSupportField.closest("form");
+			const setClientTime = () => {
+				fechaSupportField.value = new Date().toISOString();
+			};
+			setClientTime();
+			if (form) {
+				form.addEventListener("submit", setClientTime);
+			}
 		}
 	})();
 </script>

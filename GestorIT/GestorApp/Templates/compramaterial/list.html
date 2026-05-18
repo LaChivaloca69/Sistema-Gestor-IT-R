@@ -13,6 +13,7 @@
 			<th>Folio</th>
 			<th>Fecha</th>
 			<th>Proveedor</th>
+			<th>PDF</th>
 			<th>Estado</th>
 			<th>Acciones</th>
 		</tr>
@@ -23,6 +24,13 @@
 			<td>{{ item.folio_compra }}</td>
 			<td>{{ item.fecha_compra }}</td>
 			<td>{{ item.proveedor }}</td>
+			<td>
+				{% if item.archivo_pdf %}
+					<a class="btn" href="{{ item.archivo_pdf.url }}" target="_blank" rel="noopener">Ver PDF</a>
+				{% else %}
+					Sin archivo
+				{% endif %}
+			</td>
 			<td>{{ item.estado_compra }}</td>
 			<td>
 				<a class="btn" href="{% url 'compramaterial_update' item.pk %}">Editar</a>
@@ -31,7 +39,7 @@
 		</tr>
 		{% empty %}
 		<tr>
-			<td colspan="5">No hay registros.</td>
+			<td colspan="6">No hay registros.</td>
 		</tr>
 		{% endfor %}
 	</tbody>
