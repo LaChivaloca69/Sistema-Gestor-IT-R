@@ -404,16 +404,6 @@
                     </div>
                 </div>
 
-                <div class="sidebar-section" data-section="admin">
-                    <button class="sidebar-section-toggle" type="button" aria-expanded="true">
-                        <span class="sidebar-section-title">Admin</span>
-                        <span class="sidebar-section-chevron" aria-hidden="true">v</span>
-                    </button>
-                    <div class="sidebar-section-links">
-                        <a class="sidebar-link {% if request.resolver_match.url_name == 'personal_admin_requests' %}active{% endif %}" href="{% url 'personal_admin_requests' %}">Solicitudes admin</a>
-                        <a class="sidebar-link {% if request.resolver_match.url_name == 'personal_admin_remove' %}active{% endif %}" href="{% url 'personal_admin_remove' %}">Quitar admin</a>
-                    </div>
-                </div>
 
                 <div class="sidebar-section" data-section="ubicaciones">
                     <button class="sidebar-section-toggle" type="button" aria-expanded="true">
@@ -451,6 +441,19 @@
                         <a class="sidebar-link {% if request.resolver_match.url_name == 'agendamantenimiento_list' %}active{% endif %}" href="{% url 'agendamantenimiento_list' %}">Agenda mantenimiento</a>
                     </div>
                 </div>
+
+
+                <div class="sidebar-section" data-section="admin">
+                    <button class="sidebar-section-toggle" type="button" aria-expanded="true">
+                        <span class="sidebar-section-title">Admin</span>
+                        <span class="sidebar-section-chevron" aria-hidden="true">v</span>
+                    </button>
+                    <div class="sidebar-section-links">
+                        <a class="sidebar-link {% if request.resolver_match.url_name == 'personal_admin_requests' %}active{% endif %}" href="{% url 'personal_admin_requests' %}">Solicitudes admin</a>
+                        <a class="sidebar-link {% if request.resolver_match.url_name == 'personal_admin_remove' %}active{% endif %}" href="{% url 'personal_admin_remove' %}">Quitar admin</a>
+                    </div>
+                </div>
+
                 {% endif %}
 
             </div>

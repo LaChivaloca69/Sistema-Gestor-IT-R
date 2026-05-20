@@ -29,14 +29,17 @@ from .models import (
     DetallePresupuesto,
     Edificio,
     Equipo,
+    EstadoSupport,
     Mantenimiento,
     MovimientoEquipo,
     Personal,
     Presupuesto,
+    PrioridadSupport,
     Proveedor,
     Puesto,
     SeguimientoTicket,
     TicketIT,
+    TipoTicketSupport,
     Ubicacion,
     ZonaEdificio,
 )
@@ -889,31 +892,56 @@ def agendamantenimiento_delete(request, pk):
 
 def ticketit_list(request):
     items = TicketIT.objects.all()
-    return render(request, "ticketit/list.html", {"items": items})
+    selected_tipo = request.GET.get("tipo_ticket", "")
+    selected_prioridad = request.GET.get("prioridad", "")
+    selected_status = request.GET.get("status", "")
+
+    if selected_tipo:
+        items = items.filter(tipo_ticket=selected_tipo)
+    if selected_prioridad:
+        items = items.filter(prioridad=selected_prioridad)
+    if selected_status:
+        items = items.filter(status=selected_status)
+
+    context = {
+        "items": items,
+        "tipo_choices": TipoTicketSupport.choices,
+        "prioridad_choices": PrioridadSupport.choices,
+        "status_choices": EstadoSupport.choices,
+        "selected_tipo": selected_tipo,
+        "selected_prioridad": selected_prioridad,
+        "selected_status": selected_status,
+    }
+    return render(request, "ticketit/list.html", context)
 
 
 def ticketit_create(request):
     if request.method == "POST":
-        form = TicketITForm(request.POST, request.FILES)
+        form = TicketITForm(request.POST, request.FILES, request_user=request.user)
         if form.is_valid():
             form.save()
             messages.success(request, "Support creado correctamente.")
             return redirect("ticketit_list")
     else:
-        form = TicketITForm()
+        form = TicketITForm(request_user=request.user)
     return render(request, "ticketit/form.html", {"form": form})
 
 
 def ticketit_update(request, pk):
     ticket = get_object_or_404(TicketIT, pk=pk)
     if request.method == "POST":
-        form = TicketITForm(request.POST, request.FILES, instance=ticket)
+        form = TicketITForm(
+            request.POST,
+            request.FILES,
+            instance=ticket,
+            request_user=request.user,
+        )
         if form.is_valid():
             form.save()
             messages.success(request, "Support actualizado correctamente.")
             return redirect("ticketit_list")
     else:
-        form = TicketITForm(instance=ticket)
+        form = TicketITForm(instance=ticket, request_user=request.user)
     return render(request, "ticketit/form.html", {"form": form, "object": ticket})
 
 

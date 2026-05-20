@@ -65,6 +65,12 @@ def get_tipo_equipo_queryset(current_value=None):
     return qs
 
 
+def is_admin_user(user):
+    if not user or not getattr(user, "is_authenticated", False):
+        return False
+    return user.is_superuser or user.is_staff
+
+
 class TicketITForm(forms.ModelForm):
     sub_tipo_ticket = forms.ChoiceField(required=False, choices=[])
     fecha_support_client = forms.CharField(required=False, widget=forms.HiddenInput())
@@ -74,6 +80,7 @@ class TicketITForm(forms.ModelForm):
         exclude = ["folio_ticket", "fecha_support"]
 
     def __init__(self, *args, **kwargs):
+        self.request_user = kwargs.pop("request_user", None)
         super().__init__(*args, **kwargs)
         tipo_ticket = None
         if self.data.get("tipo_ticket"):
@@ -90,6 +97,15 @@ class TicketITForm(forms.ModelForm):
             self.fields["equipo"].label_from_instance = (
                 lambda obj: f"{obj.codigo_inventario} - {obj.categoria}"
             )
+        if "solicitado_por" in self.fields:
+            if (
+                self.request_user
+                and getattr(self.request_user, "is_authenticated", False)
+                and not is_admin_user(self.request_user)
+            ):
+                self.fields["solicitado_por"].initial = self.request_user
+                self.fields["solicitado_por"].disabled = True
+                self.fields["solicitado_por"].help_text = "Asignado automaticamente."
 
     def clean_imagen(self):
         imagen = self.cleaned_data.get("imagen")
@@ -130,6 +146,14 @@ class TicketITForm(forms.ModelForm):
         client_datetime = self._parse_client_datetime(client_value)
         if client_datetime and not instance.pk:
             instance.fecha_support = client_datetime
+
+        if (
+            self.request_user
+            and getattr(self.request_user, "is_authenticated", False)
+            and not is_admin_user(self.request_user)
+            and not instance.solicitado_por_id
+        ):
+            instance.solicitado_por = self.request_user
 
         if commit:
             instance.save()

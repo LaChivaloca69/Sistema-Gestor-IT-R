@@ -4,9 +4,59 @@
 
 {% block content %}
 <h1>Support</h1>
+<style>
+	.filters {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+		gap: 0.75rem;
+		align-items: end;
+		margin-bottom: 1rem;
+	}
+	.filters-actions {
+		display: flex;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+	}
+	.filters-actions .btn {
+		width: auto;
+	}
+</style>
 <div class="actions">
 	<a class="btn btn-primary" href="{% url 'ticketit_create' %}">Nuevo Support</a>
 </div>
+<form class="filters" method="get">
+	<div>
+		<label for="filter_tipo">Tipo</label>
+		<select id="filter_tipo" name="tipo_ticket">
+			<option value="">Todos</option>
+			{% for value, label in tipo_choices %}
+				<option value="{{ value }}" {% if value == selected_tipo %}selected{% endif %}>{{ label }}</option>
+			{% endfor %}
+		</select>
+	</div>
+	<div>
+		<label for="filter_prioridad">Prioridad</label>
+		<select id="filter_prioridad" name="prioridad">
+			<option value="">Todos</option>
+			{% for value, label in prioridad_choices %}
+				<option value="{{ value }}" {% if value == selected_prioridad %}selected{% endif %}>{{ label }}</option>
+			{% endfor %}
+		</select>
+	</div>
+	<div>
+		<label for="filter_status">Estatus</label>
+		<select id="filter_status" name="status">
+			<option value="">Todos</option>
+			{% for value, label in status_choices %}
+				<option value="{{ value }}" {% if value == selected_status %}selected{% endif %}>{{ label }}</option>
+			{% endfor %}
+		</select>
+	</div>
+	<div class="filters-actions">
+		<button class="btn btn-primary" type="submit">Filtrar</button>
+		<a class="btn" href="{% url 'ticketit_list' %}">Limpiar</a>
+	</div>
+</form>
 <table>
 	<thead>
 		<tr>
@@ -43,7 +93,7 @@
 						<img src="{{ item.imagen.url }}" alt="{{ item.folio_ticket }}" style="height:40px; width:auto; border-radius:4px;" />
 					</a>
 				{% else %}
-					Sin imagen
+					-----
 				{% endif %}
 			</td>
 			<td>
