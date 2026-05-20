@@ -264,7 +264,6 @@ class TicketIT(models.Model):
     equipo = models.ForeignKey(Equipo, on_delete=models.SET_NULL, null=True, blank=True)
     tipo_equipo = models.ForeignKey(CategoriaEquipo, on_delete=models.PROTECT, null=True, blank=True)
     otro_tipo_equipo = models.CharField(max_length=120, blank=True, null=True)
-    identificador_reporte = models.CharField(max_length=80, blank=True, null=True, verbose_name='ID')
     detalle = models.CharField(max_length=255, blank=True, null=True)
     descripcion = models.TextField()
     imagen = models.ImageField(upload_to='support', blank=True, null=True)
