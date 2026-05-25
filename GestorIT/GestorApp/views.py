@@ -646,7 +646,7 @@ def categoriaequipo_delete(request, pk):
 class EquipoForm(forms.ModelForm):
     class Meta:
         model = Equipo
-        fields = "__all__"
+        exclude = ["costo_compra", "fecha_compra", "garantia_meses"]
 
     def clean_imagen(self):
         imagen = self.cleaned_data.get("imagen")

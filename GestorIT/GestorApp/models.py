@@ -6,7 +6,9 @@ from django.db import IntegrityError, models
 from django.db.models.signals import post_delete
 from django.dispatch import receiver
 from django.utils import timezone
+# ------------ MODELOS DE AREAS, PUESTOS Y PERSONAL ------------
 
+# Ubicacion
 class Area(models.Model):
     nombre_area = models.CharField(max_length=100)
     descripcion_area = models.CharField(max_length=255, blank=True, null=True)
@@ -56,7 +58,7 @@ def delete_user_for_personal(sender, instance, **kwargs):
     if instance.user_id:
         get_user_model().objects.filter(pk=instance.user_id).delete()
 
-
+# ------------ MODELO DE PROVEEDORES------------
 class Proveedor(models.Model):
     nombre_proveedor = models.CharField(max_length=150)
     contacto = models.CharField(max_length=150, blank=True, null=True)
@@ -68,7 +70,7 @@ class Proveedor(models.Model):
     def __str__(self):
         return self.nombre_proveedor
 
-
+# ------------ MODELOS DE UBICACION, EDIFICIO ------------
 class Edificio(models.Model):
     nombre_edificio = models.CharField(max_length=100)
     descripcion_edificio = models.CharField(max_length=255, blank=True, null=True)
@@ -100,7 +102,7 @@ class Ubicacion(models.Model):
     def __str__(self):
         return f"{self.edificio} / {self.zona} / {self.referencia or 'Sin referencia'}"
 
-
+# ------------ MODELOS DE EQUIPO(CATEGORIA, ESTADO, TIPO, ETC) ------------
 class CategoriaEquipo(models.Model):
     nombre_categoria = models.CharField(max_length=100)
     descripcion_categoria = models.CharField(max_length=255, blank=True, null=True)
@@ -125,9 +127,6 @@ class Equipo(models.Model):
     modelo = models.CharField(max_length=80, blank=True, null=True)
     descripcion_equipo = models.CharField(max_length=255, blank=True, null=True)
     imagen = models.ImageField(upload_to='equipos', blank=True, null=True)
-    fecha_compra = models.DateField(blank=True, null=True)
-    costo_compra = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True)
-    garantia_meses = models.IntegerField(default=0)
     proveedor = models.ForeignKey(Proveedor, on_delete=models.SET_NULL, null=True, blank=True)
     estado_equipo = models.CharField(max_length=30, choices=EstadoEquipo.choices, default=EstadoEquipo.DISPONIBLE)
     ubicacion = models.ForeignKey(Ubicacion, on_delete=models.SET_NULL, null=True, blank=True)
@@ -173,7 +172,7 @@ class AsignacionEquipo(models.Model):
     estado_asignacion = models.CharField(max_length=20, choices=EstadoAsignacion.choices, default=EstadoAsignacion.ACTIVA)
     observaciones = models.CharField(max_length=255, blank=True, null=True)
 
-
+# ------------ MODELOS DE MANTENIMIENTO ------------
 class TipoMantenimiento(models.TextChoices):
     PREVENTIVO = "Preventivo", "Preventivo"
     CORRECTIVO = "Correctivo", "Correctivo"
@@ -209,6 +208,8 @@ class AgendaMantenimiento(models.Model):
     enviado = models.BooleanField(default=False)
 
 
+# ------------ TICKETS DE SUPPORT, CHECKS Y BITACORA ------------
+# Support y Bitacora models se encuentran al final del archivo para evitar conflictos con migraciones que eliminan campos de Equipo.
 class TipoTicketSupport(models.TextChoices):
     ADMINISTRACION = "ADMINISTRACION", "ADMINISTRACION"
     BPCS = "BPCS", "BPCS"
@@ -242,6 +243,7 @@ class PrioridadSupport(models.TextChoices):
     URGENTE = "Urgente", "Urgente"
 
 
+
 class TicketIT(models.Model):
     FOLIO_PREFIX = 'SPR0-'
     FOLIO_WIDTH = 6
@@ -249,7 +251,22 @@ class TicketIT(models.Model):
     folio_ticket = models.CharField(max_length=30, unique=True)
     fecha_support = models.DateTimeField(default=timezone.now)
     requerimiento = models.CharField(max_length=180, default='')
-    departamento = models.ForeignKey(Area, on_delete=models.SET_NULL, null=True, blank=True, related_name='tickets_support')
+    area = models.ForeignKey(
+        Area,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='tickets_support',
+        verbose_name='Area',
+    )
+    puesto = models.ForeignKey(
+        Puesto,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='tickets_support_puesto',
+        verbose_name='Puesto',
+    )
     solicitado_por = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -329,7 +346,12 @@ class SeguimientoTicket(models.Model):
     ticket = models.OneToOneField(TicketIT, on_delete=models.CASCADE, related_name='ticket_check')
     folio_check = models.CharField(max_length=30, blank=True, null=True)
     fecha_check = models.DateTimeField(default=timezone.now)
-    usuario = models.CharField(max_length=150, default='')
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='checks_resueltos',
+    )
     solucion = models.TextField(default='')
     observacion = models.TextField(blank=True, null=True)
     ya_terminado = models.BooleanField(default=True)
@@ -408,6 +430,7 @@ class Answer(models.Model):
         return f'{self.folio_answer} - {self.solucion}'
 
 
+# ------------ MODELOS DE PRESUPUESTOS Y COMPRAS ------------
 class EstadoPresupuesto(models.TextChoices):
     BORRADOR = "Borrador", "Borrador"
     EN_PROCESO = "En Proceso", "En Proceso"

@@ -62,7 +62,7 @@
 		<tr>
 			<th>Folio</th>
 			<th>Fecha</th>
-			<th>Departamento</th>
+			<th>Area</th>
 			<th>Solicitado por</th>
 			<th>Tipo</th>
 			<th>Subtipo</th>
@@ -79,7 +79,7 @@
 		<tr>
 			<td>{{ item.folio_ticket }}</td>
 			<td>{{ item.fecha_support }}</td>
-			<td>{{ item.departamento }}</td>
+			<td>{{ item.area }}</td>
 			<td>{{ item.solicitado_por }}</td>
 			<td>{{ item.tipo_ticket }}</td>
 			<td>{{ item.sub_tipo_ticket }}</td>
@@ -103,7 +103,7 @@
 		</tr>
 		{% empty %}
 		<tr>
-			<td colspan="12">No hay registros.</td>
+			<td colspan="13">No hay registros.</td>
 		</tr>
 		{% endfor %}
 	</tbody>

@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from django import forms
+from django.contrib.auth import get_user_model
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 from django.db import transaction
@@ -207,6 +208,16 @@ class SeguimientoTicketForm(forms.ModelForm):
                 | Q(pk=self.instance.ticket_id)
             )
         self.fields["ticket"].queryset = qs.order_by("folio_ticket")
+        if "usuario" in self.fields:
+            user_model = get_user_model()
+            user_qs = user_model.objects.filter(is_staff=True)
+            if any(field.name == "is_active" for field in user_model._meta.fields):
+                user_qs = user_qs.filter(is_active=True)
+            if self.instance and self.instance.usuario_id:
+                user_qs = user_model.objects.filter(pk=self.instance.usuario_id) | user_qs
+            self.fields["usuario"].queryset = user_qs.distinct().order_by(
+                user_model.USERNAME_FIELD
+            )
 
 
 class AnswerForm(forms.ModelForm):
