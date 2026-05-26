@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 
-{% block title %}{% if object %}Editar Agenda de mantenimiento{% else %}Nueva Agenda de mantenimiento{% endif %}{% endblock %}
+{% block title %}{% if object %}Editar cierre de mantenimiento{% else %}Cerrar mantenimiento{% endif %}{% endblock %}
 
 {% block content %}
-<h1>{% if object %}Editar Agenda de mantenimiento{% else %}Nueva Agenda de mantenimiento{% endif %}</h1>
+<h1>{% if object %}Editar cierre de mantenimiento{% else %}Cerrar mantenimiento{% endif %}</h1>
 <div class="actions">
 	<a class="btn" href="{% url 'agendamantenimiento_list' %}">Volver</a>
 </div>

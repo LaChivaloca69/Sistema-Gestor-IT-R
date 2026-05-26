@@ -105,6 +105,11 @@ urlpatterns = [
     path('MovimientoEquipos/create/', views.admin_required(views.movimientoequipo_create), name='movimientoequipo_create'),
     path('MovimientoEquipos/update/<int:pk>/', views.admin_required(views.movimientoequipo_update), name='movimientoequipo_update'),
     path('MovimientoEquipos/delete/<int:pk>/', views.admin_required(views.movimientoequipo_delete), name='movimientoequipo_delete'),
+    path(
+        'MovimientoEquipos/equipo-info/',
+        views.admin_required(views.movimientoequipo_equipo_info),
+        name='movimientoequipo_equipo_info',
+    ),
 
 
     # ------------- Asignacion de equipos Urls -------------

@@ -141,17 +141,18 @@ class Equipo(models.Model):
 
 
 class TipoMovimiento(models.TextChoices):
-    ENTRADA = "Entrada", "Entrada"
-    SALIDA = "Salida", "Salida"
-    TRANSFERENCIA = "Transferencia", "Transferencia"
-    BAJA = "Baja", "Baja"
+    DADA_DE_ALTA = "Dada de alta", "Dada de alta"
+    DADA_DE_BAJA = "Dada de baja", "Dada de baja"
+    ASIGNACION = "Asignacion de equipo", "Asignacion de equipo"
+    CAMBIO_ASIGNACION = "Cambio de asignacion", "Cambio de asignacion"
+    MANTENIMIENTO = "En mantenimiento", "En mantenimiento"
+    CAMBIO_UBICACION = "Cambio de ubicacion", "Cambio de ubicacion"
 
 
 class MovimientoEquipo(models.Model):
     equipo = models.ForeignKey(Equipo, on_delete=models.CASCADE, related_name='movimientos')
     tipo_movimiento = models.CharField(max_length=20, choices=TipoMovimiento.choices)
     fecha_movimiento = models.DateTimeField(auto_now_add=True)
-    cantidad = models.IntegerField(default=1)
     origen = models.CharField(max_length=150, blank=True, null=True)
     destino = models.CharField(max_length=150, blank=True, null=True)
     responsable = models.ForeignKey(Personal, on_delete=models.SET_NULL, null=True, blank=True)
@@ -191,21 +192,22 @@ class Mantenimiento(models.Model):
     tipo_mantenimiento = models.CharField(max_length=20, choices=TipoMantenimiento.choices)
     estado_mantenimiento = models.CharField(max_length=20, choices=EstadoMantenimiento.choices, default=EstadoMantenimiento.PROGRAMADO)
     fecha_programada = models.DateField()
-    fecha_inicio = models.DateTimeField(blank=True, null=True)
-    fecha_fin = models.DateTimeField(blank=True, null=True)
     tecnico_responsable = models.CharField(max_length=150, blank=True, null=True)
     costo_mantenimiento = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     descripcion_falla = models.CharField(max_length=255, blank=True, null=True)
-    acciones_realizadas = models.TextField(blank=True, null=True)
-    proxima_fecha_mantenimiento = models.DateField(blank=True, null=True)
-    observaciones = models.CharField(max_length=255, blank=True, null=True)
 
 
 class AgendaMantenimiento(models.Model):
-    mantenimiento = models.ForeignKey(Mantenimiento, on_delete=models.CASCADE, related_name='recordatorios')
-    fecha_recordatorio = models.DateTimeField()
-    canal_recordatorio = models.CharField(max_length=50, blank=True, null=True)
-    enviado = models.BooleanField(default=False)
+    mantenimiento = models.OneToOneField(
+        Mantenimiento,
+        on_delete=models.CASCADE,
+        related_name='cierre',
+    )
+    fecha_inicio = models.DateTimeField(blank=True, null=True)
+    fecha_fin = models.DateTimeField(blank=True, null=True)
+    acciones_realizadas = models.TextField(blank=True, null=True)
+    observaciones = models.CharField(max_length=255, blank=True, null=True)
+    proxima_fecha_mantenimiento = models.DateField(blank=True, null=True)
 
 
 # ------------ TICKETS DE SUPPORT, CHECKS Y BITACORA ------------

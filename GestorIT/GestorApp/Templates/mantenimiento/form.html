@@ -12,4 +12,28 @@
 	{{ form.as_p }}
 	<button class="btn btn-primary" type="submit">Guardar</button>
 </form>
+
+<script>
+	(function () {
+		var tecnicoSelect = document.getElementById("id_tecnico_responsable");
+		var proveedorSelect = document.getElementById("id_proveedor_responsable");
+		if (!tecnicoSelect || !proveedorSelect) {
+			return;
+		}
+		var proveedorWrap = proveedorSelect.closest("p") || proveedorSelect.parentElement;
+
+		function toggleProveedor() {
+			var show = tecnicoSelect.value === "Proveedores";
+			if (proveedorWrap) {
+				proveedorWrap.style.display = show ? "" : "none";
+			}
+			if (!show) {
+				proveedorSelect.value = "";
+			}
+		}
+
+		tecnicoSelect.addEventListener("change", toggleProveedor);
+		toggleProveedor();
+	})();
+</script>
 {% endblock %}

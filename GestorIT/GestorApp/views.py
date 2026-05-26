@@ -1,3 +1,4 @@
+from datetime import date, datetime, timedelta
 from functools import wraps
 
 from django import forms
@@ -5,8 +6,10 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model, login
 from django.contrib.auth.password_validation import validate_password
 from django.db import transaction
+from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 
 from .forms import (
 	AnswerForm,
@@ -29,6 +32,10 @@ from .models import (
     DetallePresupuesto,
     Edificio,
     Equipo,
+    EstadoAsignacion,
+    EstadoEquipo,
+    EstadoMantenimiento,
+    EstadoPresupuesto,
     EstadoSupport,
     Mantenimiento,
     MovimientoEquipo,
@@ -39,6 +46,7 @@ from .models import (
     Puesto,
     SeguimientoTicket,
     TicketIT,
+    TipoMovimiento,
     TipoTicketSupport,
     Ubicacion,
     ZonaEdificio,
@@ -62,6 +70,105 @@ def admin_required(view_func):
         return view_func(request, *args, **kwargs)
 
     return _wrapped
+
+
+def _parse_date(value):
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def _end_of_month(start_date):
+    if start_date.month == 12:
+        next_month = date(start_date.year + 1, 1, 1)
+    else:
+        next_month = date(start_date.year, start_date.month + 1, 1)
+    return next_month - timedelta(days=1)
+
+
+def _month_bounds(value):
+    if not value:
+        return None, None
+    try:
+        year_str, month_str = value.split("-")
+        year = int(year_str)
+        month = int(month_str)
+    except (ValueError, AttributeError):
+        return None, None
+    if month < 1 or month > 12:
+        return None, None
+    start = date(year, month, 1)
+    return start, _end_of_month(start)
+
+
+def _quick_range_bounds(value):
+    if not value:
+        return None, None
+    today = timezone.localdate()
+    if value == "last_7":
+        return today - timedelta(days=6), today
+    if value == "last_30":
+        return today - timedelta(days=29), today
+    if value == "this_month":
+        start = date(today.year, today.month, 1)
+        return start, _end_of_month(start)
+    if value == "last_month":
+        first_this_month = date(today.year, today.month, 1)
+        last_month_end = first_this_month - timedelta(days=1)
+        start = date(last_month_end.year, last_month_end.month, 1)
+        return start, last_month_end
+    if value == "this_year":
+        return date(today.year, 1, 1), date(today.year, 12, 31)
+    return None, None
+
+
+def _apply_date_filters(items, field_name, start_date, end_date):
+    if start_date:
+        items = items.filter(**{f"{field_name}__gte": start_date})
+    if end_date:
+        items = items.filter(**{f"{field_name}__lte": end_date})
+    return items
+
+
+def _get_equipo_asignacion_activa(equipo):
+    if not equipo:
+        return None
+    return (
+        AsignacionEquipo.objects.select_related("personal")
+        .filter(equipo=equipo, estado_asignacion=EstadoAsignacion.ACTIVA)
+        .order_by("-fecha_asignacion")
+        .first()
+    )
+
+
+def _get_equipo_responsable(equipo):
+    asignacion = _get_equipo_asignacion_activa(equipo)
+    if asignacion and asignacion.personal_id:
+        return asignacion.personal
+    return None
+
+
+def _crear_movimiento(
+    equipo,
+    tipo_movimiento,
+    origen=None,
+    destino=None,
+    responsable=None,
+    observaciones=None,
+):
+    if not equipo:
+        return None
+    return MovimientoEquipo.objects.create(
+        equipo=equipo,
+        tipo_movimiento=tipo_movimiento,
+        origen=str(origen) if origen else None,
+        destino=str(destino) if destino else None,
+        responsable=responsable,
+        observaciones=observaciones or None,
+    )
 
 # =========== Area views ==============
 class AreaForm(forms.ModelForm):
@@ -327,8 +434,64 @@ class PersonalForm(forms.ModelForm):
         return personal
 
 def personal_list(request):
-    items = Personal.objects.select_related("user").all()
-    return render(request, "personal/list.html", {"items": items})
+    items = Personal.objects.select_related("user", "area", "puesto").all()
+    search_query = (request.GET.get("q") or "").strip()
+    selected_area = request.GET.get("area", "")
+    selected_puesto = request.GET.get("puesto", "")
+    selected_activo = request.GET.get("activo", "")
+    fecha_desde_raw = request.GET.get("fecha_ingreso_desde", "")
+    fecha_hasta_raw = request.GET.get("fecha_ingreso_hasta", "")
+    fecha_mes = request.GET.get("fecha_ingreso_mes", "")
+    fecha_rango = request.GET.get("fecha_ingreso_rango", "")
+
+    if search_query:
+        items = items.filter(
+            Q(numero_empleado__icontains=search_query)
+            | Q(nombre__icontains=search_query)
+            | Q(apellido_paterno__icontains=search_query)
+            | Q(apellido_materno__icontains=search_query)
+            | Q(user__username__icontains=search_query)
+            | Q(correo__icontains=search_query)
+        )
+    if selected_area:
+        items = items.filter(area_id=selected_area)
+    if selected_puesto:
+        items = items.filter(puesto_id=selected_puesto)
+    if selected_activo == "true":
+        items = items.filter(activo=True)
+    elif selected_activo == "false":
+        items = items.filter(activo=False)
+
+    fecha_desde = _parse_date(fecha_desde_raw)
+    fecha_hasta = _parse_date(fecha_hasta_raw)
+    if not fecha_desde and not fecha_hasta:
+        month_start, month_end = _month_bounds(fecha_mes)
+        if month_start:
+            fecha_desde, fecha_hasta = month_start, month_end
+        else:
+            range_start, range_end = _quick_range_bounds(fecha_rango)
+            if range_start:
+                fecha_desde, fecha_hasta = range_start, range_end
+    items = _apply_date_filters(items, "fecha_ingreso", fecha_desde, fecha_hasta)
+
+    context = {
+        "items": items,
+        "area_choices": Area.objects.order_by("nombre_area").values_list(
+            "id", "nombre_area"
+        ),
+        "puesto_choices": Puesto.objects.order_by("nombre_puesto").values_list(
+            "id", "nombre_puesto"
+        ),
+        "search_query": search_query,
+        "selected_area": selected_area,
+        "selected_puesto": selected_puesto,
+        "selected_activo": selected_activo,
+        "fecha_ingreso_desde": fecha_desde_raw,
+        "fecha_ingreso_hasta": fecha_hasta_raw,
+        "fecha_ingreso_mes": fecha_mes,
+        "fecha_ingreso_rango": fecha_rango,
+    }
+    return render(request, "personal/list.html", context)
 
 
 def personal_admin_requests(request):
@@ -665,15 +828,84 @@ class EquipoForm(forms.ModelForm):
         return imagen
 
 def equipo_list(request):
-    items = Equipo.objects.all()
-    return render(request, "equipo/list.html", {"items": items})
+    items = Equipo.objects.select_related("categoria", "proveedor", "ubicacion").all()
+    search_query = (request.GET.get("q") or "").strip()
+    selected_categoria = request.GET.get("categoria", "")
+    selected_estado = request.GET.get("estado_equipo", "")
+    selected_activo = request.GET.get("activo", "")
+    selected_ubicacion = request.GET.get("ubicacion", "")
+    fecha_desde_raw = request.GET.get("fecha_alta_desde", "")
+    fecha_hasta_raw = request.GET.get("fecha_alta_hasta", "")
+    fecha_mes = request.GET.get("fecha_alta_mes", "")
+    fecha_rango = request.GET.get("fecha_alta_rango", "")
+
+    if search_query:
+        items = items.filter(
+            Q(codigo_inventario__icontains=search_query)
+            | Q(numero_serie__icontains=search_query)
+            | Q(marca__icontains=search_query)
+            | Q(modelo__icontains=search_query)
+        )
+    if selected_categoria:
+        items = items.filter(categoria_id=selected_categoria)
+    if selected_estado:
+        items = items.filter(estado_equipo=selected_estado)
+    if selected_activo == "true":
+        items = items.filter(activo=True)
+    elif selected_activo == "false":
+        items = items.filter(activo=False)
+    if selected_ubicacion:
+        items = items.filter(ubicacion_id=selected_ubicacion)
+
+    fecha_desde = _parse_date(fecha_desde_raw)
+    fecha_hasta = _parse_date(fecha_hasta_raw)
+    if not fecha_desde and not fecha_hasta:
+        month_start, month_end = _month_bounds(fecha_mes)
+        if month_start:
+            fecha_desde, fecha_hasta = month_start, month_end
+        else:
+            range_start, range_end = _quick_range_bounds(fecha_rango)
+            if range_start:
+                fecha_desde, fecha_hasta = range_start, range_end
+    items = _apply_date_filters(items, "fecha_alta", fecha_desde, fecha_hasta)
+
+    ubicaciones = Ubicacion.objects.select_related("edificio", "zona").order_by(
+        "edificio__nombre_edificio",
+        "zona__nombre_zona",
+        "referencia",
+    )
+    context = {
+        "items": items,
+        "categoria_choices": CategoriaEquipo.objects.order_by(
+            "nombre_categoria"
+        ).values_list("id", "nombre_categoria"),
+        "estado_choices": EstadoEquipo.choices,
+        "ubicacion_choices": [(ubicacion.pk, str(ubicacion)) for ubicacion in ubicaciones],
+        "search_query": search_query,
+        "selected_categoria": selected_categoria,
+        "selected_estado": selected_estado,
+        "selected_activo": selected_activo,
+        "selected_ubicacion": selected_ubicacion,
+        "fecha_alta_desde": fecha_desde_raw,
+        "fecha_alta_hasta": fecha_hasta_raw,
+        "fecha_alta_mes": fecha_mes,
+        "fecha_alta_rango": fecha_rango,
+    }
+    return render(request, "equipo/list.html", context)
 
 
 def equipo_create(request):
     if request.method == "POST":
         form = EquipoForm(request.POST, request.FILES)
         if form.is_valid():
-            form.save()
+            equipo = form.save()
+            _crear_movimiento(
+                equipo,
+                TipoMovimiento.DADA_DE_ALTA,
+                origen=None,
+                destino=equipo.ubicacion,
+                responsable=_get_equipo_responsable(equipo),
+            )
             messages.success(request, "Equipo creado correctamente.")
             return redirect("equipo_list")
     else:
@@ -683,10 +915,34 @@ def equipo_create(request):
 
 def equipo_update(request, pk):
     equipo = get_object_or_404(Equipo, pk=pk)
+    ubicacion_anterior = equipo.ubicacion
+    estado_anterior = equipo.estado_equipo
     if request.method == "POST":
         form = EquipoForm(request.POST, request.FILES, instance=equipo)
         if form.is_valid():
-            form.save()
+            equipo = form.save()
+            movimiento_creado = False
+            if (
+                estado_anterior != equipo.estado_equipo
+                and equipo.estado_equipo == EstadoEquipo.EN_MANTENIMIENTO
+            ):
+                _crear_movimiento(
+                    equipo,
+                    TipoMovimiento.MANTENIMIENTO,
+                    origen=equipo.ubicacion,
+                    destino=equipo.ubicacion,
+                    responsable=_get_equipo_responsable(equipo),
+                )
+                movimiento_creado = True
+
+            if not movimiento_creado and ubicacion_anterior != equipo.ubicacion:
+                _crear_movimiento(
+                    equipo,
+                    TipoMovimiento.CAMBIO_UBICACION,
+                    origen=ubicacion_anterior,
+                    destino=equipo.ubicacion,
+                    responsable=_get_equipo_responsable(equipo),
+                )
             messages.success(request, "Equipo actualizado correctamente.")
             return redirect("equipo_list")
     else:
@@ -697,6 +953,13 @@ def equipo_update(request, pk):
 def equipo_delete(request, pk):
     equipo = get_object_or_404(Equipo, pk=pk)
     if request.method == "POST":
+        _crear_movimiento(
+            equipo,
+            TipoMovimiento.DADA_DE_BAJA,
+            origen=equipo.ubicacion,
+            destino=None,
+            responsable=_get_equipo_responsable(equipo),
+        )
         equipo.delete()
         messages.success(request, "Equipo eliminado correctamente.")
         return redirect("equipo_list")
@@ -704,13 +967,116 @@ def equipo_delete(request, pk):
 
 # ============  MovimientoEquipo views ==============
 class MovimientoEquipoForm(forms.ModelForm):
+    ubicacion_origen = forms.ModelChoiceField(
+        queryset=Ubicacion.objects.none(),
+        required=False,
+        label="Ubicacion origen",
+    )
+    ubicacion_destino = forms.ModelChoiceField(
+        queryset=Ubicacion.objects.none(),
+        required=False,
+        label="Ubicacion destino",
+    )
+
     class Meta:
         model = MovimientoEquipo
-        fields = "__all__"
+        fields = [
+            "equipo",
+            "tipo_movimiento",
+            "ubicacion_origen",
+            "ubicacion_destino",
+            "responsable",
+            "observaciones",
+        ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["ubicacion_origen"].label = "Ubicacion actual"
+        self.fields["ubicacion_destino"].label = "Nueva ubicacion"
+        self.fields["ubicacion_origen"].disabled = True
+        self.fields["responsable"].disabled = True
+        self.fields["responsable"].help_text = "Se toma de la asignacion activa del equipo."
+
+        ubicaciones = Ubicacion.objects.select_related("edificio", "zona").order_by(
+            "edificio__nombre_edificio",
+            "zona__nombre_zona",
+            "referencia",
+        )
+        self.fields["ubicacion_origen"].queryset = ubicaciones
+        self.fields["ubicacion_destino"].queryset = ubicaciones
+
+        equipo = None
+        if self.instance and self.instance.pk and self.instance.equipo_id:
+            equipo = self.instance.equipo
+        elif self.data.get("equipo"):
+            try:
+                equipo = Equipo.objects.select_related("ubicacion").get(
+                    pk=self.data.get("equipo")
+                )
+            except (Equipo.DoesNotExist, ValueError, TypeError):
+                equipo = None
+
+        if equipo and equipo.ubicacion_id:
+            self.fields["ubicacion_origen"].initial = equipo.ubicacion_id
+
+        asignacion = _get_equipo_asignacion_activa(equipo)
+        if asignacion and asignacion.personal_id:
+            self.fields["responsable"].initial = asignacion.personal_id
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        equipo = self.cleaned_data.get("equipo")
+        origen = self.cleaned_data.get("ubicacion_origen")
+        destino = self.cleaned_data.get("ubicacion_destino")
+
+        asignacion = _get_equipo_asignacion_activa(equipo)
+        if asignacion and asignacion.personal_id:
+            instance.responsable = asignacion.personal
+        else:
+            instance.responsable = self.cleaned_data.get("responsable")
+
+        if not origen and equipo and equipo.ubicacion_id:
+            origen = equipo.ubicacion
+        instance.origen = str(origen) if origen else None
+        instance.destino = str(destino) if destino else None
+
+        if commit:
+            instance.save()
+            self.save_m2m()
+            if equipo and destino and equipo.ubicacion_id != destino.pk:
+                equipo.ubicacion = destino
+                equipo.save(update_fields=["ubicacion"])
+        return instance
 
 def movimientoequipo_list(request):
     items = MovimientoEquipo.objects.all()
     return render(request, "movimientoequipo/list.html", {"items": items})
+
+
+def movimientoequipo_equipo_info(request):
+    equipo_id = request.GET.get("equipo_id")
+    data = {
+        "ubicacion_id": "",
+        "ubicacion_label": "",
+        "responsable_id": "",
+        "responsable_label": "",
+    }
+    if equipo_id:
+        try:
+            equipo = Equipo.objects.select_related("ubicacion").get(pk=equipo_id)
+        except (Equipo.DoesNotExist, ValueError, TypeError):
+            equipo = None
+
+        if equipo and equipo.ubicacion_id:
+            data["ubicacion_id"] = str(equipo.ubicacion_id)
+            data["ubicacion_label"] = str(equipo.ubicacion)
+
+        asignacion = _get_equipo_asignacion_activa(equipo)
+        if asignacion and asignacion.personal_id:
+            data["responsable_id"] = str(asignacion.personal_id)
+            data["responsable_label"] = str(asignacion.personal)
+
+    return JsonResponse(data)
 
 
 def movimientoequipo_create(request):
@@ -761,7 +1127,28 @@ def asignacionequipo_create(request):
     if request.method == "POST":
         form = AsignacionEquipoForm(request.POST)
         if form.is_valid():
-            form.save()
+            equipo = form.cleaned_data.get("equipo")
+            personal = form.cleaned_data.get("personal")
+            existente_activo = False
+            if equipo:
+                existente_activo = AsignacionEquipo.objects.filter(
+                    equipo=equipo,
+                    estado_asignacion=EstadoAsignacion.ACTIVA,
+                ).exists()
+            asignacion = form.save()
+            if equipo:
+                tipo_movimiento = (
+                    TipoMovimiento.CAMBIO_ASIGNACION
+                    if existente_activo
+                    else TipoMovimiento.ASIGNACION
+                )
+                _crear_movimiento(
+                    equipo,
+                    tipo_movimiento,
+                    origen=equipo.ubicacion,
+                    destino=equipo.ubicacion,
+                    responsable=personal or _get_equipo_responsable(equipo),
+                )
             messages.success(request, "Asignacion creada correctamente.")
             return redirect("asignacionequipo_list")
     else:
@@ -771,10 +1158,23 @@ def asignacionequipo_create(request):
 
 def asignacionequipo_update(request, pk):
     asignacion = get_object_or_404(AsignacionEquipo, pk=pk)
+    equipo_anterior_id = asignacion.equipo_id
+    personal_anterior_id = asignacion.personal_id
     if request.method == "POST":
         form = AsignacionEquipoForm(request.POST, instance=asignacion)
         if form.is_valid():
-            form.save()
+            asignacion = form.save()
+            if (
+                asignacion.equipo_id != equipo_anterior_id
+                or asignacion.personal_id != personal_anterior_id
+            ):
+                _crear_movimiento(
+                    asignacion.equipo,
+                    TipoMovimiento.CAMBIO_ASIGNACION,
+                    origen=asignacion.equipo.ubicacion,
+                    destino=asignacion.equipo.ubicacion,
+                    responsable=asignacion.personal,
+                )
             messages.success(request, "Asignacion actualizada correctamente.")
             return redirect("asignacionequipo_list")
     else:
@@ -793,9 +1193,31 @@ def asignacionequipo_delete(request, pk):
 
 # ============= Mantenimiento views ==============
 class MantenimientoForm(forms.ModelForm):
+    tecnico_responsable = forms.ChoiceField(
+        required=False,
+        choices=(),
+        label="Tecnico responsable",
+    )
+    proveedor_responsable = forms.ModelChoiceField(
+        queryset=Proveedor.objects.none(),
+        required=False,
+        label="Proveedor",
+    )
+
     class Meta:
         model = Mantenimiento
-        fields = "__all__"
+        fields = [
+            "equipo",
+            "tipo_mantenimiento",
+            "estado_mantenimiento",
+            "fecha_programada",
+            "tecnico_responsable",
+            "costo_mantenimiento",
+            "descripcion_falla",
+        ]
+        widgets = {
+            "fecha_programada": forms.DateInput(attrs={"type": "date"}),
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -804,8 +1226,78 @@ class MantenimientoForm(forms.ModelForm):
                 lambda obj: f"{obj.codigo_inventario} - {obj.categoria}"
             )
 
+        User = get_user_model()
+        user_qs = User.objects.filter(is_staff=True)
+        if any(field.name == "is_active" for field in User._meta.fields):
+            user_qs = user_qs.filter(is_active=True)
+        user_qs = user_qs.order_by(User.USERNAME_FIELD)
+
+        choices = [("", "---------"), ("Proveedores", "Proveedores")]
+        for user in user_qs:
+            label = user.get_full_name().strip()
+            if not label:
+                try:
+                    personal = user.personal_profile
+                except Personal.DoesNotExist:
+                    personal = None
+                if personal:
+                    label_parts = [
+                        personal.nombre,
+                        personal.apellido_paterno,
+                        personal.apellido_materno,
+                    ]
+                    label = " ".join(part for part in label_parts if part)
+            if not label:
+                label = (
+                    getattr(user, User.USERNAME_FIELD, "")
+                    or getattr(user, "email", "")
+                    or f"Usuario {user.pk}"
+                )
+            value = getattr(user, User.USERNAME_FIELD, "") or str(user.pk)
+            choices.append((value, label))
+        current_value = (self.instance.tecnico_responsable or "").strip()
+        if current_value and current_value not in {value for value, _ in choices}:
+            choices.append((current_value, current_value))
+        self.fields["tecnico_responsable"].choices = choices
+
+        proveedores = Proveedor.objects.filter(activo=True).order_by("nombre_proveedor")
+        self.fields["proveedor_responsable"].queryset = proveedores
+        if current_value.lower().startswith("proveedor:"):
+            self.fields["tecnico_responsable"].initial = "Proveedores"
+            nombre = current_value.split(":", 1)[1].strip()
+            if nombre:
+                proveedor = proveedores.filter(nombre_proveedor__iexact=nombre).first()
+                if proveedor:
+                    self.fields["proveedor_responsable"].initial = proveedor.pk
+
+        self.order_fields([
+            "equipo",
+            "tipo_mantenimiento",
+            "estado_mantenimiento",
+            "fecha_programada",
+            "tecnico_responsable",
+            "proveedor_responsable",
+            "costo_mantenimiento",
+            "descripcion_falla",
+        ])
+
+    def clean(self):
+        cleaned = super().clean()
+        tecnico = (cleaned.get("tecnico_responsable") or "").strip()
+        proveedor = cleaned.get("proveedor_responsable")
+        if tecnico == "Proveedores":
+            if not proveedor:
+                self.add_error("proveedor_responsable", "Selecciona un proveedor.")
+            else:
+                cleaned["tecnico_responsable"] = (
+                    f"Proveedor: {proveedor.nombre_proveedor}"
+                )
+        elif proveedor:
+            cleaned["proveedor_responsable"] = None
+        return cleaned
+
 def mantenimiento_list(request):
-    items = Mantenimiento.objects.all()
+    items = Mantenimiento.objects.select_related("equipo", "cierre").all()
     return render(request, "mantenimiento/list.html", {"items": items})
 
 
@@ -845,12 +1337,65 @@ def mantenimiento_delete(request, pk):
 
 # ============ AgendaMantenimiento views ==============
 class AgendaMantenimientoForm(forms.ModelForm):
+    fecha_inicio = forms.DateTimeField(
+        required=False,
+        widget=forms.DateTimeInput(
+            attrs={"type": "datetime-local"},
+            format="%Y-%m-%dT%H:%M",
+        ),
+        input_formats=["%Y-%m-%dT%H:%M"],
+        label="Fecha inicio",
+    )
+    fecha_fin = forms.DateTimeField(
+        widget=forms.DateTimeInput(
+            attrs={"type": "datetime-local"},
+            format="%Y-%m-%dT%H:%M",
+        ),
+        input_formats=["%Y-%m-%dT%H:%M"],
+        label="Fecha fin",
+    )
+
     class Meta:
         model = AgendaMantenimiento
-        fields = "__all__"
+        fields = [
+            "mantenimiento",
+            "fecha_inicio",
+            "fecha_fin",
+            "acciones_realizadas",
+            "observaciones",
+            "proxima_fecha_mantenimiento",
+        ]
+        widgets = {
+            "proxima_fecha_mantenimiento": forms.DateInput(attrs={"type": "date"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["acciones_realizadas"].required = True
+        self.fields["fecha_fin"].required = True
+        qs = Mantenimiento.objects.select_related("equipo").order_by("fecha_programada")
+        if self.instance and self.instance.pk:
+            qs = Mantenimiento.objects.filter(pk=self.instance.mantenimiento_id) | qs.filter(
+                cierre__isnull=True
+            )
+            self.fields["mantenimiento"].disabled = True
+        else:
+            qs = qs.filter(cierre__isnull=True)
+        self.fields["mantenimiento"].queryset = qs.distinct()
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        if commit:
+            instance.save()
+            self.save_m2m()
+            mantenimiento = instance.mantenimiento
+            if mantenimiento.estado_mantenimiento != EstadoMantenimiento.COMPLETADO:
+                mantenimiento.estado_mantenimiento = EstadoMantenimiento.COMPLETADO
+                mantenimiento.save(update_fields=["estado_mantenimiento"])
+        return instance
 
 def agendamantenimiento_list(request):
-    items = AgendaMantenimiento.objects.all()
+    items = AgendaMantenimiento.objects.select_related("mantenimiento").all()
     return render(request, "agendamantenimiento/list.html", {"items": items})
 
 
@@ -1136,7 +1681,41 @@ class PresupuestoForm(forms.ModelForm):
 
 def presupuesto_list(request):
     items = Presupuesto.objects.all()
-    return render(request, "presupuesto/list.html", {"items": items})
+    selected_folio = (request.GET.get("folio_presupuesto") or "").strip()
+    selected_estado = request.GET.get("estado_presupuesto", "")
+    fecha_desde_raw = request.GET.get("fecha_compra_desde", "")
+    fecha_hasta_raw = request.GET.get("fecha_compra_hasta", "")
+    fecha_mes = request.GET.get("fecha_compra_mes", "")
+    fecha_rango = request.GET.get("fecha_compra_rango", "")
+
+    if selected_folio:
+        items = items.filter(folio_presupuesto__icontains=selected_folio)
+    if selected_estado:
+        items = items.filter(estado_presupuesto=selected_estado)
+
+    fecha_desde = _parse_date(fecha_desde_raw)
+    fecha_hasta = _parse_date(fecha_hasta_raw)
+    if not fecha_desde and not fecha_hasta:
+        month_start, month_end = _month_bounds(fecha_mes)
+        if month_start:
+            fecha_desde, fecha_hasta = month_start, month_end
+        else:
+            range_start, range_end = _quick_range_bounds(fecha_rango)
+            if range_start:
+                fecha_desde, fecha_hasta = range_start, range_end
+    items = _apply_date_filters(items, "fecha_compra", fecha_desde, fecha_hasta)
+
+    context = {
+        "items": items,
+        "estado_choices": EstadoPresupuesto.choices,
+        "selected_folio": selected_folio,
+        "selected_estado": selected_estado,
+        "fecha_compra_desde": fecha_desde_raw,
+        "fecha_compra_hasta": fecha_hasta_raw,
+        "fecha_compra_mes": fecha_mes,
+        "fecha_compra_rango": fecha_rango,
+    }
+    return render(request, "presupuesto/list.html", context)
 
 def presupuesto_create(request):
     if request.method == "POST":

@@ -4,9 +4,121 @@
 
 {% block content %}
 <h1>Equipos</h1>
+
+
+<Style>
+	.filters {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+		gap: 0.75rem;
+		align-items: end;
+		margin-bottom: 1rem;
+	}
+	.filters-actions {
+		display: flex;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+	}
+	.filters-actions .btn {
+		width: auto;
+	}
+</Style>
+
 <div class="actions">
 	<a class="btn btn-primary" href="{% url 'equipo_create' %}">Nuevo Equipo</a>
 </div>
+
+<form class="filters" method="get">
+	<div>
+		<label for="filter_search">Buscar</label>
+		<input
+			id="filter_search"
+			name="q"
+			type="search"
+			value="{{ search_query }}"
+			placeholder="Codigo, serie, marca, modelo"
+		/>
+	</div>
+	<div>
+		<label for="filter_categoria">Categoria</label>
+		<select id="filter_categoria" name="categoria">
+			<option value="">Todos</option>
+			{% for value, label in categoria_choices %}
+				<option value="{{ value }}" {% if value|stringformat:"s" == selected_categoria %}selected{% endif %}>{{ label }}</option>
+			{% endfor %}
+		</select>
+	</div>
+	<div>
+		<label for="filter_estado">Estado</label>
+		<select id="filter_estado" name="estado_equipo">
+			<option value="">Todos</option>
+			{% for value, label in estado_choices %}
+				<option value="{{ value }}" {% if value == selected_estado %}selected{% endif %}>{{ label }}</option>
+			{% endfor %}
+		</select>
+	</div>
+	<div>
+		<label for="filter_activo">Activo</label>
+		<select id="filter_activo" name="activo">
+			<option value="">Todos</option>
+			<option value="true" {% if selected_activo == 'true' %}selected{% endif %}>Si</option>
+			<option value="false" {% if selected_activo == 'false' %}selected{% endif %}>No</option>
+		</select>
+	</div>
+
+	<div>
+		<label for="filter_ubicacion">Ubicacion</label>
+		<select id="filter_ubicacion" name="ubicacion">
+			<option value="">Todos</option>
+			{% for value, label in ubicacion_choices %}
+				<option value="{{ value }}" {% if value|stringformat:"s" == selected_ubicacion %}selected{% endif %}>{{ label }}</option>
+			{% endfor %}
+		</select>
+	</div>
+	<div>
+		<label for="filter_fecha_desde">Fecha alta desde</label>
+		<input
+			id="filter_fecha_desde"
+			name="fecha_alta_desde"
+			type="date"
+			value="{{ fecha_alta_desde }}"
+		/>
+	</div>
+	<div>
+		<label for="filter_fecha_hasta">Fecha alta hasta</label>
+		<input
+			id="filter_fecha_hasta"
+			name="fecha_alta_hasta"
+			type="date"
+			value="{{ fecha_alta_hasta }}"
+		/>
+	</div>
+	<div>
+		<label for="filter_fecha_mes">Mes</label>
+		<input
+			id="filter_fecha_mes"
+			name="fecha_alta_mes"
+			type="month"
+			value="{{ fecha_alta_mes }}"
+		/>
+	</div>
+	<div>
+		<label for="filter_fecha_rango">Rango rapido</label>
+		<select id="filter_fecha_rango" name="fecha_alta_rango">
+			<option value="">Todos</option>
+			<option value="last_7" {% if fecha_alta_rango == 'last_7' %}selected{% endif %}>Ultimos 7 dias</option>
+			<option value="last_30" {% if fecha_alta_rango == 'last_30' %}selected{% endif %}>Ultimos 30 dias</option>
+			<option value="this_month" {% if fecha_alta_rango == 'this_month' %}selected{% endif %}>Este mes</option>
+			<option value="last_month" {% if fecha_alta_rango == 'last_month' %}selected{% endif %}>Mes pasado</option>
+			<option value="this_year" {% if fecha_alta_rango == 'this_year' %}selected{% endif %}>Este ano</option>
+		</select>
+	</div>
+	<div class="filters-actions">
+		<button class="btn btn-primary" type="submit">Filtrar</button>
+		<a class="btn" href="{% url 'equipo_list' %}">Limpiar</a>
+	</div>
+</form>
+
 <table>
 	<thead>
 		<tr>

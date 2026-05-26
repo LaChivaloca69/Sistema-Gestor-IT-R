@@ -13,9 +13,8 @@
 			<th>Equipo</th>
 			<th>Tipo</th>
 			<th>Fecha</th>
-			<th>Cantidad</th>
-			<th>Origen</th>
-			<th>Destino</th>
+			<th>Ubicacion origen</th>
+			<th>Ubicacion destino</th>
 			<th>Responsable</th>
 			<th>Acciones</th>
 		</tr>
@@ -26,9 +25,8 @@
 			<td>{{ item.equipo }}</td>
 			<td>{{ item.tipo_movimiento }}</td>
 			<td>{{ item.fecha_movimiento }}</td>
-			<td>{{ item.cantidad }}</td>
-			<td>{{ item.origen }}</td>
-			<td>{{ item.destino }}</td>
+			<td>{{ item.origen|default:"-" }}</td>
+			<td>{{ item.destino|default:"-" }}</td>
 			<td>{{ item.responsable }}</td>
 			<td>
 				<a class="btn" href="{% url 'movimientoequipo_update' item.pk %}">Editar</a>
