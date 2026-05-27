@@ -196,6 +196,15 @@ class Mantenimiento(models.Model):
     costo_mantenimiento = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     descripcion_falla = models.CharField(max_length=255, blank=True, null=True)
 
+    def folio_mantenimiento(self):
+        if not self.pk:
+            return "MAN---"
+        fecha = self.fecha_programada or timezone.localdate()
+        return f"MAN{self.pk:03d}-{fecha.strftime('%m%d%y')}"
+
+    def __str__(self):
+        return self.folio_mantenimiento()
+
 
 class AgendaMantenimiento(models.Model):
     mantenimiento = models.OneToOneField(
