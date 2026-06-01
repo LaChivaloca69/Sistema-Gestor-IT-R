@@ -94,8 +94,6 @@ class Ubicacion(models.Model):
     edificio = models.ForeignKey(Edificio, on_delete=models.PROTECT)
     zona = models.ForeignKey(ZonaEdificio, on_delete=models.PROTECT)
     pasillo = models.CharField(max_length=50, blank=True, null=True)
-    rack = models.CharField(max_length=50, blank=True, null=True)
-    anaquel = models.CharField(max_length=50, blank=True, null=True)
     referencia = models.CharField(max_length=255, blank=True, null=True)
     activo = models.BooleanField(default=True)
 

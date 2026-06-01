@@ -183,6 +183,14 @@ class UbicacionForm(forms.ModelForm):
         else:
             self.fields["zona"].queryset = ZonaEdificio.objects.none()
 
+    def clean(self):
+        cleaned_data = super().clean()
+        edificio = cleaned_data.get("edificio")
+        zona = cleaned_data.get("zona")
+        if edificio and zona and zona.edificio_id != edificio.id:
+            self.add_error("zona", "La zona debe pertenecer al edificio seleccionado.")
+        return cleaned_data
+
 
 class SeguimientoTicketForm(forms.ModelForm):
     class Meta:

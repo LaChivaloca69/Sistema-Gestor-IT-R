@@ -13,8 +13,6 @@
 			<th>Edificio</th>
 			<th>Zona</th>
 			<th>Pasillo</th>
-			<th>Rack</th>
-			<th>Anaquel</th>
 			<th>Referencia</th>
 			<th>Activo</th>
 			<th>Acciones</th>
@@ -26,8 +24,6 @@
 			<td>{{ item.edificio }}</td>
 			<td>{{ item.zona }}</td>
 			<td>{{ item.pasillo }}</td>
-			<td>{{ item.rack }}</td>
-			<td>{{ item.anaquel }}</td>
 			<td>{{ item.referencia }}</td>
 			<td>{{ item.activo|yesno:"Si,No" }}</td>
 			<td>
@@ -37,7 +33,7 @@
 		</tr>
 		{% empty %}
 		<tr>
-			<td colspan="8">No hay registros.</td>
+			<td colspan="6">No hay registros.</td>
 		</tr>
 		{% endfor %}
 	</tbody>

@@ -12,4 +12,73 @@
 	{{ form.as_p }}
 	<button class="btn btn-primary" type="submit">Guardar</button>
 </form>
+
+<script>
+	(function () {
+		var edificioSelect = document.getElementById("id_edificio");
+		var zonaSelect = document.getElementById("id_zona");
+		var zonasUrl = "{% url 'ubicacion_zona_choices' %}";
+		var initialZona = zonaSelect ? zonaSelect.value : "";
+
+		function clearZonas() {
+			if (!zonaSelect) {
+				return;
+			}
+			zonaSelect.innerHTML = "";
+			var emptyOption = document.createElement("option");
+			emptyOption.value = "";
+			emptyOption.textContent = "---------";
+			zonaSelect.appendChild(emptyOption);
+		}
+
+		function fillZonas(zonas) {
+			clearZonas();
+			zonas.forEach(function (zona) {
+				var option = document.createElement("option");
+				option.value = zona.id;
+				option.textContent = zona.nombre_zona;
+				zonaSelect.appendChild(option);
+			});
+			if (initialZona) {
+				zonaSelect.value = initialZona;
+			}
+		}
+
+		function updateZonas() {
+			if (!edificioSelect || !edificioSelect.value) {
+				clearZonas();
+				return;
+			}
+			fetch(zonasUrl + "?edificio_id=" + encodeURIComponent(edificioSelect.value))
+				.then(function (response) {
+					if (!response.ok) {
+						return null;
+					}
+					return response.json();
+				})
+				.then(function (data) {
+					if (!data || !Array.isArray(data.zonas)) {
+						clearZonas();
+						return;
+					}
+					fillZonas(data.zonas);
+				})
+				.catch(function () {
+					clearZonas();
+				});
+		}
+
+		if (edificioSelect) {
+			edificioSelect.addEventListener("change", function () {
+				initialZona = "";
+				updateZonas();
+			});
+			if (edificioSelect.value) {
+				updateZonas();
+			} else {
+				clearZonas();
+			}
+		}
+	})();
+</script>
 {% endblock %}

@@ -117,8 +117,6 @@ Diseñar y documentar una base de datos para la gestión integral del área de T
 | edificio_id | FK | No | edificio(id) | Edificio |
 | zona_id | FK | No | zona_edificio(id) | Zona |
 | pasillo | varchar(50) | Sí |  | Pasillo |
-| rack | varchar(50) | Sí |  | Rack |
-| anaquel | varchar(50) | Sí |  | Anaquel |
 | referencia | varchar(255) | Sí |  | Referencia textual |
 | activo | boolean | No | default true | Estado lógico |
 

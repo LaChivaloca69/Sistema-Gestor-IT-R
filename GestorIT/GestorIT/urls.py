@@ -85,6 +85,11 @@ urlpatterns = [
     path('Ubicacion/create/', views.admin_required(views.ubicacion_create), name='ubicacion_create'),
     path('Ubicacion/update/<int:pk>/', views.admin_required(views.ubicacion_update), name='ubicacion_update'),
     path('Ubicacion/delete/<int:pk>/', views.admin_required(views.ubicacion_delete), name='ubicacion_delete'),
+    path(
+        'Ubicacion/zonas/',
+        views.admin_required(views.ubicacion_zona_choices),
+        name='ubicacion_zona_choices',
+    ),
 
 
     # ------------ Categoria Equipo Urls -------------

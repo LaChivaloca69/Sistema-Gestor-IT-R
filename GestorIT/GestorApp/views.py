@@ -718,14 +718,24 @@ def zonaedificio_delete(request, pk):
     return render(request, "zonaedificio/confirm_delete.html", {"object": zona})
 
 # ============  Ubicacion views ==============
-class UbicacionForm(forms.ModelForm):
-    class Meta:
-        model = Ubicacion
-        fields = "__all__"
-
 def ubicacion_list(request):
     items = Ubicacion.objects.all()
     return render(request, "ubicacion/list.html", {"items": items})
+
+
+def ubicacion_zona_choices(request):
+    edificio_id = request.GET.get("edificio_id")
+    zonas = []
+    if edificio_id:
+        zonas = list(
+            ZonaEdificio.objects.filter(
+                edificio_id=edificio_id,
+                activo=True,
+            )
+            .order_by("nombre_zona")
+            .values("id", "nombre_zona")
+        )
+    return JsonResponse({"zonas": zonas})
 
 
 def ubicacion_create(request):
