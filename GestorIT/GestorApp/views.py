@@ -1129,8 +1129,60 @@ class AsignacionEquipoForm(forms.ModelForm):
         fields = "__all__"
 
 def asignacionequipo_list(request):
-    items = AsignacionEquipo.objects.all()
-    return render(request, "asignacionequipo/list.html", {"items": items})
+    items = AsignacionEquipo.objects.select_related("equipo", "personal").all()
+    selected_personal = request.GET.get("personal", "")
+    selected_equipo = request.GET.get("equipo", "")
+
+    if selected_personal:
+        items = items.filter(personal_id=selected_personal)
+    if selected_equipo:
+        items = items.filter(equipo_id=selected_equipo)
+
+    personal_choices = []
+    for personal in Personal.objects.order_by(
+        "numero_empleado",
+        "nombre",
+        "apellido_paterno",
+        "apellido_materno",
+    ):
+        nombre_completo = " ".join(
+            parte
+            for parte in [
+                personal.nombre,
+                personal.apellido_paterno,
+                personal.apellido_materno,
+            ]
+            if parte
+        )
+        if personal.numero_empleado and nombre_completo:
+            label = f"{personal.numero_empleado} - {nombre_completo}"
+        elif personal.numero_empleado:
+            label = personal.numero_empleado
+        else:
+            label = nombre_completo or str(personal)
+        personal_choices.append((personal.pk, label))
+
+    equipo_choices = []
+    for equipo in Equipo.objects.select_related("categoria").order_by(
+        "codigo_inventario"
+    ):
+        descripcion = " ".join(
+            parte for parte in [equipo.marca, equipo.modelo] if parte
+        ).strip()
+        if descripcion:
+            label = f"{equipo.codigo_inventario} - {descripcion}".strip()
+        else:
+            label = equipo.codigo_inventario or str(equipo)
+        equipo_choices.append((equipo.pk, label))
+
+    context = {
+        "items": items,
+        "personal_choices": personal_choices,
+        "equipo_choices": equipo_choices,
+        "selected_personal": selected_personal,
+        "selected_equipo": selected_equipo,
+    }
+    return render(request, "asignacionequipo/list.html", context)
 
 
 def asignacionequipo_create(request):

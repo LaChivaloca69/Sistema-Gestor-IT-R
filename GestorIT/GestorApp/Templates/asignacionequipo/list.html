@@ -4,9 +4,53 @@
 
 {% block content %}
 <h1>Asignaciones de equipo</h1>
+
+<Style>
+	.filters {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+		gap: 0.75rem;
+		align-items: end;
+		margin-bottom: 1rem;
+	}
+	.filters-actions {
+		display: flex;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+	}
+	.filters-actions .btn {
+		width: auto;
+	}
+</Style>
+
 <div class="actions">
 	<a class="btn btn-primary" href="{% url 'asignacionequipo_create' %}">Nueva Asignacion</a>
 </div>
+
+<form class="filters" method="get">
+	<div>
+		<label for="filter_personal">Personal</label>
+		<select id="filter_personal" name="personal">
+			<option value="">Todos</option>
+			{% for value, label in personal_choices %}
+				<option value="{{ value }}" {% if value|stringformat:"s" == selected_personal %}selected{% endif %}>{{ label }}</option>
+			{% endfor %}
+		</select>
+	</div>
+	<div>
+		<label for="filter_equipo">Equipo</label>
+		<select id="filter_equipo" name="equipo">
+			<option value="">Todos</option>
+			{% for value, label in equipo_choices %}
+				<option value="{{ value }}" {% if value|stringformat:"s" == selected_equipo %}selected{% endif %}>{{ label }}</option>
+			{% endfor %}
+		</select>
+	</div>
+	<div class="filters-actions">
+		<button class="btn btn-primary" type="submit">Filtrar</button>
+		<a class="btn" href="{% url 'asignacionequipo_list' %}">Limpiar</a>
+	</div>
+</form>
 <table>
 	<thead>
 		<tr>
