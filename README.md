@@ -83,7 +83,7 @@ Dependencias
 pip freeze > requirements.txt
 
 # Descargar dependencias
-pip install -r requeriments.txt
+pip install -r requirements.txt
 
 # Verificar instalacion
 pip list
