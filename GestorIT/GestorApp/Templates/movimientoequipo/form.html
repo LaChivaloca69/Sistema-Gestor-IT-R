@@ -1,8 +1,12 @@
 {% extends "base.html" %}
+{% load django_bootstrap5 %}
 
 {% block title %}{% if object %}Editar Movimiento de equipo{% else %}Nuevo Movimiento de equipo{% endif %}{% endblock %}
 
 {% block content %}
+
+
+
 <h1>{% if object %}Editar Movimiento de equipo{% else %}Nuevo Movimiento de equipo{% endif %}</h1>
 <div class="actions">
 	<a class="btn" href="{% url 'movimientoequipo_list' %}">Volver</a>

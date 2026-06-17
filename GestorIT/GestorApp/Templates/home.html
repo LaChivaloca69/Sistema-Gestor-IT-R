@@ -3,14 +3,86 @@
 {% block title %}Inicio{% endblock %}
 
 {% block content %}
-<h1>Bienvenido a Gestor IT</h1>
+<section class="hero-panel">
+	<div class="hero-panel__copy">
+		<p class="eyebrow">Sistema de gestion IT</p>
+		<h1>Controla inventario, soporte y operaciones desde un solo lugar.</h1>
+		<p class="lead-text">Una interfaz limpia para equipos, tickets, mantenimientos, asignaciones y compras.</p>
+		{% if user.is_authenticated %}
+		<div class="actions">
+			<a class="btn btn-primary" href="{% url 'ticketit_list' %}">Ver tickets</a>
+			<a class="btn btn-outline-secondary" href="{% url 'equipo_list' %}">Ir a inventario</a>
+		</div>
+		{% else %}
+		<div class="actions">
+			<a class="btn btn-primary" href="{% url 'login' %}">Iniciar sesion</a>
+			<a class="btn btn-outline-secondary" href="{% url 'signup' %}">Crear usuario</a>
+		</div>
+		{% endif %}
+	</div>
+	<div class="hero-panel__stats">
+		<div class="mini-stat">
+			<span class="mini-stat__label">Tickets</span>
+			<strong>Seguimiento</strong>
+			<small>Estados, prioridades y responsables</small>
+		</div>
+		<div class="mini-stat">
+			<span class="mini-stat__label">Inventario</span>
+			<strong>Equipos</strong>
+			<small>Altas, bajas y asignaciones</small>
+		</div>
+		<div class="mini-stat">
+			<span class="mini-stat__label">Operaciones</span>
+			<strong>Mantenimiento</strong>
+			<small>Agenda y soporte preventivo</small>
+		</div>
+	</div>
+</section>
+
+<section class="section-block">
+	<div class="section-block__header">
+		<h2>Accesos rapidos</h2>
+		<p>Entradas directas a los modulos mas usados.</p>
+	</div>
+	<div class="quick-grid">
+		<a class="quick-card" href="{% url 'ticketit_list' %}">
+			<span class="quick-card__icon">01</span>
+			<strong>Tickets</strong>
+			<small>Gestion de soporte y seguimiento</small>
+		</a>
+		<a class="quick-card" href="{% url 'equipo_list' %}">
+			<span class="quick-card__icon">02</span>
+			<strong>Inventario</strong>
+			<small>Equipos, categorias y proveedores</small>
+		</a>
+		<a class="quick-card" href="{% url 'mantenimiento_list' %}">
+			<span class="quick-card__icon">03</span>
+			<strong>Mantenimiento</strong>
+			<small>Calendario y atencion preventiva</small>
+		</a>
+		<a class="quick-card" href="{% url 'presupuesto_list' %}">
+			<span class="quick-card__icon">04</span>
+			<strong>Presupuestos</strong>
+			<small>Apoyo para compras y formatos</small>
+		</a>
+	</div>
+</section>
+
 {% if user.is_authenticated %}
-<p>Hola {{ user.username }}, usa el menu lateral para navegar.</p>
+<section class="section-block">
+	<div class="section-block__header">
+		<h2>Tu acceso</h2>
+		<p>Usa el menu lateral para trabajar rapido.</p>
+	</div>
+	<div class="notice-card">
+		<p>Hola <strong>{{ user.username }}</strong>, tu panel ya esta listo para operar.</p>
+	</div>
+</section>
 {% else %}
-<p>Inicia sesion para acceder al sistema.</p>
-<div class="actions">
-	<a class="btn btn-primary" href="{% url 'login' %}">Iniciar sesion</a>
-	<a class="btn" href="{% url 'signup' %}">Crear usuario</a>
-</div>
+<section class="section-block">
+	<div class="notice-card notice-card--accent">
+		<p>Inicia sesion para acceder al panel y a los modulos administrativos.</p>
+	</div>
+</section>
 {% endif %}
 {% endblock %}

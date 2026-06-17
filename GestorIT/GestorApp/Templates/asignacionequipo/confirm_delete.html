@@ -3,13 +3,18 @@
 {% block title %}Eliminar Asignacion de equipo{% endblock %}
 
 {% block content %}
-<h1>Eliminar Asignacion de equipo</h1>
-<p>Estas seguro que deseas eliminar "{{ object }}"?</p>
-<div class="actions">
-	<a class="btn" href="{% url 'asignacionequipo_list' %}">Volver</a>
+<div class="card border-danger-subtle shadow-sm mx-auto" style="max-width: 640px;">
+    <div class="card-body p-4">
+        <p class="eyebrow mb-2">Confirmacion</p>
+        <h1 class="h3 mb-3">Eliminar asignacion de equipo</h1>
+        <p class="mb-4">Estas seguro que deseas eliminar <strong>"{{ object }}"</strong>?</p>
+        <div class="d-flex justify-content-end gap-2">
+            <a class="btn btn-outline-secondary" href="{% url 'asignacionequipo_list' %}">Cancelar</a>
+            <form method="post" class="d-inline">
+                {% csrf_token %}
+                <button class="btn btn-danger" type="submit">Eliminar</button>
+            </form>
+        </div>
+    </div>
 </div>
-<form method="post">
-	{% csrf_token %}
-	<button class="btn btn-danger" type="submit">Eliminar</button>
-</form>
 {% endblock %}

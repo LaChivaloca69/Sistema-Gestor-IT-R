@@ -1,17 +1,21 @@
 {% extends "base.html" %}
+{% load django_bootstrap5 %}
 
 {% block title %}Crear usuario{% endblock %}
 
 {% block content %}
-<h1>Crear usuario</h1>
-<form method="post">
-    {% csrf_token %}
-    {{ form.non_field_errors }}
-    {{ form.as_p }}
-    <button class="btn btn-primary" type="submit">Crear cuenta</button>
-</form>
-<p>
-    Ya tienes cuenta?
-    <a href="{% url 'login' %}">Iniciar sesion</a>
-</p>
+<div class="auth-card">
+    <div class="auth-card__header">
+        <p class="eyebrow">Registro</p>
+        <h1>Crear usuario</h1>
+        <p>Genera una cuenta para entrar al panel.</p>
+    </div>
+    <form method="post" class="stack-form">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+        {% bootstrap_form form %}
+        <button class="btn btn-primary w-100" type="submit">Crear cuenta</button>
+    </form>
+    <p class="auth-card__footer">Ya tienes cuenta? <a href="{% url 'login' %}">Iniciar sesion</a></p>
+</div>
 {% endblock %}

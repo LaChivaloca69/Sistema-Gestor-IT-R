@@ -3,171 +3,66 @@
 {% block title %}Equipos{% endblock %}
 
 {% block content %}
-<h1>Equipos</h1>
-
-
-<Style>
-	.filters {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-		gap: 0.75rem;
-		align-items: end;
-		margin-bottom: 1rem;
-	}
-	.filters-actions {
-		display: flex;
-		gap: 0.5rem;
-		flex-wrap: wrap;
-	}
-	.filters-actions .btn {
-		width: auto;
-	}
-</Style>
-
-<div class="actions">
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+	<div>
+		<p class="eyebrow mb-2">Inventario</p>
+		<h1 class="h3 mb-1">Listado de equipos</h1>
+		<p class="text-muted mb-0">Gestiona los equipos registrados en el sistema.</p>
+	</div>
 	<a class="btn btn-primary" href="{% url 'equipo_create' %}">Nuevo Equipo</a>
 </div>
 
-<form class="filters" method="get">
-	<div>
-		<label for="filter_search">Buscar</label>
-		<input
-			id="filter_search"
-			name="q"
-			type="search"
-			value="{{ search_query }}"
-			placeholder="Codigo, serie, marca, modelo"
-		/>
-	</div>
-	<div>
-		<label for="filter_categoria">Categoria</label>
-		<select id="filter_categoria" name="categoria">
-			<option value="">Todos</option>
-			{% for value, label in categoria_choices %}
-				<option value="{{ value }}" {% if value|stringformat:"s" == selected_categoria %}selected{% endif %}>{{ label }}</option>
+<div class="table-responsive">
+	<table class="table">
+		<thead>
+			<tr>
+				<th>Codigo inventario</th>
+				<th>Numero serie</th>
+				<th>Categoria</th>
+				<th>Marca</th>
+				<th>Modelo</th>
+				<th>Estado</th>
+				<th>Proveedor</th>
+				<th>Ubicacion</th>
+				<th>Activo</th>
+				<th>Fecha alta</th>
+				<th>Imagen</th>
+				<th>Acciones</th>
+			</tr>
+		</thead>
+		<tbody>
+			{% for item in items %}
+			<tr>
+				<td>{{ item.codigo_inventario }}</td>
+				<td>{{ item.numero_serie }}</td>
+				<td>{{ item.categoria }}</td>
+				<td>{{ item.marca }}</td>
+				<td>{{ item.modelo }}</td>
+				<td>{{ item.estado_equipo }}</td>
+				<td>{{ item.proveedor }}</td>
+				<td>{{ item.ubicacion }}</td>
+				<td>{{ item.activo|yesno:"Si,No" }}</td>
+				<td>{{ item.fecha_alta }}</td>
+				<td>
+					{% if item.imagen %}
+						<a href="{{ item.imagen.url }}" target="_blank" rel="noopener">
+							<img src="{{ item.imagen.url }}" alt="{{ item.codigo_inventario }}" style="height:40px; width:auto; border-radius:4px;" />
+						</a>
+					{% else %}
+						Sin imagen
+					{% endif %}
+				</td>
+				<td>
+					<a class="btn" href="{% url 'equipo_update' item.pk %}">Editar</a>
+					<a class="btn btn-danger" href="{% url 'equipo_delete' item.pk %}">Eliminar</a>
+				</td>
+			</tr>
+			{% empty %}
+			<tr>
+				<td colspan="12">No hay registros.</td>
+			</tr>
 			{% endfor %}
-		</select>
-	</div>
-	<div>
-		<label for="filter_estado">Estado</label>
-		<select id="filter_estado" name="estado_equipo">
-			<option value="">Todos</option>
-			{% for value, label in estado_choices %}
-				<option value="{{ value }}" {% if value == selected_estado %}selected{% endif %}>{{ label }}</option>
-			{% endfor %}
-		</select>
-	</div>
-	<div>
-		<label for="filter_activo">Activo</label>
-		<select id="filter_activo" name="activo">
-			<option value="">Todos</option>
-			<option value="true" {% if selected_activo == 'true' %}selected{% endif %}>Si</option>
-			<option value="false" {% if selected_activo == 'false' %}selected{% endif %}>No</option>
-		</select>
-	</div>
-
-	<div>
-		<label for="filter_ubicacion">Ubicacion</label>
-		<select id="filter_ubicacion" name="ubicacion">
-			<option value="">Todos</option>
-			{% for value, label in ubicacion_choices %}
-				<option value="{{ value }}" {% if value|stringformat:"s" == selected_ubicacion %}selected{% endif %}>{{ label }}</option>
-			{% endfor %}
-		</select>
-	</div>
-	<div>
-		<label for="filter_fecha_desde">Fecha alta desde</label>
-		<input
-			id="filter_fecha_desde"
-			name="fecha_alta_desde"
-			type="date"
-			value="{{ fecha_alta_desde }}"
-		/>
-	</div>
-	<div>
-		<label for="filter_fecha_hasta">Fecha alta hasta</label>
-		<input
-			id="filter_fecha_hasta"
-			name="fecha_alta_hasta"
-			type="date"
-			value="{{ fecha_alta_hasta }}"
-		/>
-	</div>
-	<div>
-		<label for="filter_fecha_mes">Mes</label>
-		<input
-			id="filter_fecha_mes"
-			name="fecha_alta_mes"
-			type="month"
-			value="{{ fecha_alta_mes }}"
-		/>
-	</div>
-	<div>
-		<label for="filter_fecha_rango">Rango rapido</label>
-		<select id="filter_fecha_rango" name="fecha_alta_rango">
-			<option value="">Todos</option>
-			<option value="last_7" {% if fecha_alta_rango == 'last_7' %}selected{% endif %}>Ultimos 7 dias</option>
-			<option value="last_30" {% if fecha_alta_rango == 'last_30' %}selected{% endif %}>Ultimos 30 dias</option>
-			<option value="this_month" {% if fecha_alta_rango == 'this_month' %}selected{% endif %}>Este mes</option>
-			<option value="last_month" {% if fecha_alta_rango == 'last_month' %}selected{% endif %}>Mes pasado</option>
-			<option value="this_year" {% if fecha_alta_rango == 'this_year' %}selected{% endif %}>Este ano</option>
-		</select>
-	</div>
-	<div class="filters-actions">
-		<button class="btn btn-primary" type="submit">Filtrar</button>
-		<a class="btn" href="{% url 'equipo_list' %}">Limpiar</a>
-	</div>
-</form>
-
-<table>
-	<thead>
-		<tr>
-			<th>Codigo inventario</th>
-			<th>Numero serie</th>
-			<th>Categoria</th>
-			<th>Marca</th>
-			<th>Modelo</th>
-			<th>Estado</th>
-			<th>Proveedor</th>
-			<th>Ubicacion</th>
-			<th>Activo</th>
-			<th>Fecha alta</th>
-			<th>Imagen</th>
-			<th>Acciones</th>
-		</tr>
-	</thead>
-	<tbody>
-		{% for item in items %}
-		<tr>
-			<td>{{ item.codigo_inventario }}</td>
-			<td>{{ item.numero_serie }}</td>
-			<td>{{ item.categoria }}</td>
-			<td>{{ item.marca }}</td>
-			<td>{{ item.modelo }}</td>
-			<td>{{ item.estado_equipo }}</td>
-			<td>{{ item.proveedor }}</td>
-			<td>{{ item.ubicacion }}</td>
-			<td>{{ item.activo|yesno:"Si,No" }}</td>
-			<td>{{ item.fecha_alta }}</td>
-			<td>
-				{% if item.imagen %}
-					<a href="{{ item.imagen.url }}" target="_blank" rel="noopener">
-						<img src="{{ item.imagen.url }}" alt="{{ item.codigo_inventario }}" style="height:40px; width:auto; border-radius:4px;" />
-					</a>
-				{% else %}
-					Sin imagen
-				{% endif %}
-			</td>
-			<td>
-				<a class="btn" href="{% url 'equipo_update' item.pk %}">Editar</a>
-				<a class="btn btn-danger" href="{% url 'equipo_delete' item.pk %}">Eliminar</a>
-			</td>
-		</tr>
-		{% empty %}
-		<tr>
-			<td colspan="12">No hay registros.</td>
-		</tr>
-		{% endfor %}
-	</tbody>
-</table>
+		</tbody>
+	</table>
+</div>
 {% endblock %}

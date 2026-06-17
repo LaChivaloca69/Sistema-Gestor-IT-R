@@ -498,3 +498,4 @@ class DetalleCompraMaterial(models.Model):
     cantidad = models.DecimalField(max_digits=10, decimal_places=2)
     costo_unitario = models.DecimalField(max_digits=12, decimal_places=2)
     importe = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+

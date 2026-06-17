@@ -1,331 +1,21 @@
+{% load static django_bootstrap5 %}
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Gestor IT{% endblock %}</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            background: #f5f6f8;
-            color: #222;
-        }
-        header {
-            background: #0f172a;
-            color: #fff;
-            padding: 1rem 1.5rem;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 1rem;
-        }
-        .header-left {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-        }
-        header .brand {
-            color: #fff;
-            text-decoration: none;
-            font-weight: bold;
-            font-size: 1.1rem;
-        }
-        .sidebar-toggle {
-            width: 38px;
-            height: 38px;
-            border-radius: 8px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            background: rgba(255, 255, 255, 0.08);
-            display: inline-flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            gap: 4px;
-            cursor: pointer;
-            padding: 0;
-        }
-        .sidebar-toggle span {
-            width: 18px;
-            height: 2px;
-            background: #fff;
-            display: block;
-            border-radius: 2px;
-        }
-        .header-actions {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            flex-wrap: wrap;
-        }
-        .header-actions form {
-            margin: 0;
-        }
-        .user-chip {
-            background: rgba(255, 255, 255, 0.15);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            padding: 0.3rem 0.6rem;
-            border-radius: 999px;
-            font-size: 0.85rem;
-        }
-        .app-shell {
-            max-width: 1280px;
-            margin: 1.5rem auto;
-            padding: 0 1rem;
-            display: flex;
-            gap: 1rem;
-            align-items: flex-start;
-        }
-        .app-shell.sidebar-collapsed {
-            gap: 0;
-        }
-        .app-shell--auth {
-            max-width: 720px;
-        }
-        .sidebar {
-            width: 250px;
-            min-width: 250px;
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
-            border-radius: 10px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-            padding: 1rem;
-            position: sticky;
-            top: 1rem;
-            transition: width 0.2s ease, min-width 0.2s ease, padding 0.2s ease;
-        }
-        .sidebar-content {
-            transition: opacity 0.2s ease;
-        }
-        .app-shell.sidebar-collapsed .sidebar {
-            width: 0;
-            min-width: 0;
-            padding: 0;
-            border: none;
-            box-shadow: none;
-        }
-        .app-shell.sidebar-collapsed .sidebar-content {
-            opacity: 0;
-            pointer-events: none;
-            height: 0;
-            overflow: hidden;
-        }
-        .sidebar h2 {
-            margin: 0 0 0.75rem;
-            font-size: 1rem;
-            color: #0f172a;
-        }
-        .sidebar-section {
-            margin-bottom: 0.85rem;
-        }
-        .sidebar-section:last-child {
-            margin-bottom: 0;
-        }
-        .sidebar-section-toggle {
-            width: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 0.5rem;
-            padding: 0.48rem 0.55rem;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            background: #f1f5f9;
-            cursor: pointer;
-            text-align: left;
-        }
-        .sidebar-section-toggle:hover {
-            background: #e2e8f0;
-        }
-        .sidebar-section-title {
-            margin: 0;
-            font-size: 0.82rem;
-            color: #64748b;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.02em;
-        }
-        .sidebar-section-chevron {
-            font-size: 0.9rem;
-            color: #64748b;
-            transition: transform 0.2s ease;
-        }
-        .sidebar-section-links {
-            margin-top: 0.4rem;
-        }
-        .sidebar-section.collapsed .sidebar-section-links {
-            display: none;
-        }
-        .sidebar-section.collapsed .sidebar-section-chevron {
-            transform: rotate(-90deg);
-        }
-        .sidebar-link {
-            display: block;
-            padding: 0.48rem 0.55rem;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            text-decoration: none;
-            color: #0f172a;
-            background: #f8fafc;
-            margin-bottom: 0.32rem;
-            font-size: 0.92rem;
-        }
-        .sidebar-link:hover {
-            background: #eef2ff;
-        }
-        .sidebar-link.active {
-            background: #0f766e;
-            border-color: #0f766e;
-            color: #fff;
-            font-weight: 600;
-        }
-        .content-card {
-            flex: 1;
-            min-width: 0;
-            background: #fff;
-            border-radius: 8px;
-            padding: 1.2rem;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-            overflow-x: auto;
-        }
-        .content-card--auth {
-            width: 100%;
-        }
-        .actions {
-            margin-bottom: 1rem;
-        }
-        .btn {
-            display: inline-block;
-            padding: 0.45rem 0.75rem;
-            border-radius: 6px;
-            text-decoration: none;
-            border: 1px solid #cbd5e1;
-            background: #f8fafc;
-            color: #0f172a;
-            margin-right: 0.35rem;
-            cursor: pointer;
-        }
-        .btn-primary {
-            background: #0f766e;
-            color: #fff;
-            border-color: #0f766e;
-        }
-        .btn-danger {
-            background: #b91c1c;
-            color: #fff;
-            border-color: #b91c1c;
-        }
-        header .btn {
-            margin-right: 0;
-        }
-        table {
-            width: max-content;
-            min-width: 100%;
-            border-collapse: collapse;
-            margin-top: 0.75rem;
-        }
-        th, td {
-            border: 1px solid #e2e8f0;
-            padding: 0.55rem;
-            text-align: left;
-            vertical-align: top;
-            font-size: 0.95rem;
-            overflow-wrap: anywhere;
-            word-break: break-word;
-        }
-        th {
-            background: #f1f5f9;
-        }
-        ul.model-grid {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-            gap: 0.65rem;
-        }
-        ul.model-grid li a {
-            display: block;
-            padding: 0.7rem;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            text-decoration: none;
-            color: #0f172a;
-            background: #f8fafc;
-        }
-        form p {
-            margin-bottom: 0.8rem;
-        }
-        form input, form select, form textarea {
-            width: 100%;
-            max-width: 100%;
-            padding: 0.45rem;
-            border: 1px solid #cbd5e1;
-            border-radius: 6px;
-            box-sizing: border-box;
-        }
-        .helptext {
-            display: block;
-            color: #64748b;
-            font-size: 0.85rem;
-            margin-top: 0.2rem;
-        }
-        .errorlist {
-            color: #b91c1c;
-            margin: 0.2rem 0;
-            padding-left: 1rem;
-        }
-        .messages {
-            margin-bottom: 1rem;
-        }
-        .message {
-            padding: 0.6rem 0.8rem;
-            border-radius: 6px;
-            margin-bottom: 0.4rem;
-            border: 1px solid #e2e8f0;
-            background: #f8fafc;
-        }
-        .message-error {
-            background: #fee2e2;
-            border-color: #fca5a5;
-            color: #991b1b;
-        }
-        .message-success {
-            background: #dcfce7;
-            border-color: #86efac;
-            color: #166534;
-        }
-        .message-warning {
-            background: #fef9c3;
-            border-color: #fde047;
-            color: #854d0e;
-        }
-        @media (max-width: 980px) {
-            .app-shell {
-                flex-direction: column;
-            }
-            .sidebar {
-                width: 100%;
-                min-width: 100%;
-                position: static;
-            }
-            .sidebar-columns {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-                gap: 0.8rem;
-            }
-            .sidebar-section {
-                margin-bottom: 0;
-            }
-        }
-    </style>
+    {% bootstrap_css %}
+    <link rel="stylesheet" href="{% static 'GestorApp/css/app.css' %}">
+    {% block extra_css %}{% endblock %}
 </head>
-<body>
-    <form id="csrf-token" style="display: none;">
+<body class="app-body">
+    <form id="csrf-token" class="d-none">
         {% csrf_token %}
     </form>
-    <header>
-        <div class="header-left">
+
+    <header class="topbar">
+        <div class="topbar__brand-group">
             {% if user.is_authenticated %}
             <button class="sidebar-toggle" type="button" aria-label="Mostrar u ocultar menu" aria-expanded="true">
                 <span></span>
@@ -333,130 +23,106 @@
                 <span></span>
             </button>
             {% endif %}
-            <a class="brand" href="{% url 'home' %}">Gestor IT</a>
+            <a class="brand" href="{% url 'home' %}"><span class="brand__mark">IT</span><span class="brand__text">Gestor IT</span></a>
         </div>
-        <div class="header-actions">
+        <div class="topbar__actions">
             {% if user.is_authenticated %}
-            <span class="user-chip">Usuario: {{ user.username }}</span>
+            <span class="user-chip">{{ user.username }}</span>
             <form method="post" action="{% url 'logout' %}">
                 {% csrf_token %}
-                <button class="btn btn-danger" type="submit">Salir</button>
+                <button class="btn btn-outline-danger btn-sm" type="submit">Salir</button>
             </form>
             {% else %}
-            <a class="btn" href="{% url 'login' %}">Iniciar sesion</a>
-            <a class="btn btn-primary" href="{% url 'signup' %}">Crear usuario</a>
+            <a class="btn btn-outline-light btn-sm" href="{% url 'login' %}">Iniciar sesion</a>
+            <a class="btn btn-primary btn-sm" href="{% url 'signup' %}">Crear usuario</a>
             {% endif %}
         </div>
     </header>
+
     <div class="app-shell {% if not user.is_authenticated %}app-shell--auth{% endif %}{% if user.is_authenticated and request.path != '/' %} sidebar-collapsed{% endif %}" data-sidebar-default="{% if user.is_authenticated and request.path != '/' %}collapsed{% else %}expanded{% endif %}">
         {% if user.is_authenticated %}
-        <aside class="sidebar">
-            <div class="sidebar-content">
-            <h2>Accesos rapidos</h2>
-            <div class="sidebar-columns">
-                <div class="sidebar-section" data-section="general">
-                    <button class="sidebar-section-toggle" type="button" aria-expanded="true">
-                        <span class="sidebar-section-title">General</span>
-                        <span class="sidebar-section-chevron" aria-hidden="true">v</span>
-                    </button>
-                    <div class="sidebar-section-links">
-                        <a class="sidebar-link {% if request.path == '/' %}active{% endif %}" href="{% url 'home' %}">Inicio</a>
-                    </div>
+        <aside class="sidebar" aria-label="Accesos rapidos">
+            <div class="sidebar__inner">
+                <div class="sidebar__header">
+                    <p class="sidebar__eyebrow">Navegacion</p>
+                    <h2 class="sidebar__title">Accesos rapidos</h2>
                 </div>
 
-                
-                <div class="sidebar-section" data-section="soporte">
-                    <button class="sidebar-section-toggle" type="button" aria-expanded="true">
-                        <span class="sidebar-section-title">Soporte</span>
-                        <span class="sidebar-section-chevron" aria-hidden="true">v</span>
-                    </button>
-                    <div class="sidebar-section-links">
-                        <a class="sidebar-link {% if request.resolver_match.url_name == 'ticketit_list' %}active{% endif %}" href="{% url 'ticketit_list' %}">Support</a>
-                        {% if user.is_staff or user.is_superuser %}
-                        <a class="sidebar-link {% if request.resolver_match.url_name == 'seguimientoticket_list' %}active{% endif %}" href="{% url 'seguimientoticket_list' %}">Check</a>
-                        <a class="sidebar-link {% if request.resolver_match.url_name == 'bitacora_list' %}active{% endif %}" href="{% url 'bitacora_list' %}">Bitacora</a>
-                        <a class="sidebar-link {% if request.resolver_match.url_name == 'answer_list' %}active{% endif %}" href="{% url 'answer_list' %}">Answer</a>
-                        {% endif %}
-                    </div>
+                <div class="sidebar-columns">
+                    <section class="sidebar-section" data-section="general">
+                        <button class="sidebar-section-toggle" type="button" aria-expanded="true"><span class="sidebar-section-title">General</span><span class="sidebar-section-chevron" aria-hidden="true">v</span></button>
+                        <div class="sidebar-section-links">
+                            <a class="sidebar-link {% if request.path == '/' %}active{% endif %}" href="{% url 'home' %}">Inicio</a>
+                        </div>
+                    </section>
+
+                    <section class="sidebar-section" data-section="soporte">
+                        <button class="sidebar-section-toggle" type="button" aria-expanded="true"><span class="sidebar-section-title">Soporte</span><span class="sidebar-section-chevron" aria-hidden="true">v</span></button>
+                        <div class="sidebar-section-links">
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'ticketit_list' %}active{% endif %}" href="{% url 'ticketit_list' %}">Tickets</a>
+                            {% if user.is_staff or user.is_superuser %}
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'seguimientoticket_list' %}active{% endif %}" href="{% url 'seguimientoticket_list' %}">Seguimiento</a>
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'bitacora_list' %}active{% endif %}" href="{% url 'bitacora_list' %}">Bitacora</a>
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'answer_list' %}active{% endif %}" href="{% url 'answer_list' %}">Respuestas</a>
+                            {% endif %}
+                        </div>
+                    </section>
+
+                    <section class="sidebar-section" data-section="gestion-economica">
+                        <button class="sidebar-section-toggle" type="button" aria-expanded="true"><span class="sidebar-section-title">Gestion economica</span><span class="sidebar-section-chevron" aria-hidden="true">v</span></button>
+                        <div class="sidebar-section-links">
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'presupuesto_list' %}active{% endif %}" href="{% url 'presupuesto_list' %}">Presupuestos</a>
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'compramaterial_list' %}active{% endif %}" href="{% url 'compramaterial_list' %}">Compras</a>
+                        </div>
+                    </section>
+
+                    {% if user.is_staff or user.is_superuser %}
+                    <section class="sidebar-section" data-section="organizacion">
+                        <button class="sidebar-section-toggle" type="button" aria-expanded="true"><span class="sidebar-section-title">Organizacion</span><span class="sidebar-section-chevron" aria-hidden="true">v</span></button>
+                        <div class="sidebar-section-links">
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'area_list' %}active{% endif %}" href="{% url 'area_list' %}">Areas</a>
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'puesto_list' %}active{% endif %}" href="{% url 'puesto_list' %}">Puestos</a>
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'personal_list' %}active{% endif %}" href="{% url 'personal_list' %}">Personal</a>
+                        </div>
+                    </section>
+
+                    <section class="sidebar-section" data-section="ubicaciones">
+                        <button class="sidebar-section-toggle" type="button" aria-expanded="true"><span class="sidebar-section-title">Ubicaciones</span><span class="sidebar-section-chevron" aria-hidden="true">v</span></button>
+                        <div class="sidebar-section-links">
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'edificio_list' %}active{% endif %}" href="{% url 'edificio_list' %}">Edificios</a>
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'zonaedificio_list' %}active{% endif %}" href="{% url 'zonaedificio_list' %}">Zonas</a>
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'ubicacion_list' %}active{% endif %}" href="{% url 'ubicacion_list' %}">Ubicaciones</a>
+                        </div>
+                    </section>
+
+                    <section class="sidebar-section" data-section="inventario">
+                        <button class="sidebar-section-toggle" type="button" aria-expanded="true"><span class="sidebar-section-title">Inventario</span><span class="sidebar-section-chevron" aria-hidden="true">v</span></button>
+                        <div class="sidebar-section-links">
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'categoriaequipo_list' %}active{% endif %}" href="{% url 'categoriaequipo_list' %}">Categorias</a>
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'equipo_list' %}active{% endif %}" href="{% url 'equipo_list' %}">Equipos</a>
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'proveedor_list' %}active{% endif %}" href="{% url 'proveedor_list' %}">Proveedores</a>
+                        </div>
+                    </section>
+
+                    <section class="sidebar-section" data-section="operaciones">
+                        <button class="sidebar-section-toggle" type="button" aria-expanded="true"><span class="sidebar-section-title">Operaciones</span><span class="sidebar-section-chevron" aria-hidden="true">v</span></button>
+                        <div class="sidebar-section-links">
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'movimientoequipo_list' %}active{% endif %}" href="{% url 'movimientoequipo_list' %}">Movimientos</a>
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'asignacionequipo_list' %}active{% endif %}" href="{% url 'asignacionequipo_list' %}">Asignaciones</a>
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'mantenimiento_list' %}active{% endif %}" href="{% url 'mantenimiento_list' %}">Mantenimientos</a>
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'agendamantenimiento_list' %}active{% endif %}" href="{% url 'agendamantenimiento_list' %}">Agenda</a>
+                        </div>
+                    </section>
+
+                    <section class="sidebar-section" data-section="admin">
+                        <button class="sidebar-section-toggle" type="button" aria-expanded="true"><span class="sidebar-section-title">Admin</span><span class="sidebar-section-chevron" aria-hidden="true">v</span></button>
+                        <div class="sidebar-section-links">
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'personal_admin_requests' %}active{% endif %}" href="{% url 'personal_admin_requests' %}">Solicitudes admin</a>
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'personal_admin_remove' %}active{% endif %}" href="{% url 'personal_admin_remove' %}">Quitar admin</a>
+                        </div>
+                    </section>
+                    {% endif %}
                 </div>
-
-                <div class="sidebar-section" data-section="gestion-economica">
-                    <button class="sidebar-section-toggle" type="button" aria-expanded="true">
-                        <span class="sidebar-section-title">Gestion economica</span>
-                        <span class="sidebar-section-chevron" aria-hidden="true">v</span>
-                    </button>
-                    <div class="sidebar-section-links">
-                        <a class="sidebar-link {% if request.resolver_match.url_name == 'presupuesto_list' %}active{% endif %}" href="{% url 'presupuesto_list' %}">Presupuestos</a>
-                        <a class="sidebar-link {% if request.resolver_match.url_name == 'compramaterial_list' %}active{% endif %}" href="{% url 'compramaterial_list' %}">Compras material</a>
-                    </div>
-                </div>
-
-                {% if user.is_staff or user.is_superuser %}
-                <div class="sidebar-section" data-section="organizacion">
-                    <button class="sidebar-section-toggle" type="button" aria-expanded="true">
-                        <span class="sidebar-section-title">Organizacion</span>
-                        <span class="sidebar-section-chevron" aria-hidden="true">v</span>
-                    </button>
-                    <div class="sidebar-section-links">
-                        <a class="sidebar-link {% if request.resolver_match.url_name == 'area_list' %}active{% endif %}" href="{% url 'area_list' %}">Areas</a>
-                        <a class="sidebar-link {% if request.resolver_match.url_name == 'puesto_list' %}active{% endif %}" href="{% url 'puesto_list' %}">Puestos</a>
-                        <a class="sidebar-link {% if request.resolver_match.url_name == 'personal_list' %}active{% endif %}" href="{% url 'personal_list' %}">Personal</a>
-                    </div>
-                </div>
-
-
-                <div class="sidebar-section" data-section="ubicaciones">
-                    <button class="sidebar-section-toggle" type="button" aria-expanded="true">
-                        <span class="sidebar-section-title">Ubicaciones</span>
-                        <span class="sidebar-section-chevron" aria-hidden="true">v</span>
-                    </button>
-                    <div class="sidebar-section-links">
-                        <a class="sidebar-link {% if request.resolver_match.url_name == 'edificio_list' %}active{% endif %}" href="{% url 'edificio_list' %}">Edificios</a>
-                        <a class="sidebar-link {% if request.resolver_match.url_name == 'zonaedificio_list' %}active{% endif %}" href="{% url 'zonaedificio_list' %}">Zonas</a>
-                        <a class="sidebar-link {% if request.resolver_match.url_name == 'ubicacion_list' %}active{% endif %}" href="{% url 'ubicacion_list' %}">Ubicaciones</a>
-                    </div>
-                </div>
-
-                <div class="sidebar-section" data-section="inventario">
-                    <button class="sidebar-section-toggle" type="button" aria-expanded="true">
-                        <span class="sidebar-section-title">Inventario</span>
-                        <span class="sidebar-section-chevron" aria-hidden="true">v</span>
-                    </button>
-                    <div class="sidebar-section-links">
-                        <a class="sidebar-link {% if request.resolver_match.url_name == 'categoriaequipo_list' %}active{% endif %}" href="{% url 'categoriaequipo_list' %}">Categorias equipo</a>
-                        <a class="sidebar-link {% if request.resolver_match.url_name == 'equipo_list' %}active{% endif %}" href="{% url 'equipo_list' %}">Equipos</a>
-                        <a class="sidebar-link {% if request.resolver_match.url_name == 'proveedor_list' %}active{% endif %}" href="{% url 'proveedor_list' %}">Proveedores</a>
-                    </div>
-                </div>
-
-                <div class="sidebar-section" data-section="operaciones">
-                    <button class="sidebar-section-toggle" type="button" aria-expanded="true">
-                        <span class="sidebar-section-title">Operaciones</span>
-                        <span class="sidebar-section-chevron" aria-hidden="true">v</span>
-                    </button>
-                    <div class="sidebar-section-links">
-                        <a class="sidebar-link {% if request.resolver_match.url_name == 'movimientoequipo_list' %}active{% endif %}" href="{% url 'movimientoequipo_list' %}">Movimientos</a>
-                        <a class="sidebar-link {% if request.resolver_match.url_name == 'asignacionequipo_list' %}active{% endif %}" href="{% url 'asignacionequipo_list' %}">Asignaciones</a>
-                        <a class="sidebar-link {% if request.resolver_match.url_name == 'mantenimiento_list' %}active{% endif %}" href="{% url 'mantenimiento_list' %}">Mantenimientos</a>
-                        <a class="sidebar-link {% if request.resolver_match.url_name == 'agendamantenimiento_list' %}active{% endif %}" href="{% url 'agendamantenimiento_list' %}">Agenda mantenimiento</a>
-                    </div>
-                </div>
-
-
-                <div class="sidebar-section" data-section="admin">
-                    <button class="sidebar-section-toggle" type="button" aria-expanded="true">
-                        <span class="sidebar-section-title">Admin</span>
-                        <span class="sidebar-section-chevron" aria-hidden="true">v</span>
-                    </button>
-                    <div class="sidebar-section-links">
-                        <a class="sidebar-link {% if request.resolver_match.url_name == 'personal_admin_requests' %}active{% endif %}" href="{% url 'personal_admin_requests' %}">Solicitudes admin</a>
-                        <a class="sidebar-link {% if request.resolver_match.url_name == 'personal_admin_remove' %}active{% endif %}" href="{% url 'personal_admin_remove' %}">Quitar admin</a>
-                    </div>
-                </div>
-
-                {% endif %}
-
-            </div>
             </div>
         </aside>
         {% endif %}
@@ -473,119 +139,8 @@
         </main>
     </div>
 
-    <script>
-        (function () {
-            const getCookie = (name) => {
-                const value = `; ${document.cookie}`;
-                const parts = value.split(`; ${name}=`);
-                if (parts.length === 2) {
-                    return parts.pop().split(";").shift();
-                }
-                return "";
-            };
-
-            const tokenInput = document.querySelector(
-                "#csrf-token input[name=csrfmiddlewaretoken]"
-            );
-            const csrfToken = tokenInput ? tokenInput.value : getCookie("csrftoken");
-
-            document.addEventListener("click", (event) => {
-                const link = event.target.closest("a[href*='/eliminar/']");
-                if (!link) {
-                    return;
-                }
-                if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) {
-                    return;
-                }
-                event.preventDefault();
-                const confirmed = window.confirm(
-                    "Esta accion no se puede deshacer. Deseas eliminar el registro?"
-                );
-                if (!confirmed) {
-                    return;
-                }
-
-                fetch(link.href, {
-                    method: "POST",
-                    headers: {
-                        "X-CSRFToken": csrfToken,
-                        "X-Requested-With": "XMLHttpRequest",
-                    },
-                })
-                    .then((response) => {
-                        if (response.redirected) {
-                            window.location = response.url;
-                            return;
-                        }
-                        window.location.reload();
-                    })
-                    .catch(() => {
-                        window.location = link.href;
-                    });
-            });
-        })();
-    </script>
-    <script>
-        (function () {
-            const appShell = document.querySelector(".app-shell");
-            const toggle = document.querySelector(".sidebar-toggle");
-            if (!appShell || !toggle) {
-                return;
-            }
-
-            const storageKey = "sidebar-collapsed";
-            const setCollapsed = (isCollapsed) => {
-                appShell.classList.toggle("sidebar-collapsed", isCollapsed);
-                toggle.setAttribute("aria-expanded", (!isCollapsed).toString());
-            };
-
-            const defaultCollapsed = appShell.dataset.sidebarDefault === "collapsed";
-            const storedValue = localStorage.getItem(storageKey);
-            const shouldUseStored = !defaultCollapsed && storedValue !== null;
-            const initialCollapsed = shouldUseStored ? storedValue === "1" : defaultCollapsed;
-            setCollapsed(initialCollapsed);
-
-            toggle.addEventListener("click", () => {
-                const nextState = !appShell.classList.contains("sidebar-collapsed");
-                setCollapsed(nextState);
-                localStorage.setItem(storageKey, nextState ? "1" : "0");
-            });
-        })();
-    </script>
-    <script>
-        (function () {
-            const sections = Array.from(document.querySelectorAll(".sidebar-section"));
-            if (!sections.length) {
-                return;
-            }
-
-            const setCollapsed = (section, isCollapsed) => {
-                section.classList.toggle("collapsed", isCollapsed);
-                const toggle = section.querySelector(".sidebar-section-toggle");
-                if (toggle) {
-                    toggle.setAttribute("aria-expanded", (!isCollapsed).toString());
-                }
-            };
-
-            sections.forEach((section, index) => {
-                const toggle = section.querySelector(".sidebar-section-toggle");
-                if (!toggle) {
-                    return;
-                }
-                const key = section.dataset.section || `section-${index}`;
-                const storageKey = `sidebar-section-${key}`;
-                const hasActive = Boolean(section.querySelector(".sidebar-link.active"));
-                const stored = localStorage.getItem(storageKey);
-                const initialCollapsed = stored === null ? !hasActive : stored === "1";
-                setCollapsed(section, initialCollapsed);
-
-                toggle.addEventListener("click", () => {
-                    const nextCollapsed = !section.classList.contains("collapsed");
-                    setCollapsed(section, nextCollapsed);
-                    localStorage.setItem(storageKey, nextCollapsed ? "1" : "0");
-                });
-            });
-        })();
-    </script>
+    {% block extra_js %}{% endblock %}
+    {% bootstrap_javascript %}
+    <script src="{% static 'GestorApp/js/app.js' %}"></script>
 </body>
 </html>

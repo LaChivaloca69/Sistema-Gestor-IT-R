@@ -1,8 +1,10 @@
 {% extends "base.html" %}
+{% load django_bootstrap5 %}
 
 {% block title %}{% if object %}Editar Equipo{% else %}Nuevo Equipo{% endif %}{% endblock %}
 
 {% block content %}
+
 <h1>{% if object %}Editar Equipo{% else %}Nuevo Equipo{% endif %}</h1>
 <div class="actions">
 	<a class="btn" href="{% url 'equipo_list' %}">Volver</a>
