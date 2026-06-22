@@ -3,6 +3,9 @@
 {% block title %}Presupuestos{% endblock %}
 
 {% block content %}
+
+
+
 <h1>Presupuestos</h1>
 
 <style>
@@ -93,45 +96,47 @@
 
 
 <!-- Tabla de presupuestos  -->
-<table>
-	<thead>
-		<tr>
-			<th>Folio</th>
-			<th>Cliente o area</th>
-			<th>Numero pedimiento</th>
-			<th>Numero importacion</th>
-			<th>Fecha compra</th>
-			<th>PDF</th>
-			<th>Estado</th>
-			<th>Acciones</th>
-		</tr>
-	</thead>
-	<tbody>
-		{% for item in items %}
-		<tr>
-			<td>{{ item.folio_presupuesto }}</td>
-			<td>{{ item.cliente_o_area }}</td>
-			<td>{{ item.numero_pedimiento }}</td>
-			<td>{{ item.numero_importacion }}</td>
-			<td>{{ item.fecha_compra }}</td>
-			<td>
-				{% if item.archivo_pdf %}
-					<a class="btn" href="{{ item.archivo_pdf.url }}" target="_blank" rel="noopener">Ver PDF</a>
-				{% else %}
-					Sin archivo
-				{% endif %}
-			</td>
-			<td>{{ item.estado_presupuesto }}</td>
-			<td>
-				<a class="btn" href="{% url 'presupuesto_update' item.pk %}">Editar</a>
-				<a class="btn btn-danger" href="{% url 'presupuesto_delete' item.pk %}">Eliminar</a>
-			</td>
-		</tr>
-		{% empty %}
-		<tr>
-			<td colspan="8">No hay registros.</td>
-		</tr>
-		{% endfor %}
-	</tbody>
-</table>
+<div class="table-responsive">
+	<table class="table table-striped table-hover align-middle">
+		<thead class="table-light">
+			<tr>
+				<th>Folio</th>
+				<th>Cliente o area</th>
+				<th>Numero pedimiento</th>
+				<th>Numero importacion</th>
+				<th>Fecha compra</th>
+				<th>PDF</th>
+				<th>Estado</th>
+				<th class="text-nowrap">Acciones</th>
+			</tr>
+		</thead>
+		<tbody>
+			{% for item in items %}
+			<tr>
+				<td>{{ item.folio_presupuesto }}</td>
+				<td>{{ item.cliente_o_area }}</td>
+				<td>{{ item.numero_pedimiento }}</td>
+				<td>{{ item.numero_importacion }}</td>
+				<td>{{ item.fecha_compra }}</td>
+				<td>
+					{% if item.archivo_pdf %}
+						<a class="btn btn-outline-secondary btn-sm" href="{{ item.archivo_pdf.url }}" target="_blank" rel="noopener">Ver PDF</a>
+					{% else %}
+						Sin archivo
+					{% endif %}
+				</td>
+				<td>{{ item.estado_presupuesto }}</td>
+				<td class="text-nowrap">
+					<a class="btn btn-outline-secondary btn-sm" href="{% url 'presupuesto_update' item.pk %}">Editar</a>
+					<a class="btn btn-outline-danger btn-sm" href="{% url 'presupuesto_delete' item.pk %}">Eliminar</a>
+				</td>
+			</tr>
+			{% empty %}
+			<tr>
+				<td colspan="8" class="text-center text-muted py-4">No hay registros.</td>
+			</tr>
+			{% endfor %}
+		</tbody>
+	</table>
+</div>
 {% endblock %}
