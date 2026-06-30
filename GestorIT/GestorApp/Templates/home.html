@@ -2,6 +2,10 @@
 
 {% block title %}Inicio{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.css">
+{% endblock %}
+
 {% block content %}
 <section class="hero-panel">
 	<div class="hero-panel__copy">
@@ -12,6 +16,7 @@
 		<div class="actions">
 			<a class="btn btn-primary" href="{% url 'ticketit_list' %}">Ver tickets</a>
 			<a class="btn btn-outline-secondary" href="{% url 'equipo_list' %}">Ir a inventario</a>
+			<a class="btn btn-outline-secondary" href="#calendario">Ver calendario</a>
 		</div>
 		{% else %}
 		<div class="actions">
@@ -23,8 +28,8 @@
 	<div class="hero-panel__stats">
 		<div class="mini-stat">
 			<span class="mini-stat__label">Tickets</span>
-			<strong>Seguimiento</strong>
-			<small>Estados, prioridades y responsables</small>
+			<strong>{{ dashboard_counts.tickets }}</strong>
+			<small>{{ dashboard_counts.tickets_abiertos }} abiertos o en proceso</small>
 		</div>
 		<div class="mini-stat">
 			<span class="mini-stat__label">Inventario</span>
@@ -33,8 +38,13 @@
 		</div>
 		<div class="mini-stat">
 			<span class="mini-stat__label">Operaciones</span>
-			<strong>Mantenimiento</strong>
-			<small>Agenda y soporte preventivo</small>
+			<strong>{{ dashboard_counts.mantenimientos_proximos }}</strong>
+			<small>Mantenimientos próximos en 30 días</small>
+		</div>
+		<div class="mini-stat">
+			<span class="mini-stat__label">Seguimientos</span>
+			<strong>{{ dashboard_counts.agendas_proximas }}</strong>
+			<small>Revisiones programadas en 30 días</small>
 		</div>
 	</div>
 </section>
@@ -68,6 +78,41 @@
 	</div>
 </section>
 
+<section class="section-block" id="calendario">
+	<div class="section-block__header">
+		<div>
+			<h2>Calendario operativo</h2>
+			<p>Tickets, mantenimientos y seguimientos cargados automaticamente.</p>
+		</div>
+		<div class="calendar-legend">
+			<span class="calendar-chip calendar-chip--tickets">Tickets</span>
+			<span class="calendar-chip calendar-chip--maintenance">Mantenimientos</span>
+			<span class="calendar-chip calendar-chip--followup">Seguimientos</span>
+		</div>
+	</div>
+	{{ calendar_events|json_script:"home-calendar-events" }}
+	<div class="calendar-shell">
+		<div class="calendar-panel">
+			<div id="home-calendar" class="home-calendar"></div>
+		</div>
+		<div class="calendar-sidebar">
+			<div class="notice-card notice-card--accent">
+				<p><strong>Interaccion</strong></p>
+				<p>Haz clic en un evento para ver los detalles completos de la operacion.</p>
+			</div>
+			<div class="notice-card">
+				<p><strong>Resumen rapido</strong></p>
+				<ul class="calendar-summary">
+					<li>Tickets cargados: {{ dashboard_counts.tickets }}</li>
+					<li>Tickets activos: {{ dashboard_counts.tickets_abiertos }}</li>
+					<li>Mantenimientos proximos: {{ dashboard_counts.mantenimientos_proximos }}</li>
+					<li>Seguimientos proximos: {{ dashboard_counts.agendas_proximas }}</li>
+				</ul>
+			</div>
+		</div>
+	</div>
+</section>
+
 {% if user.is_authenticated %}
 <section class="section-block">
 	<div class="section-block__header">
@@ -85,4 +130,48 @@
 	</div>
 </section>
 {% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/locales/es.global.min.js"></script>
+<script>
+(function () {
+	const calendarElement = document.getElementById("home-calendar");
+	const dataElement = document.getElementById("home-calendar-events");
+	if (!calendarElement || !dataElement || typeof FullCalendar === "undefined") {
+		return;
+	}
+
+	const events = JSON.parse(dataElement.textContent || "[]");
+	const calendar = new FullCalendar.Calendar(calendarElement, {
+		initialView: "dayGridMonth",
+		height: "auto",
+		locale: "es",
+		headerToolbar: {
+			left: "prev,next today",
+			center: "title",
+			right: "dayGridMonth,timeGridWeek,listWeek",
+		},
+		buttonText: {
+			today: "Hoy",
+			month: "Mes",
+			week: "Semana",
+			list: "Lista",
+		},
+		navLinks: true,
+		nowIndicator: true,
+		dayMaxEvents: true,
+		events,
+		eventClick(info) {
+			info.jsEvent.preventDefault();
+			const details = info.event.extendedProps.details || "Sin detalles disponibles.";
+			window.alert(`${info.event.title}\n\n${details}`);
+		},
+	});
+
+	calendar.render();
+})();
+</script>
 {% endblock %}

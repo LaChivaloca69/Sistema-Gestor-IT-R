@@ -47,10 +47,15 @@
 
     const appShell = document.querySelector(".app-shell");
     const toggle = document.querySelector(".sidebar-toggle");
+    const sidebar = document.querySelector(".sidebar");
     if (appShell && toggle) {
         const storageKey = "sidebar-collapsed";
         const setCollapsed = (isCollapsed) => {
             appShell.classList.toggle("sidebar-collapsed", isCollapsed);
+            if (sidebar) {
+                sidebar.hidden = isCollapsed;
+                sidebar.setAttribute("aria-hidden", isCollapsed.toString());
+            }
             toggle.setAttribute("aria-expanded", (!isCollapsed).toString());
         };
 

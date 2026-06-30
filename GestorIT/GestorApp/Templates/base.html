@@ -53,6 +53,7 @@
                         <button class="sidebar-section-toggle" type="button" aria-expanded="true"><span class="sidebar-section-title">General</span><span class="sidebar-section-chevron" aria-hidden="true">v</span></button>
                         <div class="sidebar-section-links">
                             <a class="sidebar-link {% if request.path == '/' %}active{% endif %}" href="{% url 'home' %}">Inicio</a>
+                            <a class="sidebar-link" href="{% url 'home' %}#calendario">Calendario</a>
                         </div>
                     </section>
 

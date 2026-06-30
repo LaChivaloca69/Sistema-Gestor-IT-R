@@ -1978,9 +1978,129 @@ def detallecompramaterial_delete(request, pk):
     return render(request, "detallecompramaterial/confirm_delete.html", {"object": detalle})
 
 
+def _calendar_event(title, start, *, color, details, url=None, end=None, all_day=True):
+    event = {
+        "title": title,
+        "start": start.isoformat(),
+        "allDay": all_day,
+        "backgroundColor": color,
+        "borderColor": color,
+        "textColor": "#ffffff",
+        "extendedProps": {"details": details},
+    }
+    if end is not None:
+        event["end"] = end.isoformat()
+    return event
+
+
+def _calendar_label(value):
+    return value if value else "Sin dato"
+
+
+def _calendar_day(value):
+    if not value:
+        return timezone.localdate()
+    if timezone.is_aware(value):
+        return timezone.localtime(value).date()
+    return value.date()
+
+
+def _build_home_calendar_events():
+    today = timezone.localdate()
+    events = []
+
+    for ticket in TicketIT.objects.select_related("area", "puesto", "solicitado_por").order_by("-fecha_support")[:80]:
+        ticket_date = _calendar_day(ticket.fecha_support)
+        events.append(
+            _calendar_event(
+                f"Ticket {ticket.folio_ticket}",
+                ticket_date,
+                color={
+                    EstadoSupport.CERRADO: "#0f766e",
+                    EstadoSupport.EN_PROCESO: "#1d4ed8",
+                    EstadoSupport.EN_REVISION: "#7c3aed",
+                    EstadoSupport.ABIERTO: "#f59e0b",
+                }.get(ticket.status, "#475569"),
+                details=(
+                    f"Estado: {_calendar_label(ticket.status)}\n"
+                    f"Prioridad: {_calendar_label(ticket.prioridad)}\n"
+                    f"Area: {_calendar_label(getattr(ticket.area, 'nombre_area', None))}\n"
+                    f"Puesto: {_calendar_label(getattr(ticket.puesto, 'nombre_puesto', None))}\n"
+                    f"Solicitado por: {_calendar_label(getattr(ticket.solicitado_por, 'username', None))}\n"
+                    f"Requerimiento: {_calendar_label(ticket.requerimiento)}"
+                ),
+            )
+        )
+
+    for mantenimiento in Mantenimiento.objects.select_related("equipo").order_by("-fecha_programada")[:80]:
+        color = "#1d4ed8"
+        if mantenimiento.estado_mantenimiento == EstadoMantenimiento.COMPLETADO:
+            color = "#0f766e"
+        elif mantenimiento.estado_mantenimiento == EstadoMantenimiento.CANCELADO:
+            color = "#b42318"
+        elif mantenimiento.fecha_programada < today:
+            color = "#dc2626"
+
+        details = (
+            f"Estado: {_calendar_label(mantenimiento.estado_mantenimiento)}\n"
+            f"Tipo: {_calendar_label(mantenimiento.tipo_mantenimiento)}\n"
+            f"Equipo: {_calendar_label(getattr(mantenimiento.equipo, 'codigo_inventario', None))}\n"
+            f"Responsable: {_calendar_label(mantenimiento.tecnico_responsable)}\n"
+            f"Costo: {_calendar_label(mantenimiento.costo_mantenimiento)}"
+        )
+        if getattr(mantenimiento, "cierre", None) and mantenimiento.cierre.proxima_fecha_mantenimiento:
+            details = details + f"\nProximo mantenimiento: {mantenimiento.cierre.proxima_fecha_mantenimiento.strftime('%Y-%m-%d')}"
+
+        events.append(
+            _calendar_event(
+                f"Mantenimiento {mantenimiento.folio_mantenimiento()}",
+                mantenimiento.fecha_programada,
+                color=color,
+                details=details,
+            )
+        )
+
+    for agenda in AgendaMantenimiento.objects.select_related("mantenimiento", "mantenimiento__equipo").order_by("-proxima_fecha_mantenimiento")[:80]:
+        if not agenda.proxima_fecha_mantenimiento:
+            continue
+        events.append(
+            _calendar_event(
+                f"Seguimiento {agenda.mantenimiento.folio_mantenimiento()}",
+                agenda.proxima_fecha_mantenimiento,
+                color="#7c3aed",
+                details=(
+                    f"Mantenimiento: {agenda.mantenimiento.folio_mantenimiento()}\n"
+                    f"Equipo: {_calendar_label(getattr(agenda.mantenimiento.equipo, 'codigo_inventario', None))}\n"
+                    f"Inicio: {agenda.fecha_inicio.strftime('%Y-%m-%d %H:%M') if agenda.fecha_inicio else 'Sin inicio'}\n"
+                    f"Fin: {agenda.fecha_fin.strftime('%Y-%m-%d %H:%M') if agenda.fecha_fin else 'Sin fin'}\n"
+                    f"Acciones: {_calendar_label(agenda.acciones_realizadas)}\n"
+                    f"Observaciones: {_calendar_label(agenda.observaciones)}"
+                ),
+            )
+        )
+
+    events.sort(key=lambda event: event["start"])
+    return events
+
 
 def home(request):
-    return render(request, "home.html")
+    today = timezone.localdate()
+    context = {
+        "calendar_events": _build_home_calendar_events(),
+        "dashboard_counts": {
+            "tickets": TicketIT.objects.count(),
+            "tickets_abiertos": TicketIT.objects.exclude(status=EstadoSupport.CERRADO).count(),
+            "mantenimientos_proximos": Mantenimiento.objects.filter(
+                fecha_programada__gte=today,
+                fecha_programada__lte=today + timedelta(days=30),
+            ).count(),
+            "agendas_proximas": AgendaMantenimiento.objects.filter(
+                proxima_fecha_mantenimiento__gte=today,
+                proxima_fecha_mantenimiento__lte=today + timedelta(days=30),
+            ).count(),
+        },
+    }
+    return render(request, "home.html", context)
 
 
 def signup(request):
