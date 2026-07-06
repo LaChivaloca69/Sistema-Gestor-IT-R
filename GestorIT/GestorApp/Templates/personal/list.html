@@ -123,7 +123,6 @@
 			<th>Area</th>
 			<th>Puesto</th>
 			<th>Activo</th>
-			<th>Fecha ingreso (YYYY-MM-DD)</th>
 			<th>Acciones</th>
 		</tr>
 	</thead>
@@ -140,7 +139,6 @@
 			<td>{{ item.area }}</td>
 			<td>{{ item.puesto }}</td>
 			<td>{{ item.activo|yesno:"Si,No" }}</td>
-			<td>{{ item.fecha_ingreso }}</td>
 			<td>
 				<a class="btn" href="{% url 'personal_update' item.pk %}">Editar</a>
 				<a class="btn btn-danger" href="{% url 'personal_delete' item.pk %}">Eliminar</a>

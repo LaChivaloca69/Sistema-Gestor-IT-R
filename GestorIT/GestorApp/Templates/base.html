@@ -70,7 +70,7 @@
                     </section>
 
                     <section class="sidebar-section" data-section="gestion-economica">
-                        <button class="sidebar-section-toggle" type="button" aria-expanded="true"><span class="sidebar-section-title">Gestion economica</span><span class="sidebar-section-chevron" aria-hidden="true">v</span></button>
+                        <button class="sidebar-section-toggle" type="button" aria-expanded="true"><span class="sidebar-section-title">Compras y Presupuestos</span><span class="sidebar-section-chevron" aria-hidden="true">v</span></button>
                         <div class="sidebar-section-links">
                             <a class="sidebar-link {% if request.resolver_match.url_name == 'presupuesto_list' %}active{% endif %}" href="{% url 'presupuesto_list' %}">Presupuestos</a>
                             <a class="sidebar-link {% if request.resolver_match.url_name == 'compramaterial_list' %}active{% endif %}" href="{% url 'compramaterial_list' %}">Compras</a>

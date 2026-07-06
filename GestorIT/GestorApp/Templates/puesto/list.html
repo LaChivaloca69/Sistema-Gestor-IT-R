@@ -19,7 +19,6 @@
 				<th>Nombre</th>
 				<th>Descripcion</th>
 				<th>Activo</th>
-				<th>Fecha creacion</th>
 				<th class="text-nowrap">Acciones</th>
 			</tr>
 		</thead>
@@ -35,7 +34,6 @@
 					<span class="badge text-bg-secondary">No</span>
 					{% endif %}
 				</td>
-				<td>{{ item.fecha_creacion }}</td>
 				<td class="text-nowrap">
 					<a class="btn btn-outline-secondary btn-sm" href="{% url 'puesto_update' item.pk %}">Editar</a>
 					<a class="btn btn-outline-danger btn-sm" href="{% url 'puesto_delete' item.pk %}">Eliminar</a>
