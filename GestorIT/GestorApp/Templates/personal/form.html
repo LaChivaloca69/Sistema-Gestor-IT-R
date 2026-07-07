@@ -3,6 +3,7 @@
 {% block title %}{% if object %}Editar Personal{% else %}Nuevo Personal{% endif %}{% endblock %}
 
 {% block content %}
+
 <h1>{% if object %}Editar Personal{% else %}Nuevo Personal{% endif %}</h1>
 <div class="actions">
 	<a class="btn" href="{% url 'personal_list' %}">Volver</a>
