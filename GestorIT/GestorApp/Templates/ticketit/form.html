@@ -1,36 +1,33 @@
 {% extends "base.html" %}
+{% load django_bootstrap5 %}
 
 {% block title %}{% if object %}Editar Support{% else %}Nuevo Support{% endif %}{% endblock %}
 
 {% block content %}
-<h1>{% if object %}Editar Support{% else %}Nuevo Support{% endif %}</h1>
-<div class="actions">
-	<a class="btn" href="{% url 'ticketit_list' %}">Volver</a>
+
+<div class="d-flex flex-wrap justify-content-between aligh-items-center gap-3 mb-4">
+	<div>
+		<p class="eyebrow mb-2">Soporte</p>
+		<h1 class="h3 mb-1">{% if object %}Editar Support{% else %}Nuevo Support{% endif %}</h1>
+		<p class="text-muted mb-0">Captura la informacion principal del soporte.</p>
+	</div>
+	<a class="btn btn-outline-secondary" href="{% url 'ticketit_list' %}">Volver</a>
 </div>
-<form method="post" enctype="multipart/form-data">
-	{% csrf_token %}
-	{{ form.non_field_errors }}
-	{% for field in form %}
-		{% if field.is_hidden %}
-			{{ field }}
-		{% else %}
-			<p>
-				{{ field.label_tag }}
-				{{ field }}
-				{% if field.help_text %}
-					<span class="helptext">{{ field.help_text }}</span>
-				{% endif %}
-				{% if field.name == "imagen" %}
-					<span class="helptext">Imagen opcional. Maximo 50 MB. Formatos permitidos: JPG, JPEG, PNG, GIF, WEBP.</span>
-				{% endif %}
-				{% for error in field.errors %}
-					<span class="error">{{ error }}</span>
-				{% endfor %}
-			</p>
-		{% endif %}
-	{% endfor %}
-	<button class="btn btn-primary" type="submit">Guardar</button>
-</form>
+
+<div class="card shadow-sm border-0">
+	<div class="card-body">
+		<form method="post" enctype="multipart/form-data" class="stack-form">
+			{% csrf_token %}
+			{{ form.non_field_errors }}
+			{% bootstrap_form form %}
+			<div class="d-flex justify-content-end gap-2 mt-3">
+				<a class="btn btn-outline-secondary" href="{% url 'ticketit_list' %}">Cancelar</a>
+				<button class="btn btn-primary" type="submit">Guardar</button>
+			</div>
+		</form>
+	</div>
+</div>
+
 
 <script>
 	(function () {

@@ -1,13 +1,21 @@
 {% extends "base.html" %}
+{% load django_bootstrap5 %}
 
 {% block title %}{% if object %}Editar Personal{% else %}Nuevo Personal{% endif %}{% endblock %}
 
 {% block content %}
 
-<h1>{% if object %}Editar Personal{% else %}Nuevo Personal{% endif %}</h1>
-<div class="actions">
-	<a class="btn" href="{% url 'personal_list' %}">Volver</a>
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+	<div class="flex-grow-1">
+		<p class="eyebrow mb-2">Personal</p>
+		<h1 class="h3 mb-1">{% if object %}Editar Personal{% else %}Nuevo Personal{% endif %}</h1>
+		<p class="text-muted mb-0">Captura la informacion principal del personal.</p>
+	</div>
+	<a class="btn btn-outline-secondary" href="{% url 'personal_list' %}">Volver</a>
 </div>
+
+
+
 <form method="post">
 	{% csrf_token %}
 	{{ form.non_field_errors }}
