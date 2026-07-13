@@ -101,6 +101,7 @@ class Ubicacion(models.Model):
         return f"{self.edificio} / {self.zona} / {self.referencia or 'Sin referencia'}"
 
 # ------------ MODELOS DE EQUIPO(CATEGORIA, ESTADO, TIPO, ETC) ------------
+# --- Categoria de equipo ------
 class CategoriaEquipo(models.Model):
     nombre_categoria = models.CharField(max_length=100)
     descripcion_categoria = models.CharField(max_length=255, blank=True, null=True)
@@ -116,7 +117,7 @@ class EstadoEquipo(models.TextChoices):
     EN_MANTENIMIENTO = "En Mantenimiento", "En Mantenimiento"
     BAJA = "Baja", "Baja"
 
-
+# --- Equipo ------
 class Equipo(models.Model):
     codigo_inventario = models.CharField(max_length=50, unique=True)
     numero_serie = models.CharField(max_length=100, unique=True, blank=True, null=True)

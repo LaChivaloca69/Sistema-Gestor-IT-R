@@ -4,9 +4,14 @@
 
 {% block content %}
 
-
-
-<h1>Presupuestos</h1>
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+	<div>
+		<p class="eyebrow mb-2">Compras y Presupuestos</p>
+		<h1 class="h3 mb-1">Presupuestos</h1>
+		<p class="text-muted mb-0">Administracion de los presupuestos del sistema.</p>
+	</div>
+	<a class="btn btn-primary" href="{% url 'presupuesto_create' %}">Nuevo presupuesto</a>
+</div>
 
 <style>
 	.filters {
@@ -25,10 +30,6 @@
 		width: auto;
 	}
 </style>
-
-<div class="actions">
-	<a class="btn btn-primary" href="{% url 'presupuesto_create' %}">Nuevo Presupuesto</a>
-</div>
 
 <form class="filters" method="get">	
 	<div>
@@ -50,43 +51,28 @@
 			{% endfor %}
 		</select>
 	</div>
-	<div>
-		<label for="filter_fecha_desde">Fecha compra desde</label>
-		<input
-			id="filter_fecha_desde"
-			name="fecha_compra_desde"
-			type="date"
-			value="{{ fecha_compra_desde }}"
-		/>
-	</div>
-	<div>
-		<label for="filter_fecha_hasta">Fecha compra hasta</label>
-		<input
-			id="filter_fecha_hasta"
-			name="fecha_compra_hasta"
-			type="date"
-			value="{{ fecha_compra_hasta }}"
-		/>
-	</div>
-	<div>
-		<label for="filter_fecha_mes">Mes</label>
-		<input
-			id="filter_fecha_mes"
-			name="fecha_compra_mes"
-			type="month"
-			value="{{ fecha_compra_mes }}"
-		/>
-	</div>
-	<div>
-		<label for="filter_fecha_rango">Rango rapido</label>
-		<select id="filter_fecha_rango" name="fecha_compra_rango">
-			<option value="">Todos</option>
-			<option value="last_7" {% if fecha_compra_rango == 'last_7' %}selected{% endif %}>Ultimos 7 dias</option>
-			<option value="last_30" {% if fecha_compra_rango == 'last_30' %}selected{% endif %}>Ultimos 30 dias</option>
-			<option value="this_month" {% if fecha_compra_rango == 'this_month' %}selected{% endif %}>Este mes</option>
-			<option value="last_month" {% if fecha_compra_rango == 'last_month' %}selected{% endif %}>Mes pasado</option>
-			<option value="this_year" {% if fecha_compra_rango == 'this_year' %}selected{% endif %}>Este ano</option>
-		</select>
+	<div style="grid-column: 1 / -1;">
+		<label>Rango de fechas de compra</label>
+		<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem;">
+			<div>
+				<input
+					id="filter_fecha_desde"
+					name="fecha_compra_desde"
+					type="date"
+					value="{{ fecha_compra_desde }}"
+					aria-label="Fecha compra desde"
+				/>
+			</div>
+			<div>
+				<input
+					id="filter_fecha_hasta"
+					name="fecha_compra_hasta"
+					type="date"
+					value="{{ fecha_compra_hasta }}"
+					aria-label="Fecha compra hasta"
+				/>
+			</div>
+		</div>
 	</div>
 	<div class="filters-actions">
 		<button class="btn btn-primary" type="submit">Filtrar</button>
@@ -139,4 +125,5 @@
 		</tbody>
 	</table>
 </div>
+
 {% endblock %}

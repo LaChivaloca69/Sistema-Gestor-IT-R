@@ -301,6 +301,9 @@ class PersonalForm(forms.ModelForm):
     class Meta:
         model = Personal
         exclude = ["user"]
+        widgets = {
+            "fecha_ingreso": forms.DateInput(attrs={"type": "date"}),
+        }
 
     def __init__(self, *args, **kwargs):
         self.request_user = kwargs.pop("request_user", None)
@@ -1128,6 +1131,16 @@ class AsignacionEquipoForm(forms.ModelForm):
         model = AsignacionEquipo
         fields = "__all__"
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        fecha_devolucion = self.fields.get("fecha_devolucion")
+        if fecha_devolucion:
+            fecha_devolucion.widget = forms.DateTimeInput(
+                attrs={"type": "datetime-local"},
+                format="%Y-%m-%dT%H:%M",
+            )
+            fecha_devolucion.input_formats = ["%Y-%m-%dT%H:%M"]
+
 def asignacionequipo_list(request):
     items = AsignacionEquipo.objects.select_related("equipo", "personal").all()
     selected_personal = request.GET.get("personal", "")
@@ -1614,6 +1627,16 @@ class BitacoraForm(forms.ModelForm):
         model = Bitacora
         fields = "__all__"
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        fecha_bitacora = self.fields.get("fecha_bitacora")
+        if fecha_bitacora:
+            fecha_bitacora.widget = forms.DateTimeInput(
+                attrs={"type": "datetime-local"},
+                format="%Y-%m-%dT%H:%M",
+            )
+            fecha_bitacora.input_formats = ["%Y-%m-%dT%H:%M"]
+
 def bitacora_list(request):
     items = Bitacora.objects.all()
     return render(request, "bitacora/list.html", {"items": items})
@@ -1658,6 +1681,16 @@ class AnswerForm(forms.ModelForm):
     class Meta:
         model = Answer
         fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        fecha_answer = self.fields.get("fecha_answer")
+        if fecha_answer:
+            fecha_answer.widget = forms.DateTimeInput(
+                attrs={"type": "datetime-local"},
+                format="%Y-%m-%dT%H:%M",
+            )
+            fecha_answer.input_formats = ["%Y-%m-%dT%H:%M"]
 
 def answer_list(request):
     items = Answer.objects.all()
@@ -1713,6 +1746,9 @@ class PresupuestoForm(forms.ModelForm):
             "estado_presupuesto",
             "notas",
         ]
+        widgets = {
+            "fecha_compra": forms.DateInput(attrs={"type": "date"}),
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1866,6 +1902,9 @@ class CompraMaterialForm(forms.ModelForm):
             "estado_compra",
             "observaciones",
         ]
+        widgets = {
+            "fecha_compra": forms.DateInput(attrs={"type": "date"}),
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
