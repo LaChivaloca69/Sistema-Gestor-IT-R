@@ -171,10 +171,22 @@ def _crear_movimiento(
     )
 
 # =========== Area views ==============
+# Formulario de area 
 class AreaForm(forms.ModelForm):
     class Meta:
         model = Area
         fields = "__all__"
+        labels = {
+            "nombre_area": "Nombre del área",
+            "descripcion_area": "Descripción del área",
+        }
+        help_texts = {
+            "nombre_area": "Nombre con el que se identifica el área.",
+            "descripcion_area": "Descripcion o cualquier detalle importante.",
+        }
+        widgets = {
+            "descripcion_area": forms.Textarea(attrs={"rows": 4}),
+        }
 
 def area_list(request):
     items = Area.objects.all()
@@ -213,10 +225,22 @@ def area_delete(request, pk):
 
 
 # ============  Puesto views ==============
+# Formulario de puesto
 class PuestoForm(forms.ModelForm):
     class Meta:
         model = Puesto
         fields = "__all__"
+        labels = {
+            "nombre_puesto": "Nombre del puesto",
+            "descripcion_puesto": "Descripción del puesto",
+        }
+        help_texts = {
+            "nombre_puesto": "Nombre con el que se identifica el puesto.",
+            "descripcion_puesto": "Descripcion o cualquier detalle importante.",
+        }
+        widgets = {
+            "descripcion_puesto": forms.Textarea(attrs={"rows": 4}),
+        }
 
 def puesto_list(request):
     items = Puesto.objects.all()
@@ -266,7 +290,7 @@ class PersonalForm(forms.ModelForm):
             ("create", "Crear usuario nuevo"),
         ),
         required=False,
-        label="Accion de usuario",
+        label="Tipo de Usuario",
     )
     es_admin = forms.BooleanField(
         required=False,
@@ -589,10 +613,24 @@ def personal_delete(request, pk):
     return render(request, "personal/confirm_delete.html", {"object": personal})
 
 # ============  Proveedor views ==============
+# == Formulario de proveedor
 class ProveedorForm(forms.ModelForm):
     class Meta:
         model = Proveedor
         fields = "__all__"
+        labels = {
+            "nombre_proveedor": "Nombre del proveedor",
+            "contacto": "Contacto",
+            "telefono": "Teléfono",
+            "correo": "Correo electrónico",
+            "direccion": "Dirección",
+        }
+        help_texts = {
+            "contacto": "Nombre de la persona de contacto.",
+        }
+        widgets = {
+            "direccion": forms.Textarea(attrs={"rows": 2}),
+        }
 
 def proveedor_list(request):
     items = Proveedor.objects.all()
@@ -633,10 +671,21 @@ def proveedor_delete(request, pk):
     return render(request, "proveedor/confirm_delete.html", {"object": proveedor})
 
 # ============  Edificio views ==============
+# Formulario de edificio
 class EdificioForm(forms.ModelForm):
     class Meta:
         model = Edificio
         fields = "__all__"
+        labels = {
+            "nombre_edificio": "Nombre del edificio",
+            "descripcion": "Descripción",
+        }
+        help_texts = {
+            "descripcion": "Breve descripción del edificio.",
+        }
+        widgets = {
+            "descripcion": forms.Textarea(attrs={"rows": 2}),
+        }
 
 def edificio_list(request):
     items = Edificio.objects.all()
@@ -681,6 +730,16 @@ class ZonaEdificioForm(forms.ModelForm):
     class Meta:
         model = ZonaEdificio
         fields = "__all__"
+        labels = {
+            "nombre_zona": "Nombre de la zona",
+            "descripcion": "Descripción",
+        }
+        help_texts = {
+            "descripcion": "Breve descripción de la zona.",
+        }
+        widgets = {
+            "descripcion": forms.Textarea(attrs={"rows": 2}),
+        }
 
 def zonaedificio_list(request):
     items = ZonaEdificio.objects.all()
@@ -721,6 +780,8 @@ def zonaedificio_delete(request, pk):
     return render(request, "zonaedificio/confirm_delete.html", {"object": zona})
 
 # ============  Ubicacion views ==============
+
+
 def ubicacion_list(request):
     items = Ubicacion.objects.all()
     return render(request, "ubicacion/list.html", {"items": items})
@@ -775,10 +836,21 @@ def ubicacion_delete(request, pk):
     return render(request, "ubicacion/confirm_delete.html", {"object": ubicacion})
 
 # ============  CategoriaEquipo views ==============
+# Formulario de categoria de equipo
 class CategoriaEquipoForm(forms.ModelForm):
     class Meta:
         model = CategoriaEquipo
         fields = "__all__"
+        labels = {
+            "nombre_categoria": "Nombre de la categoría",
+            "descripcion_categoria": "Descripción",
+        }
+        help_texts = {
+            "descripcion_categoria": "Breve descripción de la categoría.",
+        }
+        widgets = {
+            "descripcion_categoria": forms.Textarea(attrs={"rows": 3}),
+        }
 
 def categoriaequipo_list(request):
     items = CategoriaEquipo.objects.all()
@@ -822,7 +894,41 @@ def categoriaequipo_delete(request, pk):
 class EquipoForm(forms.ModelForm):
     class Meta:
         model = Equipo
-        exclude = ["costo_compra", "fecha_compra", "garantia_meses"]
+        fields = "__all__"
+        labels = {
+            "codigo_inventario": "Código de inventario (ID)",
+            "numero_serie": "Número de serie",
+            "marca": "Marca",
+            "modelo": "Modelo",
+            "categoria": "Categoría",
+            "proveedor": "Proveedor",
+            "Numero_Pedimiento": "Número de pedimiento",
+            "descripcion_equipo": "Descripción del equipo",
+            "proveedor": "Proveedor",
+            "estado_equipo": "Estado del equipo",
+            "ubicacion": "Ubicación",
+            "fecha_alta": "Fecha de alta",
+            "fecha_baja": "Fecha de baja",
+            }
+        help_texts = {
+            "codigo_inventario": "Código único de inventario del equipo.",
+            "numero_serie": "Número de serie del equipo.",
+            "marca": "Marca del equipo.",
+            "modelo": "Modelo del equipo.",
+            "categoria": "Categoría a la que pertenece el equipo.",
+            "proveedor": "Proveedor del equipo.",
+            "Numero_Pedimiento": "Número de pedimiento del equipo(si aplica).",
+            "descripcion_equipo": "Descripción detallada del equipo.",
+            "estado_equipo": "Estado actual del equipo.",
+            "ubicacion": "Ubicación física del equipo.",
+            "fecha_alta": "Fecha en que se dio de alta el equipo.",
+            "fecha_baja": "Fecha en que se dio de baja el equipo (si aplica).",
+        }
+        widgets = {
+            "descripcion_equipo": forms.Textarea(attrs={"rows": 4}),
+            "fecha_alta": forms.DateInput(attrs={"type": "date"}),
+            "fecha_baja": forms.DateInput(attrs={"type": "date"}),
+        }
 
     def clean_imagen(self):
         imagen = self.cleaned_data.get("imagen")
@@ -1001,6 +1107,21 @@ class MovimientoEquipoForm(forms.ModelForm):
             "responsable",
             "observaciones",
         ]
+        labels = {
+            "equipo": "Equipo",
+            "tipo_movimiento": "Tipo de movimiento",
+            "ubicacion_origen": "Ubicacion origen",
+            "ubicacion_destino": "Ubicacion destino",
+            "responsable": "Responsable",
+            "observaciones": "Observaciones",
+        }
+        help_texts = {
+            "responsable": "Responsable actual del equipo.",
+            "observaciones": "Opcional. Puedes agregar comentarios sobre el movimiento.",
+        }
+        widgets = {
+            "observaciones": forms.Textarea(attrs={"rows": 3}),
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1126,10 +1247,27 @@ def movimientoequipo_delete(request, pk):
     return render(request, "movimientoequipo/confirm_delete.html", {"object": movimiento})
 
 # ============  AsignacionEquipo views ==============
+# Formulario de asignacion de equipo
 class AsignacionEquipoForm(forms.ModelForm):
     class Meta:
         model = AsignacionEquipo
         fields = "__all__"
+        labels = {
+            "equipo": "Equipo",
+            "personal": "Personal",
+            "fecha_asignacion": "Fecha de asignación",
+            "fecha_devolucion": "Fecha de devolución",
+            "estado_asignacion": "Estado de asignación",
+            "observaciones": "Observaciones",
+        }
+        help_texts = {
+            "observaciones": "Observaciones o notas a tomar encuenta.",
+        }
+        widgets = {
+            "fecha_asignacion": forms.DateTimeInput(attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M"),
+            "fecha_devolucion": forms.DateTimeInput(attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M"),
+            "observaciones": forms.Textarea(attrs={"rows": 3}),
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1290,8 +1428,23 @@ class MantenimientoForm(forms.ModelForm):
             "costo_mantenimiento",
             "descripcion_falla",
         ]
+        labels = {
+            "equipo": "Equipo",
+            "tipo_mantenimiento": "Tipo de mantenimiento",
+            "estado_mantenimiento": "Estado del mantenimiento",
+            "fecha_programada": "Fecha programada",
+            "tecnico_responsable": "Técnico responsable",
+            "proveedor_responsable": "Proveedor responsable",
+            "costo_mantenimiento": "Costo del mantenimiento",
+            "descripcion_falla": "Descripción de la falla o razón",
+        }
+        help_texts = {
+            "descripcion_falla": "Describe la falla o razón del mantenimiento.",
+            "costo_mantenimiento": "Costo estimado o real del mantenimiento (si aplica es que aplica).",
+        }
         widgets = {
             "fecha_programada": forms.DateInput(attrs={"type": "date"}),
+            "descripcion_falla": forms.Textarea(attrs={"rows": 4}),
         }
 
     def __init__(self, *args, **kwargs):
@@ -1440,7 +1593,23 @@ class AgendaMantenimientoForm(forms.ModelForm):
             "observaciones",
             "proxima_fecha_mantenimiento",
         ]
+        labels = {
+            "mantenimiento": "Mantenimiento",
+            "fecha_inicio": "Fecha de inicio",
+            "fecha_fin": "Fecha de fin",
+            "acciones_realizadas": "Acciones realizadas",
+            "observaciones": "Observaciones",
+            "proxima_fecha_mantenimiento": "Próxima fecha de mantenimiento",
+        }
+        help_texts = {
+            "mantenimiento": "Seleccione el mantenimiento.",
+            "acciones_realizadas": "Describa las acciones realizadas durante el mantenimiento.",
+            "observaciones": "Opcional. Puede agregar observaciones adicionales.",
+        }
         widgets = {
+            "fecha_inicio": forms.DateTimeInput(attrs={"type": "datetime-local"}),
+            "fecha_fin": forms.DateTimeInput(attrs={"type": "datetime-local"}),
+            "observaciones": forms.Textarea(attrs={"rows": 3}),
             "proxima_fecha_mantenimiento": forms.DateInput(attrs={"type": "date"}),
         }
 
@@ -1626,6 +1795,20 @@ class BitacoraForm(forms.ModelForm):
     class Meta:
         model = Bitacora
         fields = "__all__"
+        labels = {
+            "folio_bitacora": "Folio de bitacora",
+            "fecha_bitacora": "Fecha de bitacora",
+            "Situacion": "Situacion",
+            "descripcion_situacion": "Descripcion de la situacion",
+        }
+        help_texts = {
+            "descripcion_bitacora": "Descripcion",
+            "Situacion": "Problema o situacion que se presenta.",
+        }
+        widgets = {
+            "fecha_bitacora": forms.DateTimeInput(attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M"),
+            "descripcion_situacion": forms.Textarea(attrs={"rows": 4}),
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1681,6 +1864,20 @@ class AnswerForm(forms.ModelForm):
     class Meta:
         model = Answer
         fields = "__all__"
+        labels = {
+            "folio_answer": "Folio",
+            "fecha_answer": "Fecha",
+            "solucion": "Solucion",
+            "descripcion_solucion": "Descripcion de la solucion",
+        }
+        help_texts = {
+            "descripcion_answer": "Descripcion",
+            "descripcion_solucion": "Descripcion de la solucion",
+        }
+        widgets = {
+            "fecha_answer": forms.DateTimeInput(attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M"),
+            "descripcion_solucion": forms.Textarea(attrs={"rows": 4}),
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1746,8 +1943,24 @@ class PresupuestoForm(forms.ModelForm):
             "estado_presupuesto",
             "notas",
         ]
+        labels = {
+            "folio_presupuesto": "Folio",
+            "cliente_o_area": "Cliente o área",
+            "elaborado_por": "Elaborado por",
+            "numero_pedimiento": "Número de pedimiento",
+            "numero_importacion": "Número de importación",
+            "fecha_compra": "Fecha de compra",
+            "archivo_pdf": "Archivo PDF",
+            "estado_presupuesto": "Estado del presupuesto",
+            "notas": "Notas adicionales",
+        }
+        help_texts = {
+            "archivo_pdf": "Sube un archivo PDF que pese menos de 50 MB.",
+            "notas": "Notas adicionales o comentarios sobre el presupuesto.",
+        }
         widgets = {
             "fecha_compra": forms.DateInput(attrs={"type": "date"}),
+            "notas": forms.Textarea(attrs={"rows": 5}),
         }
 
     def __init__(self, *args, **kwargs):

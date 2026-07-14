@@ -124,6 +124,8 @@ class Equipo(models.Model):
     categoria = models.ForeignKey(CategoriaEquipo, on_delete=models.PROTECT)
     marca = models.CharField(max_length=80, blank=True, null=True)
     modelo = models.CharField(max_length=80, blank=True, null=True)
+    # numero de pedimiento es un campo opcional que puede ser nulo o vacío
+    Numero_Pedimiento = models.CharField(max_length=15, blank=True, null=True)
     descripcion_equipo = models.CharField(max_length=255, blank=True, null=True)
     imagen = models.ImageField(upload_to='equipos', blank=True, null=True)
     proveedor = models.ForeignKey(Proveedor, on_delete=models.SET_NULL, null=True, blank=True)
