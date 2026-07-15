@@ -10,8 +10,10 @@ from django.utils import timezone
 
 from .models import (
     Answer,
+    AsignacionEquipo,
     CategoriaEquipo,
     EstadoSupport,
+    EstadoAsignacion,
     Personal,
     SeguimientoTicket,
     TicketIT,
@@ -72,17 +74,69 @@ def is_admin_user(user):
     return user.is_superuser or user.is_staff
 
 
+def _get_user_personal(user):
+    if not user or not getattr(user, "is_authenticated", False):
+        return None
+    try:
+        return user.personal_profile
+    except Personal.DoesNotExist:
+        return None
+
+
+def _get_personal_active_assignment(personal):
+    if not personal:
+        return None
+    return (
+        AsignacionEquipo.objects.select_related("equipo__categoria")
+        .filter(personal=personal, estado_asignacion=EstadoAsignacion.ACTIVA)
+        .order_by("-fecha_asignacion")
+        .first()
+    )
+
+
 class TicketITForm(forms.ModelForm):
     sub_tipo_ticket = forms.ChoiceField(required=False, choices=[])
     fecha_support_client = forms.CharField(required=False, widget=forms.HiddenInput())
 
+
     class Meta:
         model = TicketIT
         exclude = ["folio_ticket", "fecha_support"]
+        fields = "__all__"
+        labels = {
+            "requerimiento": "Problema que presenta",
+            "solicitado_por": "Solicitado por",
+            "area": "Área",
+            "puesto": "Puesto",
+            "solicitado_por": "Solicitado por",
+            "tipo_ticket": "Tipo de ticket",
+            "sub_tipo_ticket": "Tipo de subtipo(cambiar este texto expicar mejor)",
+            "prioridad": "Prioridad",
+            "equipo": "Equipo",
+            "tipo_equipo": "Tipo de equipo",
+            "Otro_tipo_equipo": "Otro tipo de equipo",
+            "detalle": "Detalle",
+            "descripcion": "Descripción",
+            "imagen": "Imagen",
+            "Status": "Estado",
+        }
+        help_texts = {
+            "requerimiento": "Descripcion breve del problema.",
+            "area": "Indicar su localizacion.",
+            "tipo_ticket": "Seleccione el tipo de ticket.",
+            "sub_tipo_ticket": "Seleccione el subtipo de ticket.",
+            "prioridad": "Seleccione la prioridad del ticket.",
+            "detalle": "Proporcione detalles adicionales sobre el problema.",
+            "descripcion": "Describa detalladamente el problema o solicitud.",
+            "imagen": "Adjunte una imagen del problema, si aplica.",
+        }
 
     def __init__(self, *args, **kwargs):
         self.request_user = kwargs.pop("request_user", None)
         super().__init__(*args, **kwargs)
+        self.request_personal = _get_user_personal(self.request_user)
+        self.request_assignment = _get_personal_active_assignment(self.request_personal)
+
         tipo_ticket = None
         if self.data.get("tipo_ticket"):
             tipo_ticket = self.data.get("tipo_ticket")
@@ -93,11 +147,24 @@ class TicketITForm(forms.ModelForm):
         current_tipo_equipo = None
         if self.instance and self.instance.pk:
             current_tipo_equipo = self.instance.tipo_equipo
+        elif self.request_assignment and self.request_assignment.equipo_id:
+            current_tipo_equipo = self.request_assignment.equipo.categoria
         self.fields["tipo_equipo"].queryset = get_tipo_equipo_queryset(current_tipo_equipo)
+        if current_tipo_equipo:
+            self.fields["tipo_equipo"].initial = current_tipo_equipo
+
         if "equipo" in self.fields:
             self.fields["equipo"].label_from_instance = (
                 lambda obj: f"{obj.codigo_inventario} - {obj.categoria}"
             )
+            if not (self.instance and self.instance.pk) and self.request_assignment and self.request_assignment.equipo_id:
+                self.fields["equipo"].initial = self.request_assignment.equipo
+
+        if "area" in self.fields and not (self.instance and self.instance.pk) and self.request_personal:
+            self.fields["area"].initial = self.request_personal.area
+        if "puesto" in self.fields and not (self.instance and self.instance.pk) and self.request_personal:
+            self.fields["puesto"].initial = self.request_personal.puesto
+
         if "solicitado_por" in self.fields:
             if (
                 self.request_user
@@ -106,7 +173,17 @@ class TicketITForm(forms.ModelForm):
             ):
                 self.fields["solicitado_por"].initial = self.request_user
                 self.fields["solicitado_por"].disabled = True
-                self.fields["solicitado_por"].help_text = "Asignado automaticamente."
+                # self.fields["solicitado_por"].help_text = "Asignado automaticamente desde tu usuario."
+
+        if not (self.instance and self.instance.pk) and self.request_personal:
+            if "area" in self.fields:
+                self.fields["area"].help_text = "Favor de comprobar que el área sea correcta."
+            if "puesto" in self.fields:
+                self.fields["puesto"].help_text = "Favor de comprobar que el puesto sea correcto."
+            if "equipo" in self.fields:
+                self.fields["equipo"].help_text = "Favor de comprobar que el equipo sea correcto."
+            if "tipo_equipo" in self.fields:
+                self.fields["tipo_equipo"].help_text = "Favor de comprobar que el tipo de equipo sea correcto."
 
     def clean_imagen(self):
         imagen = self.cleaned_data.get("imagen")
@@ -198,21 +275,43 @@ class SeguimientoTicketForm(forms.ModelForm):
         fields = [
             "ticket",
             "fecha_check",
+            "avance_realizado",
+            "pendiente",
+            "proximo_paso",
+            "fecha_proximo_seguimiento",
             "usuario",
             "solucion",
             "observacion",
             "ya_terminado",
         ]
+        labels = {
+            "ticket": "Ticket",
+            "fecha_check": "Fecha de check",
+            "avance_realizado": "Avance realizado",
+            "pendiente": "Pendiente",
+            "proximo_paso": "Próximo paso",
+            "fecha_proximo_seguimiento": "Fecha de próximo seguimiento",
+            "usuario": "Usuario",
+            "solucion": "Solución",
+            "observacion": "Observaciones",
+            "ya_terminado": "Concluido",
+        }
+        widgets = {
+            "avance_realizado": forms.Textarea(attrs={"rows": 3}),
+            "pendiente": forms.Textarea(attrs={"rows": 3}),
+            "proximo_paso": forms.Textarea(attrs={"rows": 3}),
+            "fecha_check": forms.DateTimeInput(attrs={"type": "datetime-local"}),
+            "fecha_proximo_seguimiento": forms.DateInput(attrs={"type": "date"}),
+            "solucion": forms.Textarea(attrs={"rows": 4}),
+            "observacion": forms.Textarea(attrs={"rows": 3}),
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        qs = TicketIT.objects.filter(
-            status=EstadoSupport.ABIERTO,
-            ticket_check__isnull=True,
-        )
+        qs = TicketIT.objects.exclude(status=EstadoSupport.CERRADO)
         if self.instance and self.instance.ticket_id:
             qs = TicketIT.objects.filter(
-                Q(status=EstadoSupport.ABIERTO, ticket_check__isnull=True)
+                Q(status__in=[EstadoSupport.ABIERTO, EstadoSupport.EN_REVISION, EstadoSupport.EN_PROCESO])
                 | Q(pk=self.instance.ticket_id)
             )
         self.fields["ticket"].queryset = qs.order_by("folio_ticket")
@@ -237,6 +336,12 @@ class AnswerForm(forms.ModelForm):
             "solucion",
             "descripcion_solucion",
         ]
+        labels = {
+            "bitacora": "Bitácora",
+            "fecha_answer": "Fecha de respuesta",
+            "solucion": "Solución",
+            "descripcion_solucion": "Descripción de la solución",
+        }
 
 
 class UserRegisterForm(UserCreationForm):

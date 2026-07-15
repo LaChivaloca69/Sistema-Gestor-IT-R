@@ -302,6 +302,23 @@ class TicketIT(models.Model):
         verbose_name = 'Support'
         verbose_name_plural = 'Support'
 
+    def refresh_status_from_followups(self, save=True):
+        ultimo_seguimiento = self.seguimientos.order_by('-fecha_check', '-pk').first()
+
+        if ultimo_seguimiento is None:
+            nuevo_status = EstadoSupport.ABIERTO
+        elif ultimo_seguimiento.ya_terminado:
+            nuevo_status = EstadoSupport.CERRADO
+        else:
+            nuevo_status = EstadoSupport.EN_PROCESO
+
+        if self.status != nuevo_status:
+            self.status = nuevo_status
+            if save:
+                self.save(update_fields=['status'])
+
+        return self.status
+
     @classmethod
     def _next_folio_ticket(cls):
         folios = cls.objects.filter(
@@ -355,9 +372,13 @@ class TicketIT(models.Model):
 
 
 class SeguimientoTicket(models.Model):
-    ticket = models.OneToOneField(TicketIT, on_delete=models.CASCADE, related_name='ticket_check')
+    ticket = models.ForeignKey(TicketIT, on_delete=models.CASCADE, related_name='seguimientos')
     folio_check = models.CharField(max_length=30, blank=True, null=True)
     fecha_check = models.DateTimeField(default=timezone.now)
+    avance_realizado = models.TextField(blank=True, null=True)
+    pendiente = models.TextField(blank=True, null=True)
+    proximo_paso = models.TextField(blank=True, null=True)
+    fecha_proximo_seguimiento = models.DateField(blank=True, null=True)
     usuario = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -366,7 +387,7 @@ class SeguimientoTicket(models.Model):
     )
     solucion = models.TextField(default='')
     observacion = models.TextField(blank=True, null=True)
-    ya_terminado = models.BooleanField(default=True)
+    ya_terminado = models.BooleanField(default=False)
 
     class Meta:
         verbose_name = 'Check'
@@ -381,11 +402,29 @@ class SeguimientoTicket(models.Model):
             raise ValidationError({'folio_check': 'El folio de Check debe coincidir con el folio del Support seleccionado.'})
 
     def save(self, *args, **kwargs):
+        previous_ticket_id = None
+        if self.pk:
+            previous_ticket_id = type(self).objects.filter(pk=self.pk).values_list('ticket_id', flat=True).first()
+
         if self.ticket_id and self.ticket and self.ticket.folio_ticket:
             self.folio_check = self.ticket.folio_ticket
         if self.folio_check:
             self.folio_check = self.folio_check.upper()
         super().save(*args, **kwargs)
+
+        if self.ticket_id:
+            self.ticket.refresh_status_from_followups()
+
+        if previous_ticket_id and previous_ticket_id != self.ticket_id:
+            previous_ticket = TicketIT.objects.filter(pk=previous_ticket_id).first()
+            if previous_ticket:
+                previous_ticket.refresh_status_from_followups()
+
+    def delete(self, *args, **kwargs):
+        ticket = self.ticket
+        super().delete(*args, **kwargs)
+        if ticket:
+            ticket.refresh_status_from_followups()
 
     def __str__(self):
         return self.folio_check or f'Check {self.pk}'

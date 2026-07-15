@@ -389,6 +389,128 @@ ul.model-grid li a { display: block; padding: 0.85rem; border: 1px solid var(--a
     line-height: 1.65;
 }
 
+body.calendar-modal-open {
+    overflow: hidden;
+}
+
+.calendar-modal[hidden] {
+    display: none;
+}
+
+.calendar-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: grid;
+    place-items: center;
+    padding: 1rem;
+}
+
+.calendar-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.58);
+    backdrop-filter: blur(6px);
+}
+
+.calendar-modal__panel {
+    position: relative;
+    z-index: 1;
+    width: min(100%, 640px);
+    max-height: min(90vh, 760px);
+    overflow: auto;
+    border: 1px solid rgba(255, 255, 255, 0.72);
+    border-radius: 1.35rem;
+    padding: 1.25rem 1.25rem 1rem;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    box-shadow: 0 24px 70px rgba(15, 23, 42, 0.28);
+}
+
+.calendar-modal__panel::before {
+    content: "";
+    display: block;
+    width: 100%;
+    height: 0.28rem;
+    margin-bottom: 1rem;
+    border-radius: 999px;
+    background: var(--calendar-accent, #1d4ed8);
+}
+
+.calendar-modal__close {
+    position: absolute;
+    top: 0.85rem;
+    right: 0.9rem;
+    width: 2rem;
+    height: 2rem;
+    border: 0;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.08);
+    color: var(--app-text);
+    font-size: 1.4rem;
+    line-height: 1;
+}
+
+.calendar-modal__close:hover,
+.calendar-modal__close:focus-visible {
+    background: rgba(15, 23, 42, 0.14);
+}
+
+.calendar-modal__eyebrow {
+    margin: 0;
+    color: var(--calendar-accent, #1d4ed8);
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.calendar-modal__title {
+    margin: 0.3rem 0 0;
+    font-size: 1.45rem;
+    font-weight: 900;
+    color: var(--app-text);
+}
+
+.calendar-modal__subtitle {
+    margin: 0.5rem 0 0;
+    color: var(--app-muted);
+}
+
+.calendar-modal__details {
+    display: grid;
+    grid-template-columns: minmax(120px, 180px) minmax(0, 1fr);
+    gap: 0.75rem 1rem;
+    margin: 1.15rem 0 0;
+}
+
+.calendar-modal__details dt {
+    color: var(--app-muted);
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.calendar-modal__details dd {
+    margin: 0;
+    color: var(--app-text);
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.calendar-modal__empty {
+    margin: 0;
+    color: var(--app-muted);
+}
+
+.calendar-modal__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.65rem;
+    margin-top: 1.3rem;
+}
+
 .home-calendar .fc-toolbar {
     gap: 0.75rem;
     flex-wrap: wrap;

@@ -7,6 +7,25 @@
 {% endblock %}
 
 {% block content %}
+
+{% if user.is_authenticated %}
+<section class="section-block">
+	<div class="section-block__header">
+		<h2>Inicio</h2>
+		<p>Usa el menu lateral para trabajar rapido.</p>
+	</div>
+	<div class="notice-card">
+		<p>Bienvenido <strong>{{ user.username }}</strong>, tu panel ya esta listo para operar.</p>
+	</div>
+</section>
+{% else %}
+<section class="section-block">
+	<div class="notice-card notice-card--accent">
+		<p>Inicia sesion para acceder al panel y a los modulos administrativos.</p>
+	</div>
+</section>
+{% endif %}
+
 <section class="hero-panel">
 	<div class="hero-panel__copy">
 		<p class="eyebrow">Sistema de gestion IT</p>
@@ -111,25 +130,23 @@
 			</div>
 		</div>
 	</div>
+	<div class="calendar-modal" id="calendar-event-modal" hidden aria-hidden="true">
+		<div class="calendar-modal__backdrop" data-calendar-modal-close></div>
+		<div class="calendar-modal__panel" role="dialog" aria-modal="true" aria-labelledby="calendar-event-title">
+			<button type="button" class="calendar-modal__close" aria-label="Cerrar detalle" data-calendar-modal-close>&times;</button>
+			<p class="calendar-modal__eyebrow" id="calendar-event-type"></p>
+			<h3 class="calendar-modal__title" id="calendar-event-title"></h3>
+			<p class="calendar-modal__subtitle" id="calendar-event-subtitle"></p>
+			<dl class="calendar-modal__details" id="calendar-event-details"></dl>
+			<div class="calendar-modal__actions">
+				<a class="btn btn-primary" id="calendar-event-link" href="#">Ir al caso</a>
+				<button type="button" class="btn btn-outline-secondary" data-calendar-modal-close>Cerrar</button>
+			</div>
+		</div>
+	</div>
 </section>
 
-{% if user.is_authenticated %}
-<section class="section-block">
-	<div class="section-block__header">
-		<h2>Tu acceso</h2>
-		<p>Usa el menu lateral para trabajar rapido.</p>
-	</div>
-	<div class="notice-card">
-		<p>Hola <strong>{{ user.username }}</strong>, tu panel ya esta listo para operar.</p>
-	</div>
-</section>
-{% else %}
-<section class="section-block">
-	<div class="notice-card notice-card--accent">
-		<p>Inicia sesion para acceder al panel y a los modulos administrativos.</p>
-	</div>
-</section>
-{% endif %}
+
 
 {% endblock %}
 
@@ -140,11 +157,88 @@
 (function () {
 	const calendarElement = document.getElementById("home-calendar");
 	const dataElement = document.getElementById("home-calendar-events");
-	if (!calendarElement || !dataElement || typeof FullCalendar === "undefined") {
+	const modal = document.getElementById("calendar-event-modal");
+	const modalType = document.getElementById("calendar-event-type");
+	const modalTitle = document.getElementById("calendar-event-title");
+	const modalSubtitle = document.getElementById("calendar-event-subtitle");
+	const modalDetails = document.getElementById("calendar-event-details");
+	const modalLink = document.getElementById("calendar-event-link");
+	if (!calendarElement || !dataElement || !modal || typeof FullCalendar === "undefined") {
 		return;
 	}
 
 	const events = JSON.parse(dataElement.textContent || "[]");
+	const dateFormatter = new Intl.DateTimeFormat("es-MX", {
+		dateStyle: "full",
+		timeStyle: "short",
+	});
+
+	const hideModal = () => {
+		modal.hidden = true;
+		modal.setAttribute("aria-hidden", "true");
+		document.body.classList.remove("calendar-modal-open");
+	};
+
+	const renderDetails = (items) => {
+		modalDetails.innerHTML = "";
+		if (!items.length) {
+			const empty = document.createElement("p");
+			empty.className = "calendar-modal__empty";
+			empty.textContent = "Sin detalles adicionales.";
+			modalDetails.appendChild(empty);
+			return;
+		}
+
+		items.forEach((item) => {
+			if (!item || !item.label) {
+				return;
+			}
+
+			const term = document.createElement("dt");
+			term.textContent = item.label;
+			const definition = document.createElement("dd");
+			definition.textContent = item.value ?? "Sin dato";
+			modalDetails.append(term, definition);
+		});
+	};
+
+	const showModal = (event) => {
+		const extendedProps = event.extendedProps || {};
+		const details = Array.isArray(extendedProps.details) ? extendedProps.details : [];
+		const startLabel = event.start ? dateFormatter.format(event.start) : "Sin fecha";
+		const caseLabel = extendedProps.caseLabel ? `Caso ${extendedProps.caseLabel}` : "Caso";
+
+		modalType.textContent = extendedProps.caseTypeLabel || extendedProps.caseType || "Caso";
+		modalTitle.textContent = event.title || caseLabel;
+		modalSubtitle.textContent = `${caseLabel} · ${startLabel}`;
+		modal.style.setProperty("--calendar-accent", event.backgroundColor || "#1d4ed8");
+		renderDetails(details);
+
+		if (extendedProps.actionUrl) {
+			modalLink.hidden = false;
+			modalLink.href = extendedProps.actionUrl;
+			modalLink.textContent = extendedProps.actionText || "Ir al caso";
+		} else {
+			modalLink.hidden = true;
+		}
+
+		modal.hidden = false;
+		modal.setAttribute("aria-hidden", "false");
+		document.body.classList.add("calendar-modal-open");
+	};
+
+	modal.addEventListener("click", (event) => {
+		if (event.target.matches("[data-calendar-modal-close]")) {
+			hideModal();
+		}
+	});
+
+	document.addEventListener("keydown", (event) => {
+		if (event.key === "Escape" && !modal.hidden) {
+			hideModal();
+		}
+	});
+
 	const calendar = new FullCalendar.Calendar(calendarElement, {
 		initialView: "dayGridMonth",
 		height: "auto",
@@ -166,8 +260,7 @@
 		events,
 		eventClick(info) {
 			info.jsEvent.preventDefault();
-			const details = info.event.extendedProps.details || "Sin detalles disponibles.";
-			window.alert(`${info.event.title}\n\n${details}`);
+			showModal(info.event);
 		},
 	});
 

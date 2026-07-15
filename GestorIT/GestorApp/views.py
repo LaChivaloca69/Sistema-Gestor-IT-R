@@ -10,6 +10,7 @@ from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.urls import reverse
 
 from .forms import (
 	AnswerForm,
@@ -393,9 +394,9 @@ class PersonalForm(forms.ModelForm):
             if not email:
                 self.add_error("email", "Captura un correo de usuario.")
             if not password1 or not password2:
-                self.add_error("password1", "Captura la contrasena.")
+                self.add_error("password1", "Captura la contraseña.")
             elif password1 != password2:
-                self.add_error("password2", "Las contrasenas no coinciden.")
+                self.add_error("password2", "Las contraseñas no coinciden.")
             else:
                 try:
                     validate_password(password1)
@@ -1678,6 +1679,9 @@ def agendamantenimiento_delete(request, pk):
 
 
 # ============ TicketIT views ==============
+# Formulario de ticket
+
+
 
 def ticketit_list(request):
     items = TicketIT.objects.all()
@@ -1750,6 +1754,9 @@ def ticketit_subtipo_choices(request):
     return JsonResponse({"choices": data})
 
 # ============ SeguimientoTicket views ==============
+
+
+
 def seguimientoticket_list(request):
     items = SeguimientoTicket.objects.all()
     return render(request, "seguimientoticket/list.html", {"items": items})
@@ -2190,6 +2197,23 @@ class DetalleCompraMaterialForm(forms.ModelForm):
     class Meta:
         model = DetalleCompraMaterial
         fields = "__all__"
+        labels = {
+            "folio_compra": "Folio",
+            "fecha_compra": "Fecha de compra",
+            "archivo_pdf": "Archivo PDF",
+            "proveedor": "Proveedor",
+            "solicitado_por": "Solicitado por",
+            "estado_compra": "Estado de la compra",
+            "observaciones": "Observaciones",
+        }
+        help_texts = {
+            "archivo_pdf": "Sube un archivo PDF que pese menos de 50 MB.",
+            "observaciones": "Notas adicionales o comentarios sobre la compra.",
+        }
+        widgets = {
+            "fecha_compra": forms.DateInput(attrs={"type": "date"}),
+            "observaciones": forms.Textarea(attrs={"rows": 4}),
+        }
 
 def detallecompramaterial_list(request):
     items = DetalleCompraMaterial.objects.all()
@@ -2230,7 +2254,20 @@ def detallecompramaterial_delete(request, pk):
     return render(request, "detallecompramaterial/confirm_delete.html", {"object": detalle})
 
 
-def _calendar_event(title, start, *, color, details, url=None, end=None, all_day=True):
+def _calendar_event(
+    title,
+    start,
+    *,
+    color,
+    details,
+    case_type,
+    case_type_label,
+    case_label,
+    action_url,
+    action_text,
+    end=None,
+    all_day=True,
+):
     event = {
         "title": title,
         "start": start.isoformat(),
@@ -2238,7 +2275,14 @@ def _calendar_event(title, start, *, color, details, url=None, end=None, all_day
         "backgroundColor": color,
         "borderColor": color,
         "textColor": "#ffffff",
-        "extendedProps": {"details": details},
+        "extendedProps": {
+            "details": details,
+            "caseType": case_type,
+            "caseTypeLabel": case_type_label,
+            "caseLabel": case_label,
+            "actionUrl": action_url,
+            "actionText": action_text,
+        },
     }
     if end is not None:
         event["end"] = end.isoformat()
@@ -2273,14 +2317,50 @@ def _build_home_calendar_events():
                     EstadoSupport.EN_REVISION: "#7c3aed",
                     EstadoSupport.ABIERTO: "#f59e0b",
                 }.get(ticket.status, "#475569"),
-                details=(
-                    f"Estado: {_calendar_label(ticket.status)}\n"
-                    f"Prioridad: {_calendar_label(ticket.prioridad)}\n"
-                    f"Area: {_calendar_label(getattr(ticket.area, 'nombre_area', None))}\n"
-                    f"Puesto: {_calendar_label(getattr(ticket.puesto, 'nombre_puesto', None))}\n"
-                    f"Solicitado por: {_calendar_label(getattr(ticket.solicitado_por, 'username', None))}\n"
-                    f"Requerimiento: {_calendar_label(ticket.requerimiento)}"
-                ),
+                details=[
+                    {"label": "Estado", "value": _calendar_label(ticket.status)},
+                    {"label": "Prioridad", "value": _calendar_label(ticket.prioridad)},
+                    {"label": "Area", "value": _calendar_label(getattr(ticket.area, 'nombre_area', None))},
+                    {"label": "Puesto", "value": _calendar_label(getattr(ticket.puesto, 'nombre_puesto', None))},
+                    {"label": "Solicitado por", "value": _calendar_label(getattr(ticket.solicitado_por, 'username', None))},
+                    {"label": "Requerimiento", "value": _calendar_label(ticket.requerimiento)},
+                ],
+                case_type="ticket",
+                case_type_label="Ticket de soporte",
+                case_label=ticket.folio_ticket,
+                action_url=reverse("ticketit_update", args=[ticket.pk]),
+                action_text="Abrir ticket",
+            )
+        )
+
+    for movimiento in MovimientoEquipo.objects.select_related("equipo", "responsable").order_by("-fecha_movimiento")[:80]:
+        color = {
+            TipoMovimiento.DADA_DE_ALTA: "#16a34a",
+            TipoMovimiento.DADA_DE_BAJA: "#b42318",
+            TipoMovimiento.ASIGNACION: "#1d4ed8",
+            TipoMovimiento.CAMBIO_ASIGNACION: "#7c3aed",
+            TipoMovimiento.MANTENIMIENTO: "#f59e0b",
+            TipoMovimiento.CAMBIO_UBICACION: "#0f766e",
+        }.get(movimiento.tipo_movimiento, "#475569")
+
+        events.append(
+            _calendar_event(
+                f"Movimiento {movimiento.equipo.codigo_inventario if getattr(movimiento, 'equipo', None) else 'de equipo'}",
+                _calendar_day(movimiento.fecha_movimiento),
+                color=color,
+                details=[
+                    {"label": "Tipo", "value": _calendar_label(movimiento.tipo_movimiento)},
+                    {"label": "Equipo", "value": _calendar_label(getattr(movimiento.equipo, 'codigo_inventario', None))},
+                    {"label": "Origen", "value": _calendar_label(movimiento.origen)},
+                    {"label": "Destino", "value": _calendar_label(movimiento.destino)},
+                    {"label": "Responsable", "value": _calendar_label(str(movimiento.responsable) if movimiento.responsable else None)},
+                    {"label": "Observaciones", "value": _calendar_label(movimiento.observaciones)},
+                ],
+                case_type="movimiento",
+                case_type_label="Movimiento de equipo",
+                case_label=_calendar_label(movimiento.tipo_movimiento),
+                action_url=reverse("movimientoequipo_update", args=[movimiento.pk]),
+                action_text="Abrir movimiento",
             )
         )
 
@@ -2293,22 +2373,28 @@ def _build_home_calendar_events():
         elif mantenimiento.fecha_programada < today:
             color = "#dc2626"
 
-        details = (
-            f"Estado: {_calendar_label(mantenimiento.estado_mantenimiento)}\n"
-            f"Tipo: {_calendar_label(mantenimiento.tipo_mantenimiento)}\n"
-            f"Equipo: {_calendar_label(getattr(mantenimiento.equipo, 'codigo_inventario', None))}\n"
-            f"Responsable: {_calendar_label(mantenimiento.tecnico_responsable)}\n"
-            f"Costo: {_calendar_label(mantenimiento.costo_mantenimiento)}"
-        )
-        if getattr(mantenimiento, "cierre", None) and mantenimiento.cierre.proxima_fecha_mantenimiento:
-            details = details + f"\nProximo mantenimiento: {mantenimiento.cierre.proxima_fecha_mantenimiento.strftime('%Y-%m-%d')}"
-
         events.append(
             _calendar_event(
                 f"Mantenimiento {mantenimiento.folio_mantenimiento()}",
                 mantenimiento.fecha_programada,
                 color=color,
-                details=details,
+                details=[
+                    {"label": "Estado", "value": _calendar_label(mantenimiento.estado_mantenimiento)},
+                    {"label": "Tipo", "value": _calendar_label(mantenimiento.tipo_mantenimiento)},
+                    {"label": "Equipo", "value": _calendar_label(getattr(mantenimiento.equipo, 'codigo_inventario', None))},
+                    {"label": "Responsable", "value": _calendar_label(mantenimiento.tecnico_responsable)},
+                    {"label": "Costo", "value": _calendar_label(mantenimiento.costo_mantenimiento)},
+                    *(
+                        [{"label": "Proximo mantenimiento", "value": mantenimiento.cierre.proxima_fecha_mantenimiento.strftime('%Y-%m-%d')}]
+                        if getattr(mantenimiento, "cierre", None) and mantenimiento.cierre.proxima_fecha_mantenimiento
+                        else []
+                    ),
+                ],
+                case_type="mantenimiento",
+                case_type_label="Mantenimiento",
+                case_label=mantenimiento.folio_mantenimiento(),
+                action_url=reverse("mantenimiento_update", args=[mantenimiento.pk]),
+                action_text="Abrir mantenimiento",
             )
         )
 
@@ -2320,14 +2406,20 @@ def _build_home_calendar_events():
                 f"Seguimiento {agenda.mantenimiento.folio_mantenimiento()}",
                 agenda.proxima_fecha_mantenimiento,
                 color="#7c3aed",
-                details=(
-                    f"Mantenimiento: {agenda.mantenimiento.folio_mantenimiento()}\n"
-                    f"Equipo: {_calendar_label(getattr(agenda.mantenimiento.equipo, 'codigo_inventario', None))}\n"
-                    f"Inicio: {agenda.fecha_inicio.strftime('%Y-%m-%d %H:%M') if agenda.fecha_inicio else 'Sin inicio'}\n"
-                    f"Fin: {agenda.fecha_fin.strftime('%Y-%m-%d %H:%M') if agenda.fecha_fin else 'Sin fin'}\n"
-                    f"Acciones: {_calendar_label(agenda.acciones_realizadas)}\n"
-                    f"Observaciones: {_calendar_label(agenda.observaciones)}"
-                ),
+                details=[
+                    {"label": "Mantenimiento", "value": agenda.mantenimiento.folio_mantenimiento()},
+                    {"label": "Equipo", "value": _calendar_label(getattr(agenda.mantenimiento.equipo, 'codigo_inventario', None))},
+                    {"label": "Inicio", "value": agenda.fecha_inicio.strftime('%Y-%m-%d %H:%M') if agenda.fecha_inicio else 'Sin inicio'},
+                    {"label": "Fin", "value": agenda.fecha_fin.strftime('%Y-%m-%d %H:%M') if agenda.fecha_fin else 'Sin fin'},
+                    {"label": "Acciones", "value": _calendar_label(agenda.acciones_realizadas)},
+                    {"label": "Observaciones", "value": _calendar_label(agenda.observaciones)},
+                    {"label": "Proximo mantenimiento", "value": agenda.proxima_fecha_mantenimiento.strftime('%Y-%m-%d')},
+                ],
+                case_type="seguimiento",
+                case_type_label="Seguimiento",
+                case_label=agenda.mantenimiento.folio_mantenimiento(),
+                action_url=reverse("agendamantenimiento_update", args=[agenda.pk]),
+                action_text="Abrir seguimiento",
             )
         )
 
