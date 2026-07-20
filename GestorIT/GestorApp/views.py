@@ -2423,6 +2423,30 @@ def _build_home_calendar_events():
             )
         )
 
+    for seguimiento in SeguimientoTicket.objects.select_related("ticket", "usuario").order_by("-fecha_check")[:80]:
+        event_date = seguimiento.fecha_proximo_seguimiento or _calendar_day(seguimiento.fecha_check)
+        events.append(
+            _calendar_event(
+                f"Check {seguimiento.folio_check or seguimiento.ticket.folio_ticket}",
+                event_date,
+                color="#7c3aed" if not seguimiento.ya_terminado else "#0f766e",
+                details=[
+                    {"label": "Ticket", "value": _calendar_label(getattr(seguimiento.ticket, 'folio_ticket', None))},
+                    {"label": "Estado", "value": "Terminado" if seguimiento.ya_terminado else "Pendiente"},
+                    {"label": "Avance", "value": _calendar_label(seguimiento.avance_realizado)},
+                    {"label": "Pendiente", "value": _calendar_label(seguimiento.pendiente)},
+                    {"label": "Proximo paso", "value": _calendar_label(seguimiento.proximo_paso)},
+                    {"label": "Usuario", "value": _calendar_label(str(seguimiento.usuario) if seguimiento.usuario else None)},
+                    {"label": "Observacion", "value": _calendar_label(seguimiento.observacion)},
+                ],
+                case_type="seguimiento_ticket",
+                case_type_label="Check",
+                case_label=seguimiento.folio_check or seguimiento.ticket.folio_ticket,
+                action_url=reverse("seguimientoticket_update", args=[seguimiento.pk]),
+                action_text="Abrir check",
+            )
+        )
+
     events.sort(key=lambda event: event["start"])
     return events
 

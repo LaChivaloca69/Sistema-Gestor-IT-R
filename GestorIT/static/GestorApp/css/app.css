@@ -371,16 +371,34 @@ ul.model-grid li a { display: block; padding: 0.85rem; border: 1px solid var(--a
     min-height: 2.1rem;
     padding: 0.25rem 0.7rem;
     border-radius: 999px;
+    border: 0;
+    cursor: pointer;
     color: #fff;
     font-size: 0.78rem;
     font-weight: 800;
     letter-spacing: 0.04em;
     text-transform: uppercase;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
 }
 
 .calendar-chip--tickets { background: #f59e0b; }
 .calendar-chip--maintenance { background: #1d4ed8; }
 .calendar-chip--followup { background: #7c3aed; }
+.calendar-chip--clear { background: #e2e8f0; color: #0f172a; }
+
+.calendar-chip:hover:not(:disabled) {
+    transform: translateY(-1px);
+}
+
+.calendar-chip.is-active {
+    box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.18), 0 0 0 2px rgba(255, 255, 255, 0.55) inset;
+}
+
+.calendar-chip:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+    transform: none;
+}
 
 .calendar-summary {
     margin: 0.75rem 0 0;
