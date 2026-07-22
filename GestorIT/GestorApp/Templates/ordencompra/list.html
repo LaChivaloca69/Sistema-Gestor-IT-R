@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block title %}Ordenes de compra{% endblock %}
+
+{% block content %}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+	<div>
+		<p class="eyebrow mb-2">Ordenes de compra</p>
+		<h1 class="h3 mb-1">Ordenes de compra</h1>
+		<p class="text-muted mb-0">Control y registro de ordenes de compra.</p>
+	</div>
+	<a class="btn btn-primary" href="{% url 'ordencompra_choose' %}">Nueva orden</a>
+</div>
+
+<style>
+	.filters {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+		gap: 0.75rem;
+		align-items: end;
+		margin-bottom: 1rem;
+	}
+	.filters-actions {
+		display: flex;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+	}
+</style>
+
+<form class="filters" method="get">
+	<div>
+		<label for="filter_folio">Folio</label>
+		<input id="filter_folio" name="folio_orden" type="search" value="{{ selected_folio }}" placeholder="Buscar folio" />
+	</div>
+	<div>
+		<label for="filter_estado">Estado</label>
+		<select id="filter_estado" name="estado">
+			<option value="">Todos</option>
+			{% for value, label in estado_choices %}
+				<option value="{{ value }}" {% if value == selected_estado %}selected{% endif %}>{{ label }}</option>
+			{% endfor %}
+		</select>
+	</div>
+	<div>
+		<label for="filter_fecha_desde">Fecha desde</label>
+		<input id="filter_fecha_desde" name="fecha_desde" type="date" value="{{ fecha_desde }}" />
+	</div>
+	<div>
+		<label for="filter_fecha_hasta">Fecha hasta</label>
+		<input id="filter_fecha_hasta" name="fecha_hasta" type="date" value="{{ fecha_hasta }}" />
+	</div>
+	<div class="filters-actions">
+		<button class="btn btn-primary" type="submit">Filtrar</button>
+		<a class="btn" href="{% url 'ordencompra_list' %}">Limpiar</a>
+	</div>
+</form>
+
+<div class="table-responsive">
+	<table class="table table-striped table-hover align-middle">
+		<thead class="table-light">
+			<tr>
+				<th>Folio</th>
+				<th>Origen</th>
+				<th>Proveedor</th>
+				<th>Fecha</th>
+				<th>Total</th>
+				<th>PDF</th>
+				<th>Estado</th>
+				<th class="text-nowrap">Acciones</th>
+			</tr>
+		</thead>
+		<tbody>
+			{% for item in items %}
+			<tr>
+				<td>{{ item.folio_orden }}</td>
+				<td>{{ item.get_origen_display }}</td>
+				<td>{% if item.proveedor %}{{ item.proveedor.nombre_proveedor }}{% else %}—{% endif %}</td>
+				<td>{{ item.fecha|default:"—" }}</td>
+				<td>
+					{% if item.origen == "CREADO" %}
+						{{ item.tipo_moneda }} {{ item.total }}
+					{% else %}
+						—
+					{% endif %}
+				</td>
+				<td>
+					{% if item.archivo_pdf %}
+						<a class="btn btn-outline-secondary btn-sm" href="{{ item.archivo_pdf.url }}" target="_blank" rel="noopener">Ver PDF</a>
+					{% else %}
+						Sin archivo
+					{% endif %}
+				</td>
+				<td>{{ item.estado }}</td>
+				<td class="text-nowrap">
+					<a class="btn btn-outline-secondary btn-sm" href="{% url 'ordencompra_update' item.pk %}">Editar</a>
+					<a class="btn btn-outline-danger btn-sm" href="{% url 'ordencompra_delete' item.pk %}">Eliminar</a>
+				</td>
+			</tr>
+			{% empty %}
+			<tr>
+				<td colspan="8" class="text-center text-muted py-4">No hay registros.</td>
+			</tr>
+			{% endfor %}
+		</tbody>
+	</table>
+</div>
+
+{% endblock %}

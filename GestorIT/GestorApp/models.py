@@ -481,12 +481,32 @@ class Answer(models.Model):
         return f'{self.folio_answer} - {self.solucion}'
 
 
-# ------------ MODELOS DE PRESUPUESTOS Y COMPRAS ------------
-class EstadoPresupuesto(models.TextChoices):
+# ------------ MODELOS DE ORDENES DE COMPRA ------------
+class EstadoOrdenCompra(models.TextChoices):
     BORRADOR = "Borrador", "Borrador"
     EN_PROCESO = "En Proceso", "En Proceso"
     TERMINADO = "Terminado", "Terminado"
     CANCELADO = "Cancelado", "Cancelado"
+
+
+# Alias legacy para no romper imports antiguos durante la migracion.
+EstadoPresupuesto = EstadoOrdenCompra
+
+
+class OrigenOrdenCompra(models.TextChoices):
+    CREADO = "CREADO", "Creado en sistema"
+    SUBIDO = "SUBIDO", "Subido existente"
+
+
+class TipoMoneda(models.TextChoices):
+    MXN = "MXN", "Pesos (MXN)"
+    USD = "USD", "Dolares (USD)"
+
+
+class IvaOpcion(models.TextChoices):
+    OCHO = "8", "8%"
+    DIECISEIS = "16", "16%"
+    OTRO = "OTRO", "Otro"
 
 
 class TipoPlantillaDocumento(models.TextChoices):
@@ -518,66 +538,153 @@ class PlantillaDocumento(models.Model):
         return self.nombre
 
 
-class Presupuesto(models.Model):
-    folio_presupuesto = models.CharField(max_length=30, unique=True)
-    cliente_o_area = models.CharField(max_length=150)
-    elaborado_por = models.CharField(max_length=150)
-    numero_pedimiento = models.CharField(max_length=50, null=True)
-    numero_importacion = models.CharField(max_length=50, null=True)
-    fecha_compra = models.DateField(null=True)
-    archivo_pdf = models.FileField(upload_to='presupuestos', blank=True, null=True)
-    estado_presupuesto = models.CharField(
-        max_length=30,
-        choices=EstadoPresupuesto.choices,
-        default=EstadoPresupuesto.BORRADOR,
+class OrdenCompra(models.Model):
+    FOLIO_PREFIX = 'OC-'
+    FOLIO_WIDTH = 6
+
+    folio_orden = models.CharField(max_length=30, unique=True, blank=True)
+    elaborado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='ordenes_compra_elaboradas',
     )
+    origen = models.CharField(
+        max_length=10,
+        choices=OrigenOrdenCompra.choices,
+        default=OrigenOrdenCompra.CREADO,
+    )
+    fecha = models.DateField(default=timezone.now, blank=True, null=True)
+    proveedor = models.ForeignKey(
+        Proveedor,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='ordenes_compra',
+    )
+    tipo_moneda = models.CharField(
+        max_length=3,
+        choices=TipoMoneda.choices,
+        default=TipoMoneda.MXN,
+        blank=True,
+    )
+    iva_opcion = models.CharField(
+        max_length=4,
+        choices=IvaOpcion.choices,
+        default=IvaOpcion.DIECISEIS,
+        blank=True,
+    )
+    iva_porcentaje = models.DecimalField(max_digits=5, decimal_places=2, default=16)
+    subtotal = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    iva_monto = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    total = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    comentarios = models.TextField(blank=True, null=True)
     notas = models.CharField(max_length=255, blank=True, null=True)
-    orden_compra_plantilla = models.ForeignKey(
+    estado = models.CharField(
+        max_length=30,
+        choices=EstadoOrdenCompra.choices,
+        default=EstadoOrdenCompra.BORRADOR,
+    )
+    archivo_pdf = models.FileField(upload_to='ordenes_compra', blank=True, null=True)
+    plantilla = models.ForeignKey(
         PlantillaDocumento,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name='ordenes_compra',
     )
-    orden_compra_valores = models.JSONField(blank=True, null=True)
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-creado_en', '-pk']
+        verbose_name = 'Orden de compra'
+        verbose_name_plural = 'Ordenes de compra'
 
     def __str__(self):
-        return self.folio_presupuesto
+        return self.folio_orden or f'Orden {self.pk}'
+
+    @classmethod
+    def _next_folio_orden(cls):
+        folios = cls.objects.filter(
+            folio_orden__startswith=cls.FOLIO_PREFIX
+        ).order_by('-folio_orden').values_list('folio_orden', flat=True)
+
+        for folio in folios:
+            suffix = folio[len(cls.FOLIO_PREFIX):]
+            if suffix.isdigit():
+                next_number = int(suffix) + 1
+                return f'{cls.FOLIO_PREFIX}{next_number:0{cls.FOLIO_WIDTH}d}'
+
+        return f'{cls.FOLIO_PREFIX}{1:0{cls.FOLIO_WIDTH}d}'
+
+    def recalcular_totales(self, save=True):
+        from decimal import Decimal
+
+        subtotal = Decimal('0')
+        for detalle in self.detalles.all():
+            importe = (detalle.cantidad or Decimal('0')) * (detalle.precio_unitario or Decimal('0'))
+            if detalle.importe != importe:
+                detalle.importe = importe
+                detalle.save(update_fields=['importe'])
+            subtotal += importe
+
+        porcentaje = self.iva_porcentaje or Decimal('0')
+        iva_monto = (subtotal * porcentaje / Decimal('100')).quantize(Decimal('0.01'))
+        total = subtotal + iva_monto
+
+        self.subtotal = subtotal
+        self.iva_monto = iva_monto
+        self.total = total
+        if save and self.pk:
+            self.save(update_fields=['subtotal', 'iva_monto', 'total'])
+        return self
+
+    def clean(self):
+        if self.origen == OrigenOrdenCompra.CREADO and not self.proveedor_id:
+            raise ValidationError({'proveedor': 'El proveedor es obligatorio al crear una orden.'})
+        if self.iva_opcion == IvaOpcion.OCHO:
+            self.iva_porcentaje = 8
+        elif self.iva_opcion == IvaOpcion.DIECISEIS:
+            self.iva_porcentaje = 16
+        elif self.iva_opcion == IvaOpcion.OTRO and self.iva_porcentaje is None:
+            raise ValidationError({'iva_porcentaje': 'Indica el porcentaje de IVA.'})
+
+    def save(self, *args, **kwargs):
+        if self.folio_orden:
+            self.folio_orden = self.folio_orden.upper().strip()
+            super().save(*args, **kwargs)
+            return
+
+        for _ in range(3):
+            self.folio_orden = self._next_folio_orden()
+            try:
+                super().save(*args, **kwargs)
+                return
+            except IntegrityError:
+                self.folio_orden = None
+
+        raise IntegrityError('No se pudo generar un folio unico para la orden de compra.')
 
 
-class DetallePresupuesto(models.Model):
-    presupuesto = models.ForeignKey(Presupuesto, on_delete=models.CASCADE, related_name='detalles')
-    concepto = models.CharField(max_length=150)
-    descripcion = models.CharField(max_length=255, blank=True, null=True)
-    cantidad = models.DecimalField(max_digits=10, decimal_places=2)
-    precio_unitario = models.DecimalField(max_digits=12, decimal_places=2)
-    importe = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+class DetalleOrdenCompra(models.Model):
+    orden = models.ForeignKey(OrdenCompra, on_delete=models.CASCADE, related_name='detalles')
+    id_producto = models.CharField(max_length=80, blank=True, null=True)
+    descripcion = models.CharField(max_length=255)
+    cantidad = models.DecimalField(max_digits=10, decimal_places=2, default=1)
+    precio_unitario = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    importe = models.DecimalField(max_digits=14, decimal_places=2, default=0)
 
+    class Meta:
+        ordering = ['pk']
+        verbose_name = 'Detalle de orden de compra'
+        verbose_name_plural = 'Detalles de orden de compra'
 
-class CompraMaterial(models.Model):
-    folio_compra = models.CharField(max_length=30, unique=True)
-    fecha_compra = models.DateField()
-    archivo_pdf = models.FileField(upload_to='compras_material', blank=True, null=True)
-    proveedor = models.ForeignKey(Proveedor, on_delete=models.SET_NULL, null=True, blank=True)
-    solicitado_por = models.CharField(max_length=150, blank=True, null=True)
-    estado_compra = models.CharField(
-        max_length=30,
-        choices=(
-            ("Solicitada", "Solicitada"),
-            ("En Proceso", "En Proceso"),
-            ("Terminado", "Terminado"),
-            ("Cancelada", "Cancelada"),
-        ),
-        default="Solicitada",
-    )
-    observaciones = models.CharField(max_length=255, blank=True, null=True)
+    def save(self, *args, **kwargs):
+        from decimal import Decimal
+        self.importe = (self.cantidad or Decimal('0')) * (self.precio_unitario or Decimal('0'))
+        super().save(*args, **kwargs)
 
-
-class DetalleCompraMaterial(models.Model):
-    compra = models.ForeignKey(CompraMaterial, on_delete=models.CASCADE, related_name='detalles')
-    concepto = models.CharField(max_length=150)
-    descripcion = models.CharField(max_length=255, blank=True, null=True)
-    cantidad = models.DecimalField(max_digits=10, decimal_places=2)
-    costo_unitario = models.DecimalField(max_digits=12, decimal_places=2)
-    importe = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    def __str__(self):
+        return f'{self.orden.folio_orden} - {self.descripcion}'
 

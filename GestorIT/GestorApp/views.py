@@ -8,7 +8,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.files.base import ContentFile
 from django.db import transaction
 from django.db.models import Q
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.urls import reverse
@@ -30,26 +30,27 @@ from .models import (
     AsignacionEquipo,
     Bitacora,
     CategoriaEquipo,
-    CompraMaterial,
-    DetalleCompraMaterial,
-    DetallePresupuesto,
+    DetalleOrdenCompra,
     Edificio,
     Equipo,
     EstadoAsignacion,
     EstadoEquipo,
     EstadoMantenimiento,
-    EstadoPresupuesto,
+    EstadoOrdenCompra,
     EstadoSupport,
+    IvaOpcion,
     Mantenimiento,
     MovimientoEquipo,
+    OrdenCompra,
+    OrigenOrdenCompra,
     Personal,
     PlantillaDocumento,
-    Presupuesto,
     PrioridadSupport,
     Proveedor,
     Puesto,
     SeguimientoTicket,
     TicketIT,
+    TipoMoneda,
     TipoMovimiento,
     TipoTicketSupport,
     TipoPlantillaDocumento,
@@ -2029,386 +2030,372 @@ def plantilla_delete(request, pk):
     return render(request, "plantilladocumento/confirm_delete.html", {"object": plantilla})
 
 
-def _construir_orden_compra_form(campos, data=None, initial=None):
-    """Construye un formulario con un campo de texto por cada marcador detectado."""
-    campos_formulario = {
-        campo: forms.CharField(
-            label=campo.replace("_", " ").strip().capitalize(),
-            required=False,
-        )
-        for campo in campos
-    }
-    formulario_dinamico = type("OrdenCompraCamposForm", (forms.Form,), campos_formulario)
-    return formulario_dinamico(data=data, initial=initial)
+# =========== OrdenCompra views =============
+def _validar_pdf_upload(archivo):
+    if not archivo:
+        return archivo
+
+    max_size = 50 * 1024 * 1024
+    if archivo.size > max_size:
+        raise forms.ValidationError("El archivo debe pesar menos de 50 MB.")
+
+    content_type = getattr(archivo, "content_type", None)
+    if content_type and content_type not in {"application/pdf"}:
+        raise forms.ValidationError("Formato no permitido. Solo PDF.")
+
+    if not archivo.name.lower().endswith(".pdf"):
+        raise forms.ValidationError("El archivo debe tener extension .pdf.")
+
+    return archivo
 
 
-# =========== Presupuesto views =============
-class PresupuestoForm(forms.ModelForm):
+def _sync_iva_porcentaje(form, cleaned_data):
+    from decimal import Decimal
+
+    opcion = cleaned_data.get("iva_opcion")
+    if opcion == IvaOpcion.OCHO:
+        cleaned_data["iva_porcentaje"] = Decimal("8")
+    elif opcion == IvaOpcion.DIECISEIS:
+        cleaned_data["iva_porcentaje"] = Decimal("16")
+    elif opcion == IvaOpcion.OTRO and cleaned_data.get("iva_porcentaje") is None:
+        form.add_error("iva_porcentaje", "Indica el porcentaje de IVA.")
+    return cleaned_data
+
+
+class OrdenCompraCrearForm(forms.ModelForm):
     class Meta:
-        model = Presupuesto
+        model = OrdenCompra
         fields = [
-            "folio_presupuesto",
-            "cliente_o_area",
-            "elaborado_por",
-            "numero_pedimiento",
-            "numero_importacion",
-            "fecha_compra",
-            "archivo_pdf",
-            "estado_presupuesto",
+            "folio_orden",
+            "fecha",
+            "proveedor",
+            "tipo_moneda",
+            "iva_opcion",
+            "iva_porcentaje",
+            "comentarios",
+            "estado",
             "notas",
+            "plantilla",
         ]
         labels = {
-            "folio_presupuesto": "Folio",
-            "cliente_o_area": "Cliente o área",
-            "elaborado_por": "Elaborado por",
-            "numero_pedimiento": "Número de pedimiento",
-            "numero_importacion": "Número de importación",
-            "fecha_compra": "Fecha de compra",
-            "archivo_pdf": "Archivo PDF",
-            "estado_presupuesto": "Estado del presupuesto",
-            "notas": "Notas adicionales",
-        }
-        help_texts = {
-            "archivo_pdf": "Sube un archivo PDF que pese menos de 50 MB.",
-            "notas": "Notas adicionales o comentarios sobre el presupuesto.",
+            "folio_orden": "Folio / orden",
+            "fecha": "Fecha",
+            "proveedor": "Proveedor",
+            "tipo_moneda": "Tipo de moneda",
+            "iva_opcion": "IVA",
+            "iva_porcentaje": "Porcentaje IVA",
+            "comentarios": "Comentarios",
+            "estado": "Estado",
+            "notas": "Notas",
+            "plantilla": "Plantilla PDF",
         }
         widgets = {
-            "fecha_compra": forms.DateInput(attrs={"type": "date"}),
-            "notas": forms.Textarea(attrs={"rows": 5}),
+            "folio_orden": forms.TextInput(attrs={"class": "form-control"}),
+            "fecha": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "proveedor": forms.Select(attrs={"class": "form-select"}),
+            "comentarios": forms.Textarea(attrs={"rows": 3, "class": "form-control"}),
+            "notas": forms.Textarea(attrs={"rows": 2, "class": "form-control"}),
+            "estado": forms.Select(attrs={"class": "form-select"}),
+            "plantilla": forms.Select(attrs={"class": "form-select"}),
+            "iva_porcentaje": forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": "0"}),
+            "iva_opcion": forms.RadioSelect,
+            "tipo_moneda": forms.RadioSelect,
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        field = self.fields.get("estado_presupuesto")
-        if field and self.instance and self.instance.pk:
-            current = self.instance.estado_presupuesto
-            if current and current not in dict(field.choices):
-                field.choices = list(field.choices) + [(current, current)]
+        self.fields["folio_orden"].required = False
+        self.fields["folio_orden"].help_text = "Dejalo vacio para generar uno automatico (OC-000001)."
+        self.fields["proveedor"].queryset = Proveedor.objects.filter(activo=True).order_by("nombre_proveedor")
+        self.fields["proveedor"].required = True
+        self.fields["plantilla"].queryset = PlantillaDocumento.objects.filter(activo=True).order_by("nombre")
+        self.fields["plantilla"].required = False
+        self.fields["plantilla"].empty_label = "Plantilla por defecto"
+        self.fields["iva_porcentaje"].required = False
+
+    def clean(self):
+        cleaned = super().clean()
+        return _sync_iva_porcentaje(self, cleaned)
+
+
+class OrdenCompraSubirForm(forms.ModelForm):
+    class Meta:
+        model = OrdenCompra
+        fields = ["folio_orden", "archivo_pdf", "estado", "notas"]
+        labels = {
+            "folio_orden": "Folio / orden",
+            "archivo_pdf": "Archivo PDF",
+            "estado": "Estado",
+            "notas": "Notas",
+        }
+        widgets = {
+            "notas": forms.Textarea(attrs={"rows": 3}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["folio_orden"].required = False
+        self.fields["folio_orden"].help_text = "Dejalo vacio para generar uno automatico (OC-000001)."
+        self.fields["archivo_pdf"].required = True
 
     def clean_archivo_pdf(self):
-        archivo = self.cleaned_data.get("archivo_pdf")
-        if not archivo:
-            return archivo
+        return _validar_pdf_upload(self.cleaned_data.get("archivo_pdf"))
 
-        max_size = 50 * 1024 * 1024
-        if archivo.size > max_size:
-            raise forms.ValidationError("El archivo debe pesar menos de 50 MB.")
 
-        allowed_types = {"application/pdf"}
-        content_type = getattr(archivo, "content_type", None)
-        if content_type and content_type not in allowed_types:
-            raise forms.ValidationError("Formato no permitido. Solo PDF.")
+class DetalleOrdenCompraForm(forms.ModelForm):
+    class Meta:
+        model = DetalleOrdenCompra
+        fields = ["id_producto", "descripcion", "cantidad", "precio_unitario"]
+        labels = {
+            "id_producto": "ID producto",
+            "descripcion": "Descripcion",
+            "cantidad": "Cantidad",
+            "precio_unitario": "P.U. / unit price",
+        }
+        widgets = {
+            "id_producto": forms.TextInput(attrs={"class": "form-control form-control-sm"}),
+            "descripcion": forms.TextInput(attrs={"class": "form-control form-control-sm"}),
+            "cantidad": forms.NumberInput(attrs={"class": "form-control form-control-sm", "step": "0.01", "min": "0"}),
+            "precio_unitario": forms.NumberInput(attrs={"class": "form-control form-control-sm", "step": "0.01", "min": "0"}),
+        }
 
-        if not archivo.name.lower().endswith(".pdf"):
-            raise forms.ValidationError("El archivo debe tener extension .pdf.")
 
-        return archivo
+DetalleOrdenCompraFormSet = forms.inlineformset_factory(
+    OrdenCompra,
+    DetalleOrdenCompra,
+    form=DetalleOrdenCompraForm,
+    extra=1,
+    can_delete=True,
+    min_num=1,
+    validate_min=True,
+)
 
-def presupuesto_list(request):
-    items = Presupuesto.objects.all()
-    selected_folio = (request.GET.get("folio_presupuesto") or "").strip()
-    selected_estado = request.GET.get("estado_presupuesto", "")
-    fecha_desde_raw = request.GET.get("fecha_compra_desde", "")
-    fecha_hasta_raw = request.GET.get("fecha_compra_hasta", "")
-    fecha_mes = request.GET.get("fecha_compra_mes", "")
-    fecha_rango = request.GET.get("fecha_compra_rango", "")
+
+def _proveedores_payload():
+    return [
+        {
+            "id": p.pk,
+            "nombre": p.nombre_proveedor or "",
+            "contacto": p.contacto or "",
+            "telefono": p.telefono or "",
+            "email": p.correo or "",
+        }
+        for p in Proveedor.objects.filter(activo=True).order_by("nombre_proveedor")
+    ]
+
+
+def _intentar_generar_pdf(orden, request=None):
+    try:
+        pdf_bytes = document_engine.generar_pdf_orden_compra(orden)
+    except document_engine.DocumentEngineError as exc:
+        if request is not None:
+            messages.warning(request, f"Orden guardada, pero no se genero el PDF: {exc}")
+        return False
+
+    nombre_pdf = f"orden_compra_{orden.folio_orden}.pdf"
+    orden.archivo_pdf.save(nombre_pdf, ContentFile(pdf_bytes), save=True)
+    return True
+
+
+def ordencompra_list(request):
+    items = OrdenCompra.objects.select_related("proveedor", "elaborado_por").all()
+    selected_folio = (request.GET.get("folio_orden") or "").strip()
+    selected_estado = request.GET.get("estado", "")
+    fecha_desde_raw = request.GET.get("fecha_desde", "")
+    fecha_hasta_raw = request.GET.get("fecha_hasta", "")
 
     if selected_folio:
-        items = items.filter(folio_presupuesto__icontains=selected_folio)
+        items = items.filter(folio_orden__icontains=selected_folio)
     if selected_estado:
-        items = items.filter(estado_presupuesto=selected_estado)
+        items = items.filter(estado=selected_estado)
 
     fecha_desde = _parse_date(fecha_desde_raw)
     fecha_hasta = _parse_date(fecha_hasta_raw)
-    if not fecha_desde and not fecha_hasta:
-        month_start, month_end = _month_bounds(fecha_mes)
-        if month_start:
-            fecha_desde, fecha_hasta = month_start, month_end
+    items = _apply_date_filters(items, "fecha", fecha_desde, fecha_hasta)
+
+    return render(
+        request,
+        "ordencompra/list.html",
+        {
+            "items": items,
+            "estado_choices": EstadoOrdenCompra.choices,
+            "selected_folio": selected_folio,
+            "selected_estado": selected_estado,
+            "fecha_desde": fecha_desde_raw,
+            "fecha_hasta": fecha_hasta_raw,
+        },
+    )
+
+
+def ordencompra_choose(request):
+    return render(request, "ordencompra/choose.html")
+
+
+def ordencompra_create(request):
+    orden_vacia = OrdenCompra()
+    if request.method == "POST":
+        form = OrdenCompraCrearForm(request.POST, instance=orden_vacia)
+        formset = DetalleOrdenCompraFormSet(request.POST, instance=orden_vacia)
+        if form.is_valid() and formset.is_valid():
+            with transaction.atomic():
+                orden = form.save(commit=False)
+                orden.origen = OrigenOrdenCompra.CREADO
+                orden.elaborado_por = request.user
+                orden.save()
+                formset.instance = orden
+                formset.save()
+                orden.recalcular_totales(save=True)
+            _intentar_generar_pdf(orden, request)
+            messages.success(request, "Orden de compra creada correctamente.")
+            return redirect("ordencompra_list")
+    else:
+        form = OrdenCompraCrearForm(
+            instance=orden_vacia,
+            initial={
+                "fecha": timezone.localdate(),
+                "tipo_moneda": TipoMoneda.MXN,
+                "iva_opcion": IvaOpcion.DIECISEIS,
+                "iva_porcentaje": 16,
+                "estado": EstadoOrdenCompra.BORRADOR,
+            },
+        )
+        formset = DetalleOrdenCompraFormSet(instance=orden_vacia)
+
+    return render(
+        request,
+        "ordencompra/form_crear.html",
+        {
+            "form": form,
+            "formset": formset,
+            "proveedores_json": _proveedores_payload(),
+            "elaborado_por_nombre": request.user.get_full_name() or request.user.get_username(),
+        },
+    )
+
+
+def ordencompra_upload(request):
+    if request.method == "POST":
+        form = OrdenCompraSubirForm(request.POST, request.FILES)
+        if form.is_valid():
+            orden = form.save(commit=False)
+            orden.origen = OrigenOrdenCompra.SUBIDO
+            orden.elaborado_por = request.user
+            orden.fecha = timezone.localdate()
+            orden.save()
+            messages.success(request, "Orden de compra subida correctamente.")
+            return redirect("ordencompra_list")
+    else:
+        form = OrdenCompraSubirForm()
+
+    return render(
+        request,
+        "ordencompra/form_subir.html",
+        {
+            "form": form,
+            "elaborado_por_nombre": request.user.get_full_name() or request.user.get_username(),
+        },
+    )
+
+
+def ordencompra_update(request, pk):
+    orden = get_object_or_404(OrdenCompra.objects.prefetch_related("detalles"), pk=pk)
+
+    if orden.origen == OrigenOrdenCompra.SUBIDO:
+        if request.method == "POST":
+            form = OrdenCompraSubirForm(request.POST, request.FILES, instance=orden)
+            if form.is_valid():
+                form.save()
+                messages.success(request, "Orden de compra actualizada correctamente.")
+                return redirect("ordencompra_list")
         else:
-            range_start, range_end = _quick_range_bounds(fecha_rango)
-            if range_start:
-                fecha_desde, fecha_hasta = range_start, range_end
-    items = _apply_date_filters(items, "fecha_compra", fecha_desde, fecha_hasta)
+            form = OrdenCompraSubirForm(instance=orden)
+        return render(
+            request,
+            "ordencompra/form_subir.html",
+            {
+                "form": form,
+                "object": orden,
+                "elaborado_por_nombre": (
+                    (orden.elaborado_por.get_full_name() or orden.elaborado_por.get_username())
+                    if orden.elaborado_por
+                    else (request.user.get_full_name() or request.user.get_username())
+                ),
+            },
+        )
 
-    context = {
-        "items": items,
-        "estado_choices": EstadoPresupuesto.choices,
-        "selected_folio": selected_folio,
-        "selected_estado": selected_estado,
-        "fecha_compra_desde": fecha_desde_raw,
-        "fecha_compra_hasta": fecha_hasta_raw,
-        "fecha_compra_mes": fecha_mes,
-        "fecha_compra_rango": fecha_rango,
-    }
-    return render(request, "presupuesto/list.html", context)
-
-def presupuesto_create(request):
     if request.method == "POST":
-        form = PresupuestoForm(request.POST, request.FILES)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Presupuesto creado correctamente.")
-            return redirect("presupuesto_list")
+        form = OrdenCompraCrearForm(request.POST, instance=orden)
+        formset = DetalleOrdenCompraFormSet(request.POST, instance=orden)
+        if form.is_valid() and formset.is_valid():
+            with transaction.atomic():
+                orden = form.save()
+                formset.save()
+                orden.recalcular_totales(save=True)
+            _intentar_generar_pdf(orden, request)
+            messages.success(request, "Orden de compra actualizada correctamente.")
+            return redirect("ordencompra_list")
     else:
-        form = PresupuestoForm()
-    return render(request, "presupuesto/form.html", {"form": form})
+        form = OrdenCompraCrearForm(instance=orden)
+        formset = DetalleOrdenCompraFormSet(instance=orden)
 
-def presupuesto_update(request, pk):
-    presupuesto = get_object_or_404(Presupuesto, pk=pk)
+    return render(
+        request,
+        "ordencompra/form_crear.html",
+        {
+            "form": form,
+            "formset": formset,
+            "object": orden,
+            "proveedores_json": _proveedores_payload(),
+            "elaborado_por_nombre": (
+                (orden.elaborado_por.get_full_name() or orden.elaborado_por.get_username())
+                if orden.elaborado_por
+                else (request.user.get_full_name() or request.user.get_username())
+            ),
+        },
+    )
+
+
+def ordencompra_delete(request, pk):
+    orden = get_object_or_404(OrdenCompra, pk=pk)
     if request.method == "POST":
-        form = PresupuestoForm(request.POST, request.FILES, instance=presupuesto)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Presupuesto actualizado correctamente.")
-            return redirect("presupuesto_list")
-    else:
-        form = PresupuestoForm(instance=presupuesto)
-    return render(request, "presupuesto/form.html", {"form": form, "object": presupuesto})
-
-def presupuesto_delete(request, pk):
-    presupuesto = get_object_or_404(Presupuesto, pk=pk)
-    if request.method == "POST":
-        presupuesto.delete()
-        messages.success(request, "Presupuesto eliminado correctamente.")
-        return redirect("presupuesto_list")
-    return render(request, "presupuesto/confirm_delete.html", {"object": presupuesto})
+        orden.delete()
+        messages.success(request, "Orden de compra eliminada correctamente.")
+        return redirect("ordencompra_list")
+    return render(request, "ordencompra/confirm_delete.html", {"object": orden})
 
 
-def presupuesto_orden_compra(request, pk):
-    """Genera la orden de compra de un presupuesto a partir de una plantilla.
+def ordencompra_preview(request):
+    """Vista previa PDF fiel de la plantilla (incluye imagenes y formato)."""
+    import json
 
-    Paso 1 (sin ?plantilla=<id>): elegir la plantilla activa a usar.
-    Paso 2 (con ?plantilla=<id>): llenar los campos detectados en la plantilla
-    y, al guardar, generar el PDF final y guardarlo en Presupuesto.archivo_pdf.
-    """
-    presupuesto = get_object_or_404(Presupuesto, pk=pk)
-    plantillas = PlantillaDocumento.objects.filter(activo=True)
+    if request.method != "POST":
+        return JsonResponse({"ok": False, "error": "Metodo no permitido."}, status=405)
 
-    plantilla_id = request.POST.get("plantilla") or request.GET.get("plantilla")
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"ok": False, "error": "JSON invalido."}, status=400)
+
     plantilla = None
+    plantilla_id = payload.get("plantilla_id")
     if plantilla_id:
-        plantilla = get_object_or_404(PlantillaDocumento, pk=plantilla_id, activo=True)
+        plantilla = PlantillaDocumento.objects.filter(pk=plantilla_id, activo=True).first()
+        if plantilla is None:
+            return JsonResponse({"ok": False, "error": "Plantilla no encontrada."}, status=404)
 
-    contexto = {
-        "presupuesto": presupuesto,
-        "plantillas": plantillas,
-        "plantilla": plantilla,
-    }
+    valores = document_engine.valores_desde_payload(payload)
+    try:
+        pdf_bytes = document_engine.render_preview_pdf(valores, plantilla=plantilla)
+    except document_engine.DocumentEngineError as exc:
+        return JsonResponse({"ok": False, "error": str(exc)}, status=400)
 
-    if not plantilla:
-        return render(request, "presupuesto/orden_compra.html", contexto)
-
-    valores_iniciales = {}
-    if presupuesto.orden_compra_plantilla_id == plantilla.pk and presupuesto.orden_compra_valores:
-        valores_iniciales = presupuesto.orden_compra_valores
-
-    if request.method == "POST":
-        formulario = _construir_orden_compra_form(plantilla.campos, data=request.POST)
-        if formulario.is_valid():
-            try:
-                pdf_bytes = document_engine.generar_pdf(plantilla, formulario.cleaned_data)
-            except document_engine.DocumentEngineError as exc:
-                messages.error(request, str(exc))
-            else:
-                nombre_pdf = f"orden_compra_{presupuesto.folio_presupuesto}.pdf"
-                presupuesto.archivo_pdf.save(nombre_pdf, ContentFile(pdf_bytes), save=False)
-                presupuesto.orden_compra_plantilla = plantilla
-                presupuesto.orden_compra_valores = formulario.cleaned_data
-                presupuesto.save()
-                messages.success(request, "Orden de compra generada y guardada como PDF.")
-                return redirect("presupuesto_list")
-    else:
-        formulario = _construir_orden_compra_form(plantilla.campos, initial=valores_iniciales)
-
-    contexto["form"] = formulario
-    return render(request, "presupuesto/orden_compra.html", contexto)
-
-
-# =========== DetallePresupuesto views =============
-class DetallePresupuestoForm(forms.ModelForm):
-    class Meta:
-        model = DetallePresupuesto
-        fields = "__all__"
-
-def Detallepresupuesto_list(request):
-    items = DetallePresupuesto.objects.all()
-    return render(request, "detallepresupuesto/list.html", {"items": items})
-
-def Detallepresupuesto_create(request):
-    if request.method == "POST":
-        form = DetallePresupuestoForm(request.POST)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Detalle creado correctamente.")
-            return redirect("detallepresupuesto_list")
-    else:
-        form = DetallePresupuestoForm()
-    return render(request, "detallepresupuesto/form.html", {"form": form})
-
-def Detallepresupuesto_update(request, pk):
-    detalle = get_object_or_404(DetallePresupuesto, pk=pk)
-    if request.method == "POST":
-        form = DetallePresupuestoForm(request.POST, instance=detalle)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Detalle actualizado correctamente.")
-            return redirect("detallepresupuesto_list")
-    else:
-        form = DetallePresupuestoForm(instance=detalle)
-    return render(request, "detallepresupuesto/form.html", {"form": form, "object": detalle})
-
-def Detallepresupuesto_delete(request, pk):
-    detalle = get_object_or_404(DetallePresupuesto, pk=pk)
-    if request.method == "POST":
-        detalle.delete()
-        messages.success(request, "Detalle eliminado correctamente.")
-        return redirect("detallepresupuesto_list")
-    return render(request, "detallepresupuesto/confirm_delete.html", {"object": detalle})
-
-
-# =============== CompraMaterial views =================
-class CompraMaterialForm(forms.ModelForm):
-    class Meta:
-        model = CompraMaterial
-        fields = [
-            "folio_compra",
-            "fecha_compra",
-            "archivo_pdf",
-            "proveedor",
-            "solicitado_por",
-            "estado_compra",
-            "observaciones",
-        ]
-        widgets = {
-            "fecha_compra": forms.DateInput(attrs={"type": "date"}),
-        }
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        field = self.fields.get("estado_compra")
-        if field and self.instance and self.instance.pk:
-            current = self.instance.estado_compra
-            if current and current not in dict(field.choices):
-                field.choices = list(field.choices) + [(current, current)]
-
-    def clean_archivo_pdf(self):
-        archivo = self.cleaned_data.get("archivo_pdf")
-        if not archivo:
-            return archivo
-
-        max_size = 50 * 1024 * 1024
-        if archivo.size > max_size:
-            raise forms.ValidationError("El archivo debe pesar menos de 50 MB.")
-
-        allowed_types = {"application/pdf"}
-        content_type = getattr(archivo, "content_type", None)
-        if content_type and content_type not in allowed_types:
-            raise forms.ValidationError("Formato no permitido. Solo PDF.")
-
-        if not archivo.name.lower().endswith(".pdf"):
-            raise forms.ValidationError("El archivo debe tener extension .pdf.")
-
-        return archivo
-
-def compramaterial_list(request):
-    items = CompraMaterial.objects.all()
-    return render(request, "compramaterial/list.html", {"items": items})
-
-
-def compramaterial_create(request):
-    if request.method == "POST":
-        form = CompraMaterialForm(request.POST, request.FILES)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Compra creada correctamente.")
-            return redirect("compramaterial_list")
-    else:
-        form = CompraMaterialForm()
-    return render(request, "compramaterial/form.html", {"form": form})
-
-
-def compramaterial_update(request, pk):
-    compra = get_object_or_404(CompraMaterial, pk=pk)
-    if request.method == "POST":
-        form = CompraMaterialForm(request.POST, request.FILES, instance=compra)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Compra actualizada correctamente.")
-            return redirect("compramaterial_list")
-    else:
-        form = CompraMaterialForm(instance=compra)
-    return render(request, "compramaterial/form.html", {"form": form, "object": compra})
-
-
-def compramaterial_delete(request, pk):
-    compra = get_object_or_404(CompraMaterial, pk=pk)
-    if request.method == "POST":
-        compra.delete()
-        messages.success(request, "Compra eliminada correctamente.")
-        return redirect("compramaterial_list")
-    return render(request, "compramaterial/confirm_delete.html", {"object": compra})
-
-
-# ============== DetalleCompraMaterial views =================
-class DetalleCompraMaterialForm(forms.ModelForm):
-    class Meta:
-        model = DetalleCompraMaterial
-        fields = "__all__"
-        labels = {
-            "folio_compra": "Folio",
-            "fecha_compra": "Fecha de compra",
-            "archivo_pdf": "Archivo PDF",
-            "proveedor": "Proveedor",
-            "solicitado_por": "Solicitado por",
-            "estado_compra": "Estado de la compra",
-            "observaciones": "Observaciones",
-        }
-        help_texts = {
-            "archivo_pdf": "Sube un archivo PDF que pese menos de 50 MB.",
-            "observaciones": "Notas adicionales o comentarios sobre la compra.",
-        }
-        widgets = {
-            "fecha_compra": forms.DateInput(attrs={"type": "date"}),
-            "observaciones": forms.Textarea(attrs={"rows": 4}),
-        }
-
-def detallecompramaterial_list(request):
-    items = DetalleCompraMaterial.objects.all()
-    return render(request, "detallecompramaterial/list.html", {"items": items})
-
-
-def detallecompramaterial_create(request):
-    if request.method == "POST":
-        form = DetalleCompraMaterialForm(request.POST)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Detalle creado correctamente.")
-            return redirect("detallecompramaterial_list")
-    else:
-        form = DetalleCompraMaterialForm()
-    return render(request, "detallecompramaterial/form.html", {"form": form})
-
-
-def detallecompramaterial_update(request, pk):
-    detalle = get_object_or_404(DetalleCompraMaterial, pk=pk)
-    if request.method == "POST":
-        form = DetalleCompraMaterialForm(request.POST, instance=detalle)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Detalle actualizado correctamente.")
-            return redirect("detallecompramaterial_list")
-    else:
-        form = DetalleCompraMaterialForm(instance=detalle)
-    return render(request, "detallecompramaterial/form.html", {"form": form, "object": detalle})
-
-
-def detallecompramaterial_delete(request, pk):
-    detalle = get_object_or_404(DetalleCompraMaterial, pk=pk)
-    if request.method == "POST":
-        detalle.delete()
-        messages.success(request, "Detalle eliminado correctamente.")
-        return redirect("detallecompramaterial_list")
-    return render(request, "detallecompramaterial/confirm_delete.html", {"object": detalle})
+    nombre = plantilla.nombre if plantilla else "Plantilla por defecto"
+    response = HttpResponse(pdf_bytes, content_type="application/pdf")
+    response["X-Plantilla-Nombre"] = nombre.encode("ascii", "replace").decode("ascii")
+    response["Content-Disposition"] = 'inline; filename="vista_previa_orden.pdf"'
+    response["Cache-Control"] = "no-store"
+    response["Access-Control-Expose-Headers"] = "X-Plantilla-Nombre"
+    return response
 
 
 def _calendar_event(

@@ -175,38 +175,14 @@ urlpatterns = [
     path('Plantillas/update/<int:pk>/', views.admin_required(views.plantilla_update), name='plantilla_update'),
     path('Plantillas/delete/<int:pk>/', views.admin_required(views.plantilla_delete), name='plantilla_delete'),
 
-    # -------------- Presupuesto urls -------------
-    path('Presupuestos/', login_required(views.presupuesto_list), name='presupuesto_list'),
-    path('Presupuestos/create/', login_required(views.presupuesto_create), name='presupuesto_create'),
-    path('Presupuestos/update/<int:pk>/', login_required(views.presupuesto_update), name='presupuesto_update'),
-    path('Presupuestos/delete/<int:pk>/', login_required(views.presupuesto_delete), name='presupuesto_delete'),
-    path('Presupuestos/orden-compra/<int:pk>/', login_required(views.presupuesto_orden_compra), name='presupuesto_orden_compra'),
-
-
-    # -------------- DetallePresupuesto urls -------------
-    path('DetallePresupuestos/', views.admin_required(views.Detallepresupuesto_list), name='detallepresupuesto_list'),
-    path('DetallePresupuestos/create/', views.admin_required(views.Detallepresupuesto_create), name='detallepresupuesto_create'),
-    path('DetallePresupuestos/update/<int:pk>/', views.admin_required(views.Detallepresupuesto_update), name='detallepresupuesto_update'),
-    path('DetallePresupuestos/delete/<int:pk>/', views.admin_required(views.Detallepresupuesto_delete), name='detallepresupuesto_delete'),
-
-
-    # -------------- CompraMaterial urls -------------
-    path('CompraMaterial/', login_required(views.compramaterial_list), name='compramaterial_list'),
-    path('CompraMaterial/create/', login_required(views.compramaterial_create), name='compramaterial_create'),
-    path('CompraMaterial/update/<int:pk>/', login_required(views.compramaterial_update), name='compramaterial_update'),
-    path('CompraMaterial/delete/<int:pk>/', login_required(views.compramaterial_delete), name='compramaterial_delete'),
-
-
-    # -------------- Detalle Compra Material urls -------------
-    path('DetalleCompraMaterial/', views.admin_required(views.detallecompramaterial_list), name='detallecompramaterial_list'),
-    path('DetalleCompraMaterial/create/', views.admin_required(views.detallecompramaterial_create), name='detallecompramaterial_create'),
-    path('DetalleCompraMaterial/update/<int:pk>/', views.admin_required(views.detallecompramaterial_update), name='detallecompramaterial_update'),
-    path('DetalleCompraMaterial/delete/<int:pk>/', views.admin_required(views.detallecompramaterial_delete), name='detallecompramaterial_delete'),
-
-
-
-
-
+    # -------------- Ordenes de compra urls -------------
+    path('OrdenesCompra/', login_required(views.ordencompra_list), name='ordencompra_list'),
+    path('OrdenesCompra/nueva/', login_required(views.ordencompra_choose), name='ordencompra_choose'),
+    path('OrdenesCompra/crear/', login_required(views.ordencompra_create), name='ordencompra_create'),
+    path('OrdenesCompra/subir/', login_required(views.ordencompra_upload), name='ordencompra_upload'),
+    path('OrdenesCompra/update/<int:pk>/', login_required(views.ordencompra_update), name='ordencompra_update'),
+    path('OrdenesCompra/delete/<int:pk>/', login_required(views.ordencompra_delete), name='ordencompra_delete'),
+    path('OrdenesCompra/preview/', login_required(views.ordencompra_preview), name='ordencompra_preview'),
     ]
 
 if settings.DEBUG:

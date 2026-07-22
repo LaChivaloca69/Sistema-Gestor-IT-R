@@ -1,18 +1,17 @@
 {% extends "base.html" %}
 {% load django_bootstrap5 %}
 
-{% block title %}{% if object %}Editar Presupuesto{% else %}Nuevo Presupuesto{% endif %}{% endblock %}
+{% block title %}{% if object %}Editar orden{% else %}Subir orden{% endif %}{% endblock %}
 
 {% block content %}
 
-
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
 	<div>
-		<p class="eyebrow mb-2">Compras y Presupuestos</p>
-		<h1 class="h3 mb-1">{% if object %}Editar presupuesto{% else %}Nuevo presupuesto{% endif %}</h1>
-		<p class="text-muted mb-0">Captura la informacion principal del presupuesto.</p>
+		<p class="eyebrow mb-2">Ordenes de compra</p>
+		<h1 class="h3 mb-1">{% if object %}Editar orden subida{% else %}Subir orden existente{% endif %}</h1>
+		<p class="text-muted mb-0">Elaborado por: <strong>{{ elaborado_por_nombre }}</strong></p>
 	</div>
-	<a class="btn btn-outline-secondary" href="{% url 'presupuesto_list' %}">Volver</a>
+	<a class="btn btn-outline-secondary" href="{% url 'ordencompra_list' %}">Volver</a>
 </div>
 
 <div class="card shadow-sm border-0">
@@ -22,7 +21,7 @@
 			{{ form.non_field_errors }}
 			{% bootstrap_form form %}
 			<div class="d-flex justify-content-end gap-2 mt-3">
-				<a class="btn btn-outline-secondary" href="{% url 'presupuesto_list' %}">Cancelar</a>
+				<a class="btn btn-outline-secondary" href="{% url 'ordencompra_list' %}">Cancelar</a>
 				<button class="btn btn-primary" type="submit">Guardar</button>
 			</div>
 		</form>
