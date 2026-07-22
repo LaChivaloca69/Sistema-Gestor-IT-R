@@ -74,6 +74,9 @@
                         <div class="sidebar-section-links">
                             <a class="sidebar-link {% if request.resolver_match.url_name == 'presupuesto_list' %}active{% endif %}" href="{% url 'presupuesto_list' %}">Presupuestos</a>
                             <a class="sidebar-link {% if request.resolver_match.url_name == 'compramaterial_list' %}active{% endif %}" href="{% url 'compramaterial_list' %}">Compras</a>
+                            {% if user.is_staff or user.is_superuser %}
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'plantilla_list' %}active{% endif %}" href="{% url 'plantilla_list' %}">Plantillas</a>
+                            {% endif %}
                         </div>
                     </section>
 

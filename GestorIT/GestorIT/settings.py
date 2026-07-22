@@ -129,6 +129,13 @@ MEDIA_ROOT = BASE_DIR / 'media'
 DATA_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024
 
+# Adds an asterisk next to required fields and a highlight on fields with
+# errors, rendered through django-bootstrap5 on every form in the app.
+BOOTSTRAP5 = {
+    "required_css_class": "field-required",
+    "error_css_class": "field-error",
+}
+
 # Auth redirects
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'home'

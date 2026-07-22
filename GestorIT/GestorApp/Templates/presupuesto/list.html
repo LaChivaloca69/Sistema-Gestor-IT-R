@@ -113,6 +113,7 @@
 				</td>
 				<td>{{ item.estado_presupuesto }}</td>
 				<td class="text-nowrap">
+					<a class="btn btn-outline-primary btn-sm" href="{% url 'presupuesto_orden_compra' item.pk %}">Orden de compra</a>
 					<a class="btn btn-outline-secondary btn-sm" href="{% url 'presupuesto_update' item.pk %}">Editar</a>
 					<a class="btn btn-outline-danger btn-sm" href="{% url 'presupuesto_delete' item.pk %}">Eliminar</a>
 				</td>

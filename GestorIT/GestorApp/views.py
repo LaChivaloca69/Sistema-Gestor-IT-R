@@ -5,6 +5,7 @@ from django import forms
 from django.contrib import messages
 from django.contrib.auth import get_user_model, login
 from django.contrib.auth.password_validation import validate_password
+from django.core.files.base import ContentFile
 from django.db import transaction
 from django.db.models import Q
 from django.http import JsonResponse
@@ -12,6 +13,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.urls import reverse
 
+from . import document_engine
 from .forms import (
 	AnswerForm,
 	SeguimientoTicketForm,
@@ -41,6 +43,7 @@ from .models import (
     Mantenimiento,
     MovimientoEquipo,
     Personal,
+    PlantillaDocumento,
     Presupuesto,
     PrioridadSupport,
     Proveedor,
@@ -49,6 +52,7 @@ from .models import (
     TicketIT,
     TipoMovimiento,
     TipoTicketSupport,
+    TipoPlantillaDocumento,
     Ubicacion,
     ZonaEdificio,
 )
@@ -1935,6 +1939,109 @@ def answer_delete(request, pk):
     return render(request, "answer/confirm_delete.html", {"object": answer})
 
 
+# =========== PlantillaDocumento views =============
+class PlantillaDocumentoForm(forms.ModelForm):
+    class Meta:
+        model = PlantillaDocumento
+        fields = ["nombre", "descripcion", "archivo", "activo"]
+        labels = {
+            "nombre": "Nombre",
+            "descripcion": "Descripcion",
+            "archivo": "Archivo de la plantilla",
+            "activo": "Activa",
+        }
+        help_texts = {
+            "archivo": (
+                "Sube un archivo .docx, .xlsx o .pdf (maximo 50 MB). En Word/Excel "
+                "escribe los campos como {{nombre_campo}}; en PDF usa un archivo "
+                "con campos de formulario."
+            ),
+        }
+        widgets = {
+            "descripcion": forms.Textarea(attrs={"rows": 3}),
+        }
+
+    def clean_archivo(self):
+        archivo = self.cleaned_data.get("archivo")
+        if not archivo:
+            return archivo
+
+        max_size = 50 * 1024 * 1024
+        if archivo.size > max_size:
+            raise forms.ValidationError("El archivo debe pesar menos de 50 MB.")
+
+        nombre_archivo = archivo.name.lower()
+        if nombre_archivo.endswith(".docx"):
+            tipo_archivo = TipoPlantillaDocumento.DOCX
+        elif nombre_archivo.endswith(".xlsx"):
+            tipo_archivo = TipoPlantillaDocumento.XLSX
+        elif nombre_archivo.endswith(".pdf"):
+            tipo_archivo = TipoPlantillaDocumento.PDF
+        else:
+            raise forms.ValidationError("Formato no permitido. Usa .docx, .xlsx o .pdf.")
+
+        try:
+            campos = document_engine.detectar_campos(archivo, tipo_archivo)
+        except document_engine.DocumentEngineError as exc:
+            raise forms.ValidationError(str(exc))
+
+        self.instance.tipo_archivo = tipo_archivo
+        self.instance.campos = campos
+        return archivo
+
+
+def plantilla_list(request):
+    items = PlantillaDocumento.objects.all()
+    return render(request, "plantilladocumento/list.html", {"items": items})
+
+
+def plantilla_create(request):
+    if request.method == "POST":
+        form = PlantillaDocumentoForm(request.POST, request.FILES)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Plantilla creada correctamente.")
+            return redirect("plantilla_list")
+    else:
+        form = PlantillaDocumentoForm()
+    return render(request, "plantilladocumento/form.html", {"form": form})
+
+
+def plantilla_update(request, pk):
+    plantilla = get_object_or_404(PlantillaDocumento, pk=pk)
+    if request.method == "POST":
+        form = PlantillaDocumentoForm(request.POST, request.FILES, instance=plantilla)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Plantilla actualizada correctamente.")
+            return redirect("plantilla_list")
+    else:
+        form = PlantillaDocumentoForm(instance=plantilla)
+    return render(request, "plantilladocumento/form.html", {"form": form, "object": plantilla})
+
+
+def plantilla_delete(request, pk):
+    plantilla = get_object_or_404(PlantillaDocumento, pk=pk)
+    if request.method == "POST":
+        plantilla.delete()
+        messages.success(request, "Plantilla eliminada correctamente.")
+        return redirect("plantilla_list")
+    return render(request, "plantilladocumento/confirm_delete.html", {"object": plantilla})
+
+
+def _construir_orden_compra_form(campos, data=None, initial=None):
+    """Construye un formulario con un campo de texto por cada marcador detectado."""
+    campos_formulario = {
+        campo: forms.CharField(
+            label=campo.replace("_", " ").strip().capitalize(),
+            required=False,
+        )
+        for campo in campos
+    }
+    formulario_dinamico = type("OrdenCompraCamposForm", (forms.Form,), campos_formulario)
+    return formulario_dinamico(data=data, initial=initial)
+
+
 # =========== Presupuesto views =============
 class PresupuestoForm(forms.ModelForm):
     class Meta:
@@ -2065,6 +2172,56 @@ def presupuesto_delete(request, pk):
         messages.success(request, "Presupuesto eliminado correctamente.")
         return redirect("presupuesto_list")
     return render(request, "presupuesto/confirm_delete.html", {"object": presupuesto})
+
+
+def presupuesto_orden_compra(request, pk):
+    """Genera la orden de compra de un presupuesto a partir de una plantilla.
+
+    Paso 1 (sin ?plantilla=<id>): elegir la plantilla activa a usar.
+    Paso 2 (con ?plantilla=<id>): llenar los campos detectados en la plantilla
+    y, al guardar, generar el PDF final y guardarlo en Presupuesto.archivo_pdf.
+    """
+    presupuesto = get_object_or_404(Presupuesto, pk=pk)
+    plantillas = PlantillaDocumento.objects.filter(activo=True)
+
+    plantilla_id = request.POST.get("plantilla") or request.GET.get("plantilla")
+    plantilla = None
+    if plantilla_id:
+        plantilla = get_object_or_404(PlantillaDocumento, pk=plantilla_id, activo=True)
+
+    contexto = {
+        "presupuesto": presupuesto,
+        "plantillas": plantillas,
+        "plantilla": plantilla,
+    }
+
+    if not plantilla:
+        return render(request, "presupuesto/orden_compra.html", contexto)
+
+    valores_iniciales = {}
+    if presupuesto.orden_compra_plantilla_id == plantilla.pk and presupuesto.orden_compra_valores:
+        valores_iniciales = presupuesto.orden_compra_valores
+
+    if request.method == "POST":
+        formulario = _construir_orden_compra_form(plantilla.campos, data=request.POST)
+        if formulario.is_valid():
+            try:
+                pdf_bytes = document_engine.generar_pdf(plantilla, formulario.cleaned_data)
+            except document_engine.DocumentEngineError as exc:
+                messages.error(request, str(exc))
+            else:
+                nombre_pdf = f"orden_compra_{presupuesto.folio_presupuesto}.pdf"
+                presupuesto.archivo_pdf.save(nombre_pdf, ContentFile(pdf_bytes), save=False)
+                presupuesto.orden_compra_plantilla = plantilla
+                presupuesto.orden_compra_valores = formulario.cleaned_data
+                presupuesto.save()
+                messages.success(request, "Orden de compra generada y guardada como PDF.")
+                return redirect("presupuesto_list")
+    else:
+        formulario = _construir_orden_compra_form(plantilla.campos, initial=valores_iniciales)
+
+    contexto["form"] = formulario
+    return render(request, "presupuesto/orden_compra.html", contexto)
 
 
 # =========== DetallePresupuesto views =============

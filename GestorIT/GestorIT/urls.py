@@ -169,11 +169,18 @@ urlpatterns = [
     path('Answer/update/<int:pk>/', views.admin_required(views.answer_update), name='answer_update'),
     path('Answer/delete/<int:pk>/', views.admin_required(views.answer_delete), name='answer_delete'),
 
+    # -------------- Plantillas de documentos urls -------------
+    path('Plantillas/', views.admin_required(views.plantilla_list), name='plantilla_list'),
+    path('Plantillas/create/', views.admin_required(views.plantilla_create), name='plantilla_create'),
+    path('Plantillas/update/<int:pk>/', views.admin_required(views.plantilla_update), name='plantilla_update'),
+    path('Plantillas/delete/<int:pk>/', views.admin_required(views.plantilla_delete), name='plantilla_delete'),
+
     # -------------- Presupuesto urls -------------
     path('Presupuestos/', login_required(views.presupuesto_list), name='presupuesto_list'),
     path('Presupuestos/create/', login_required(views.presupuesto_create), name='presupuesto_create'),
     path('Presupuestos/update/<int:pk>/', login_required(views.presupuesto_update), name='presupuesto_update'),
     path('Presupuestos/delete/<int:pk>/', login_required(views.presupuesto_delete), name='presupuesto_delete'),
+    path('Presupuestos/orden-compra/<int:pk>/', login_required(views.presupuesto_orden_compra), name='presupuesto_orden_compra'),
 
 
     # -------------- DetallePresupuesto urls -------------

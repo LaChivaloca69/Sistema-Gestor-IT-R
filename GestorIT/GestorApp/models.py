@@ -489,6 +489,35 @@ class EstadoPresupuesto(models.TextChoices):
     CANCELADO = "Cancelado", "Cancelado"
 
 
+class TipoPlantillaDocumento(models.TextChoices):
+    DOCX = "DOCX", "Word (.docx)"
+    XLSX = "XLSX", "Excel (.xlsx)"
+    PDF = "PDF", "PDF"
+
+
+class PlantillaDocumento(models.Model):
+    """Plantilla reutilizable (Word, Excel o PDF) para generar ordenes de compra.
+
+    ``campos`` guarda la lista de nombres de campo detectados automaticamente
+    al subir el archivo (marcadores ``{{campo}}`` en docx/xlsx, o nombres de
+    los campos de formulario AcroForm en un PDF).
+    """
+
+    nombre = models.CharField(max_length=150)
+    descripcion = models.CharField(max_length=255, blank=True, null=True)
+    tipo_archivo = models.CharField(max_length=10, choices=TipoPlantillaDocumento.choices)
+    archivo = models.FileField(upload_to='plantillas_orden_compra')
+    campos = models.JSONField(default=list, blank=True)
+    activo = models.BooleanField(default=True)
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["nombre"]
+
+    def __str__(self):
+        return self.nombre
+
+
 class Presupuesto(models.Model):
     folio_presupuesto = models.CharField(max_length=30, unique=True)
     cliente_o_area = models.CharField(max_length=150)
@@ -503,6 +532,17 @@ class Presupuesto(models.Model):
         default=EstadoPresupuesto.BORRADOR,
     )
     notas = models.CharField(max_length=255, blank=True, null=True)
+    orden_compra_plantilla = models.ForeignKey(
+        PlantillaDocumento,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='ordenes_compra',
+    )
+    orden_compra_valores = models.JSONField(blank=True, null=True)
+
+    def __str__(self):
+        return self.folio_presupuesto
 
 
 class DetallePresupuesto(models.Model):
