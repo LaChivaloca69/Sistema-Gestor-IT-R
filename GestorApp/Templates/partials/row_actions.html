@@ -1,0 +1,14 @@
+{# Uso: {% include "partials/row_actions.html" with update_url=... delete_url=... %} #}
+{# Opcional: primary_label (default Abrir) #}
+<div class="row-actions">
+	<a class="btn btn-primary btn-sm" href="{{ update_url }}">{{ primary_label|default:"Abrir" }}</a>
+	<div class="dropdown">
+		<button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Mas acciones">⋯</button>
+		<ul class="dropdown-menu dropdown-menu-end">
+			<li><a class="dropdown-item" href="{{ update_url }}">Editar</a></li>
+			{% if extra_items %}{{ extra_items }}{% endif %}
+			<li><hr class="dropdown-divider"></li>
+			<li><a class="dropdown-item text-danger" href="{{ delete_url }}">Eliminar</a></li>
+		</ul>
+	</div>
+</div>

@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+
+{% block title %}Personal{% endblock %}
+
+{% block content %}
+
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+	<div>
+		<p class="eyebrow mb-2">Organizacion</p>
+		<h1 class="h3 mb-1">Personal</h1>
+		<p class="text-muted mb-0">Usuarios y personal del sistema.</p>
+	</div>
+	<a class="btn btn-primary" href="{% url 'personal_create' %}">Nuevo personal</a>
+</div>
+
+<form class="filters" method="get">
+	<div>
+		<label for="filter_search">Buscar</label>
+		<input
+			id="filter_search"
+			name="q"
+			type="search"
+			value="{{ search_query }}"
+			placeholder="Empleado, nombre, usuario, correo"
+			data-chip-label="Busqueda"
+		/>
+	</div>
+	<div>
+		<label for="filter_area">Area</label>
+		<select id="filter_area" name="area" data-chip-label="Area">
+			<option value="">Todos</option>
+			{% for value, label in area_choices %}
+				<option value="{{ value }}" {% if value|stringformat:"s" == selected_area %}selected{% endif %}>{{ label }}</option>
+			{% endfor %}
+		</select>
+	</div>
+	<div>
+		<label for="filter_puesto">Puesto</label>
+		<select id="filter_puesto" name="puesto" data-chip-label="Puesto">
+			<option value="">Todos</option>
+			{% for value, label in puesto_choices %}
+				<option value="{{ value }}" {% if value|stringformat:"s" == selected_puesto %}selected{% endif %}>{{ label }}</option>
+			{% endfor %}
+		</select>
+	</div>
+	<div>
+		<label for="filter_activo">Activo</label>
+		<select id="filter_activo" name="activo" data-chip-label="Activo">
+			<option value="">Todos</option>
+			<option value="true" {% if selected_activo == 'true' %}selected{% endif %}>Si</option>
+			<option value="false" {% if selected_activo == 'false' %}selected{% endif %}>No</option>
+		</select>
+	</div>
+	<div>
+		<label for="filter_fecha_desde">Fecha ingreso desde</label>
+		<input
+			id="filter_fecha_desde"
+			name="fecha_ingreso_desde"
+			type="date"
+			value="{{ fecha_ingreso_desde }}"
+			data-chip-label="Ingreso desde"
+		/>
+	</div>
+	<div>
+		<label for="filter_fecha_hasta">Fecha ingreso hasta</label>
+		<input
+			id="filter_fecha_hasta"
+			name="fecha_ingreso_hasta"
+			type="date"
+			value="{{ fecha_ingreso_hasta }}"
+			data-chip-label="Ingreso hasta"
+		/>
+	</div>
+	<div>
+		<label for="filter_fecha_mes">Mes</label>
+		<input
+			id="filter_fecha_mes"
+			name="fecha_ingreso_mes"
+			type="month"
+			value="{{ fecha_ingreso_mes }}"
+			data-chip-label="Mes"
+		/>
+	</div>
+	<div>
+		<label for="filter_fecha_rango">Rango rapido</label>
+		<select id="filter_fecha_rango" name="fecha_ingreso_rango" data-chip-label="Rango">
+			<option value="">Todos</option>
+			<option value="last_7" {% if fecha_ingreso_rango == 'last_7' %}selected{% endif %}>Ultimos 7 dias</option>
+			<option value="last_30" {% if fecha_ingreso_rango == 'last_30' %}selected{% endif %}>Ultimos 30 dias</option>
+			<option value="this_month" {% if fecha_ingreso_rango == 'this_month' %}selected{% endif %}>Este mes</option>
+			<option value="last_month" {% if fecha_ingreso_rango == 'last_month' %}selected{% endif %}>Mes pasado</option>
+			<option value="this_year" {% if fecha_ingreso_rango == 'this_year' %}selected{% endif %}>Este ano</option>
+		</select>
+	</div>
+	<div class="filters-actions">
+		<button class="btn btn-primary" type="submit">Filtrar</button>
+		<a class="btn btn-outline-secondary" href="{% url 'personal_list' %}">Limpiar</a>
+	</div>
+</form>
+
+<div class="table-responsive">
+	<table class="table table-striped table-hover align-middle">
+		<thead class="table-light">
+			<tr>
+				<th>Numero empleado</th>
+				<th>Usuario</th>
+				<th>Admin</th>
+				<th>Nombre</th>
+				<th>Apellidos</th>
+				<th>Correo</th>
+				<th>Telefono</th>
+				<th>Area</th>
+				<th>Puesto</th>
+				<th>Activo</th>
+				<th class="text-nowrap">Acciones</th>
+			</tr>
+		</thead>
+		<tbody>
+			{% for item in items %}
+			<tr class="table-row-click" data-href="{% url 'personal_update' item.pk %}">
+				<td><strong>{{ item.numero_empleado }}</strong></td>
+				<td>{{ item.user.username|default:"-" }}</td>
+				<td>
+					{% if item.user.is_staff %}
+					<span class="status-badge status-badge--asignado">Si</span>
+					{% else %}
+					<span class="status-badge">No</span>
+					{% endif %}
+				</td>
+				<td>{{ item.nombre }}</td>
+				<td>{{ item.apellido_paterno }} {{ item.apellido_materno }}</td>
+				<td>{{ item.correo }}</td>
+				<td>{{ item.telefono }}</td>
+				<td>{{ item.area }}</td>
+				<td>{{ item.puesto }}</td>
+				<td>
+					{% if item.activo %}
+					<span class="status-badge status-badge--asignado">Si</span>
+					{% else %}
+					<span class="status-badge status-badge--baja">No</span>
+					{% endif %}
+				</td>
+				<td>
+					<div class="row-actions">
+						<a class="btn btn-primary btn-sm" href="{% url 'personal_update' item.pk %}">Abrir</a>
+						<div class="dropdown">
+							<button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">⋯</button>
+							<ul class="dropdown-menu dropdown-menu-end">
+								<li><a class="dropdown-item" href="{% url 'personal_update' item.pk %}">Editar</a></li>
+								<li><hr class="dropdown-divider"></li>
+								<li><a class="dropdown-item text-danger" href="{% url 'personal_delete' item.pk %}">Eliminar</a></li>
+							</ul>
+						</div>
+					</div>
+				</td>
+			</tr>
+			{% empty %}
+			<tr>
+				<td colspan="11" class="text-center text-muted py-4">
+					No hay personal.
+					<a href="{% url 'personal_create' %}">Crear el primero</a>
+				</td>
+			</tr>
+			{% endfor %}
+		</tbody>
+	</table>
+</div>
+{% endblock %}

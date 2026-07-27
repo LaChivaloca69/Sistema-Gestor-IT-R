@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% load django_bootstrap5 %}
+
+{% block title %}{% if object %}Editar Plantilla{% else %}Nueva Plantilla{% endif %}{% endblock %}
+
+{% block content %}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+	<div>
+		<p class="eyebrow mb-2">Ordenes de compra</p>
+		<h1 class="h3 mb-1">{% if object %}Editar plantilla{% else %}Nueva plantilla{% endif %}</h1>
+		<p class="text-muted mb-0">Sube un archivo Word, Excel o PDF con los campos que se van a rellenar.</p>
+	</div>
+	<a class="btn btn-outline-secondary" href="{% url 'plantilla_list' %}">Volver</a>
+</div>
+
+<div class="card shadow-sm border-0">
+	<div class="card-body">
+		<form method="post" enctype="multipart/form-data" class="stack-form">
+			{% csrf_token %}
+			{{ form.non_field_errors }}
+			{% bootstrap_form form %}
+			<div class="d-flex justify-content-end gap-2 mt-3">
+				<a class="btn btn-outline-secondary" href="{% url 'plantilla_list' %}">Cancelar</a>
+				<button class="btn btn-primary" type="submit">Guardar</button>
+			</div>
+		</form>
+	</div>
+</div>
+
+{% if object and object.campos %}
+<div class="card shadow-sm border-0 mt-3">
+	<div class="card-body">
+		<p class="eyebrow mb-2">Campos detectados</p>
+		<p class="text-muted">Estos son los campos que se le pediran al usuario al generar una orden de compra con esta plantilla.</p>
+		<div class="d-flex flex-wrap gap-2">
+			{% for campo in object.campos %}
+			<span class="badge text-bg-light border">{{ campo }}</span>
+			{% endfor %}
+		</div>
+	</div>
+</div>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Cierres de mantenimiento{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+	<div>
+		<p class="eyebrow mb-2">Operaciones</p>
+		<h1 class="h3 mb-1">Agenda / cierres de mantenimiento</h1>
+		<p class="text-muted mb-0">Cierres y proximas fechas de mantenimiento.</p>
+	</div>
+	<a class="btn btn-primary" href="{% url 'agendamantenimiento_create' %}">Cerrar mantenimiento</a>
+</div>
+
+<div class="table-responsive">
+	<table class="table table-striped table-hover align-middle">
+		<thead class="table-light">
+			<tr>
+				<th>Mantenimiento</th>
+				<th>Fecha inicio</th>
+				<th>Fecha fin</th>
+				<th>Acciones realizadas</th>
+				<th>Observaciones</th>
+				<th>Proxima fecha</th>
+				<th class="text-nowrap">Acciones</th>
+			</tr>
+		</thead>
+		<tbody>
+			{% for item in items %}
+			<tr class="table-row-click" data-href="{% url 'agendamantenimiento_update' item.pk %}">
+				<td><strong>{{ item.mantenimiento }}</strong></td>
+				<td>{{ item.fecha_inicio|default:"-" }}</td>
+				<td>{{ item.fecha_fin|default:"-" }}</td>
+				<td>{{ item.acciones_realizadas|default:"-" }}</td>
+				<td>{{ item.observaciones|default:"-" }}</td>
+				<td>{{ item.proxima_fecha_mantenimiento|default:"-" }}</td>
+				<td>
+					{% url 'agendamantenimiento_update' item.pk as update_url %}
+					{% url 'agendamantenimiento_delete' item.pk as delete_url %}
+					{% include "partials/row_actions.html" with update_url=update_url delete_url=delete_url %}
+				</td>
+			</tr>
+			{% empty %}
+			<tr>
+				<td colspan="7" class="text-center text-muted py-4">
+					No hay cierres registrados.
+					<a href="{% url 'agendamantenimiento_create' %}">Registrar el primero</a>
+				</td>
+			</tr>
+			{% endfor %}
+		</tbody>
+	</table>
+</div>
+{% endblock %}

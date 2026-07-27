@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% load django_bootstrap5 %}
+
+{% block title %}{% if object %}Editar Mantenimiento{% else %}Nuevo Mantenimiento{% endif %}{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between aligh-items-center gap-3 mb-4">
+	<div>
+		<p class="eyebrow mb-2">Mantenimiento</p>
+		<h1 class="h3 mb-1">{% if object %}Editar mantenimiento{% else %}Nuevo mantenimiento{% endif %}</h1>
+		<p class="text-muted mb-0">Captura la informacion principal del mantenimiento.</p>
+	</div>
+	<a class="btn btn-outline-secondary" href="{% url 'mantenimiento_list' %}">Volver</a>
+</div>
+
+<div class="card shadow-sm border-0">
+	<div class="card-body">
+		<form method="post" class="stack-form">
+			{% csrf_token %}
+			{{ form.non_field_errors }}
+			{% bootstrap_form form %}
+			<div class="d-flex justify-content-end gap-2 mt-3">
+				<a class="btn btn-outline-secondary" href="{% url 'mantenimiento_list' %}">Cancelar</a>
+				<button class="btn btn-primary" type="submit">Guardar</button>
+			</div>
+		</form>
+	</div>
+</div>
+
+<script>
+	(function () {
+		var tecnicoSelect = document.getElementById("id_tecnico_responsable");
+		var proveedorSelect = document.getElementById("id_proveedor_responsable");
+		if (!tecnicoSelect || !proveedorSelect) {
+			return;
+		}
+		var proveedorWrap = proveedorSelect.closest("p") || proveedorSelect.parentElement;
+
+		function toggleProveedor() {
+			var show = tecnicoSelect.value === "Proveedores";
+			if (proveedorWrap) {
+				proveedorWrap.style.display = show ? "" : "none";
+			}
+			if (!show) {
+				proveedorSelect.value = "";
+			}
+		}
+
+		tecnicoSelect.addEventListener("change", toggleProveedor);
+		toggleProveedor();
+	})();
+</script>
+{% endblock %}

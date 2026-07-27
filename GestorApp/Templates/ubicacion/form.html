@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% load django_bootstrap5 %}
+
+{% block title %}{% if object %}Editar Ubicacion{% else %}Nueva Ubicacion{% endif %}{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wra[ justify-content-between align-items-centerg gap-3 mb-4">
+	<div>
+		<p class="eyebrow mb-2">Organizacion</p>
+		<h1 class="h3 mb-1">{% if object %}Editar ubicacion{% else %}Nueva ubicacion{% endif %}</h1>
+		<p class="text-muted mb-0">Captura la informacion principal de la ubicacion.</p>
+	</div>
+	<a class="btn btn-outline-secondary" href="{% url 'ubicacion_list' %}">Volver</a>
+</div>
+
+<div class="card shadow-sm border-0">
+	<div class="card-body">
+		<form method="post" class="stack-form">
+			{% csrf_token %}
+			{{ form.non_field_errors }}
+			{% bootstrap_form form %}
+			<div class="d-flex justify-content-end gap-2 mt-3">
+				<a class="btn btn-outline-secondary" href="{% url 'ubicacion_list' %}">Cancelar</a>
+				<button class="btn btn-primary" type="submit">Guardar</button>
+			</div>
+		</form>
+	</div>
+</div>
+
+
+<script>
+	(function () {
+		var edificioSelect = document.getElementById("id_edificio");
+		var zonaSelect = document.getElementById("id_zona");
+		var zonasUrl = "{% url 'ubicacion_zona_choices' %}";
+		var initialZona = zonaSelect ? zonaSelect.value : "";
+
+		function clearZonas() {
+			if (!zonaSelect) {
+				return;
+			}
+			zonaSelect.innerHTML = "";
+			var emptyOption = document.createElement("option");
+			emptyOption.value = "";
+			emptyOption.textContent = "---------";
+			zonaSelect.appendChild(emptyOption);
+		}
+
+		function fillZonas(zonas) {
+			clearZonas();
+			zonas.forEach(function (zona) {
+				var option = document.createElement("option");
+				option.value = zona.id;
+				option.textContent = zona.nombre_zona;
+				zonaSelect.appendChild(option);
+			});
+			if (initialZona) {
+				zonaSelect.value = initialZona;
+			}
+		}
+
+		function updateZonas() {
+			if (!edificioSelect || !edificioSelect.value) {
+				clearZonas();
+				return;
+			}
+			fetch(zonasUrl + "?edificio_id=" + encodeURIComponent(edificioSelect.value))
+				.then(function (response) {
+					if (!response.ok) {
+						return null;
+					}
+					return response.json();
+				})
+				.then(function (data) {
+					if (!data || !Array.isArray(data.zonas)) {
+						clearZonas();
+						return;
+					}
+					fillZonas(data.zonas);
+				})
+				.catch(function () {
+					clearZonas();
+				});
+		}
+
+		if (edificioSelect) {
+			edificioSelect.addEventListener("change", function () {
+				initialZona = "";
+				updateZonas();
+			});
+			if (edificioSelect.value) {
+				updateZonas();
+			} else {
+				clearZonas();
+			}
+		}
+	})();
+</script>
+{% endblock %}

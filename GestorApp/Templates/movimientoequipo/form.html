@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% load django_bootstrap5 %}
+
+{% block title %}{% if object %}Editar Movimiento de equipo{% else %}Nuevo Movimiento de equipo{% endif %}{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+	<div>
+		<p class="eyebrow mb-2">Movimientos</p>
+		<h1 class="h3 mb-1">{% if object %}Editar Movimiento de equipo{% else %}Nuevo Movimiento de equipo{% endif %}</h1>
+		<p class="text-muted mb-0">Captura la informacion principal del movimiento de equipo.</p>
+	</div>
+	<a class="btn btn-outline-secondary" href="{% url 'movimientoequipo_list' %}">Volver</a>
+</div>
+
+<div class="card shadow-sm border-0">
+	<div class="card-body">
+		<form method="post" class="stack-form">
+			{% csrf_token %}
+			{{ form.non_field_errors }}
+			{% bootstrap_form form %}
+			<div class="d-flex justify-content-end gap-2 mt-3">
+				<a class="btn btn-outline-secondary" href="{% url 'movimientoequipo_list' %}">Cancelar</a>
+				<button class="btn btn-primary" type="submit">Guardar</button>
+			</div>
+		</form>
+	</div>
+</div>
+
+<script>
+	(function () {
+		var equipoSelect = document.getElementById("id_equipo");
+		var ubicacionActual = document.getElementById("id_ubicacion_origen");
+		var responsableSelect = document.getElementById("id_responsable");
+		var infoUrl = "{% url 'movimientoequipo_equipo_info' %}";
+
+		function setSelectValue(select, value) {
+			if (!select) {
+				return;
+			}
+			select.value = value || "";
+		}
+
+		function updateFromEquipo() {
+			if (!equipoSelect || !equipoSelect.value) {
+				setSelectValue(ubicacionActual, "");
+				setSelectValue(responsableSelect, "");
+				return;
+			}
+			fetch(infoUrl + "?equipo_id=" + encodeURIComponent(equipoSelect.value))
+				.then(function (response) {
+					if (!response.ok) {
+						return null;
+					}
+					return response.json();
+				})
+				.then(function (data) {
+					if (!data) {
+						return;
+					}
+					setSelectValue(ubicacionActual, data.ubicacion_id);
+					setSelectValue(responsableSelect, data.responsable_id);
+				})
+				.catch(function () {
+					return;
+				});
+		}
+
+		if (equipoSelect) {
+			equipoSelect.addEventListener("change", updateFromEquipo);
+			if (equipoSelect.value) {
+				updateFromEquipo();
+			}
+		}
+	})();
+</script>
+{% endblock %}

@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}Archivar / Purgar historial{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+	<div>
+		<p class="eyebrow mb-2">Admin</p>
+		<h1 class="h3 mb-1">Retencion del historial</h1>
+		<p class="text-muted mb-0">Archiva eventos viejos o purgalos de forma permanente segun la politica configurada.</p>
+	</div>
+	<a class="btn btn-outline-secondary" href="{% url 'movimientoequipo_list' %}">Ver historial</a>
+</div>
+
+<div class="row g-3 mb-4">
+	<div class="col-md-3">
+		<div class="card border-0 shadow-sm h-100">
+			<div class="card-body">
+				<p class="text-muted mb-1">Activos</p>
+				<p class="h3 mb-0">{{ totales.activos }}</p>
+			</div>
+		</div>
+	</div>
+	<div class="col-md-3">
+		<div class="card border-0 shadow-sm h-100">
+			<div class="card-body">
+				<p class="text-muted mb-1">Archivados</p>
+				<p class="h3 mb-0">{{ totales.archivados }}</p>
+			</div>
+		</div>
+	</div>
+	<div class="col-md-3">
+		<div class="card border-0 shadow-sm h-100">
+			<div class="card-body">
+				<p class="text-muted mb-1">Criticos (protegidos)</p>
+				<p class="h3 mb-0">{{ totales.criticos }}</p>
+			</div>
+		</div>
+	</div>
+	<div class="col-md-3">
+		<div class="card border-0 shadow-sm h-100">
+			<div class="card-body">
+				<p class="text-muted mb-1">Total</p>
+				<p class="h3 mb-0">{{ totales.total }}</p>
+			</div>
+		</div>
+	</div>
+</div>
+
+<div class="card shadow-sm border-0 mb-4">
+	<div class="card-body">
+		<p class="eyebrow mb-2">Politica actual (settings)</p>
+		<ul class="mb-0">
+			<li><strong>Modo:</strong> {{ config.modo }}</li>
+			<li><strong>Dias activos:</strong> {{ config.dias_activo }} (luego se archivan)</li>
+			<li><strong>Dias en archivo:</strong> {{ config.dias_archivo }} (luego se purgan, si aplica)</li>
+			<li><strong>Proteger criticos:</strong> {% if config.proteger_criticos %}Si{% else %}No{% endif %}</li>
+		</ul>
+	</div>
+</div>
+
+<div class="card shadow-sm border-0 mb-4">
+	<div class="card-body">
+		<p class="eyebrow mb-2">Candidatos ahora</p>
+		<p class="mb-1">Listos para <strong>archivar</strong>: {{ candidatos_archivo }}</p>
+		<p class="mb-0">Listos para <strong>purgar</strong> (borrado permanente): {{ candidatos_purga }}</p>
+	</div>
+</div>
+
+<div class="card shadow-sm border-0">
+	<div class="card-body">
+		<p class="eyebrow mb-2">Ejecutar</p>
+		<p class="text-muted">Archivar solo oculta registros. Purgar los elimina de la base de datos y no se pueden recuperar.</p>
+
+		<form method="post" class="stack-form" style="max-width: 520px;">
+			{% csrf_token %}
+			<label for="accion">Accion</label>
+			<select id="accion" name="accion" required>
+				<option value="archivar">Solo archivar</option>
+				<option value="purgar">Solo purgar</option>
+				<option value="ambos" selected>Archivar y luego purgar</option>
+			</select>
+
+			<label for="confirmar" class="mt-3">Confirmacion de purga</label>
+			<input
+				id="confirmar"
+				name="confirmar"
+				type="text"
+				placeholder="Escribe CONFIRMAR si vas a purgar"
+				autocomplete="off"
+			/>
+			<small class="text-muted">Obligatorio solo si la accion incluye purga.</small>
+
+			<div class="d-flex flex-wrap gap-2 mt-3">
+				<button class="btn btn-primary" type="submit">Ejecutar retencion</button>
+				<a class="btn btn-outline-secondary" href="{% url 'movimientoequipo_list' %}?estado=archivado">Ver archivados</a>
+			</div>
+		</form>
+	</div>
+</div>
+{% endblock %}

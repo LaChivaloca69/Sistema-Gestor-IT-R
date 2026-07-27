@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% load django_bootstrap5 %}
+
+{% block title %}Iniciar sesion{% endblock %}
+
+{% block content %}
+<div class="auth-card">
+	<div class="auth-card__header">
+		<p class="eyebrow">Acceso</p>
+		<h1>Iniciar sesion</h1>
+		<p>Ingresa con tu cuenta para administrar el sistema.</p>
+	</div>
+	<form method="post" class="stack-form">
+		{% csrf_token %}
+		{{ form.non_field_errors }}
+		{% bootstrap_form form %}
+		<input type="hidden" name="next" value="{{ next }}">
+		<button class="btn btn-primary w-100" type="submit">Entrar</button>
+	</form>
+	<p class="auth-card__footer">Sin cuenta? <a href="{% url 'signup' %}">Crear usuario</a></p>
+</div>
+{% endblock %}

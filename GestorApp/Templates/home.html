@@ -1,0 +1,396 @@
+{% extends "base.html" %}
+
+{% block title %}Inicio{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.css">
+{% endblock %}
+
+{% block content %}
+
+{% if user.is_authenticated %}
+<section class="dash-header">
+	<div>
+		<p class="eyebrow mb-2">Panel operativo</p>
+		<h1 class="h3 mb-1">Hola, {{ user.get_full_name|default:user.username }}</h1>
+		<p class="text-muted mb-0">Resumen de lo que necesita atencion hoy.</p>
+	</div>
+	<div class="dash-header__actions">
+		<a class="btn btn-primary" href="{% url 'ticketit_create' %}">Nuevo ticket</a>
+		{% if is_admin_dashboard %}
+		<a class="btn btn-outline-secondary" href="{% url 'movimientoequipo_list' %}">Ver historial</a>
+		{% else %}
+		<a class="btn btn-outline-secondary" href="#calendario">Calendario</a>
+		{% endif %}
+	</div>
+</section>
+
+<section class="kpi-grid">
+	<a class="kpi-card" href="{% url 'ticketit_list' %}?status=Abierto">
+		<span class="kpi-card__label">Tickets activos</span>
+		<strong class="kpi-card__value">{{ dashboard_counts.tickets_abiertos }}</strong>
+		<small>{{ dashboard_counts.tickets }} en total</small>
+	</a>
+	<a class="kpi-card" href="{% url 'mantenimiento_list' %}">
+		<span class="kpi-card__label">Mantenimientos (30d)</span>
+		<strong class="kpi-card__value">{{ dashboard_counts.mantenimientos_proximos }}</strong>
+		<small>Programados proximos</small>
+	</a>
+	<a class="kpi-card" href="#calendario">
+		<span class="kpi-card__label">Seguimientos (30d)</span>
+		<strong class="kpi-card__value">{{ dashboard_counts.agendas_proximas }}</strong>
+		<small>Revisiones programadas</small>
+	</a>
+	{% if is_admin_dashboard %}
+	<a class="kpi-card" href="{% url 'equipo_list' %}">
+		<span class="kpi-card__label">Equipos activos</span>
+		<strong class="kpi-card__value">{{ dashboard_counts.equipos_activos }}</strong>
+		<small>{{ dashboard_counts.historial_hoy }} eventos hoy</small>
+	</a>
+	{% else %}
+	<a class="kpi-card" href="{% url 'ordencompra_list' %}">
+		<span class="kpi-card__label">Ordenes</span>
+		<strong class="kpi-card__value">Ir</strong>
+		<small>Compras y documentos</small>
+	</a>
+	{% endif %}
+</section>
+
+<section class="section-block">
+	<div class="section-block__header">
+		<div>
+			<h2>Accesos rapidos</h2>
+			<p>Los modulos que mas usas segun tu rol.</p>
+		</div>
+	</div>
+	<div class="quick-grid quick-grid--compact">
+		{% for link in quick_links %}
+		<a class="quick-card" href="{% url link.url_name %}{{ link.anchor|default:'' }}">
+			<span class="quick-card__icon">{{ forloop.counter|stringformat:"02d" }}</span>
+			<strong>{{ link.label }}</strong>
+			<small>{{ link.hint }}</small>
+		</a>
+		{% endfor %}
+	</div>
+</section>
+
+<section class="dash-panels">
+	<div class="section-block dash-panel">
+		<div class="section-block__header">
+			<div>
+				<h2>Tickets activos</h2>
+				<p>Ultimos abiertos o en proceso.</p>
+			</div>
+			<a class="btn btn-outline-secondary btn-sm" href="{% url 'ticketit_list' %}">Ver todos</a>
+		</div>
+		<div class="table-responsive">
+			<table class="table table-sm align-middle mb-0">
+				<thead>
+					<tr>
+						<th>Folio</th>
+						<th>Estado</th>
+						<th>Prioridad</th>
+						<th></th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for item in recent_tickets %}
+					<tr class="table-row-click" data-href="{% url 'ticketit_update' item.pk %}">
+						<td><strong>{{ item.folio_ticket }}</strong></td>
+						<td><span class="status-badge status-badge--{{ item.status|slugify }}">{{ item.status }}</span></td>
+						<td><span class="status-badge status-badge--prio-{{ item.prioridad|slugify }}">{{ item.prioridad }}</span></td>
+						<td class="text-end"><a class="btn btn-primary btn-sm" href="{% url 'ticketit_update' item.pk %}">Abrir</a></td>
+					</tr>
+					{% empty %}
+					<tr><td colspan="4" class="text-muted text-center py-3">No hay tickets activos.</td></tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		</div>
+	</div>
+
+	<div class="section-block dash-panel">
+		<div class="section-block__header">
+			<div>
+				<h2>Mantenimientos proximos</h2>
+				<p>Proximos 30 dias.</p>
+			</div>
+			<a class="btn btn-outline-secondary btn-sm" href="{% url 'mantenimiento_list' %}">Ver todos</a>
+		</div>
+		<div class="table-responsive">
+			<table class="table table-sm align-middle mb-0">
+				<thead>
+					<tr>
+						<th>Fecha</th>
+						<th>Equipo</th>
+						<th>Estado</th>
+						<th></th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for item in upcoming_mantenimientos %}
+					<tr class="table-row-click" data-href="{% url 'mantenimiento_update' item.pk %}">
+						<td>{{ item.fecha_programada }}</td>
+						<td>{{ item.equipo }}</td>
+						<td><span class="status-badge status-badge--{{ item.estado_mantenimiento|slugify }}">{{ item.estado_mantenimiento }}</span></td>
+						<td class="text-end"><a class="btn btn-primary btn-sm" href="{% url 'mantenimiento_update' item.pk %}">Abrir</a></td>
+					</tr>
+					{% empty %}
+					<tr><td colspan="4" class="text-muted text-center py-3">Sin mantenimientos proximos.</td></tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		</div>
+	</div>
+</section>
+
+{% if is_admin_dashboard %}
+<section class="section-block">
+	<div class="section-block__header">
+		<div>
+			<h2>Actividad reciente</h2>
+			<p>Ultimos eventos del historial general.</p>
+		</div>
+		<a class="btn btn-outline-secondary btn-sm" href="{% url 'movimientoequipo_list' %}">Historial completo</a>
+	</div>
+	<div class="table-responsive">
+		<table class="table table-sm align-middle mb-0">
+			<thead>
+				<tr>
+					<th>Fecha</th>
+					<th>Nivel</th>
+					<th>Modulo</th>
+					<th>Evento</th>
+					<th>Usuario</th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for item in recent_historial %}
+				<tr>
+					<td class="text-nowrap">{{ item.fecha|date:"Y-m-d H:i" }}</td>
+					<td><span class="status-badge status-badge--nivel-{{ item.nivel }}">{{ item.get_nivel_display }}</span></td>
+					<td>{{ item.get_modulo_display }}</td>
+					<td>{{ item.titulo }}</td>
+					<td>{% if item.usuario %}{{ item.usuario.username }}{% else %}<span class="text-muted">Sistema</span>{% endif %}</td>
+				</tr>
+				{% empty %}
+				<tr><td colspan="5" class="text-muted text-center py-3">Aun no hay actividad registrada.</td></tr>
+				{% endfor %}
+			</tbody>
+		</table>
+	</div>
+</section>
+{% endif %}
+
+{% else %}
+<section class="hero-panel">
+	<div class="hero-panel__copy">
+		<p class="eyebrow">Sistema de gestion IT</p>
+		<h1>Control de inventario, soporte y operaciones.</h1>
+		<p class="lead-text">Inicia sesion para acceder al panel operativo.</p>
+		<div class="actions">
+			<a class="btn btn-primary" href="{% url 'login' %}">Iniciar sesion</a>
+			<a class="btn btn-outline-secondary" href="{% url 'signup' %}">Crear usuario</a>
+		</div>
+	</div>
+</section>
+{% endif %}
+
+{% if user.is_authenticated %}
+<section class="section-block" id="calendario">
+	<div class="section-block__header">
+		<div>
+			<h2>Calendario operativo</h2>
+			<p>Tickets, mantenimientos y seguimientos.</p>
+		</div>
+		<div class="calendar-legend">
+			<button type="button" class="calendar-chip calendar-chip--tickets" data-calendar-filter="ticket" aria-pressed="false">Tickets</button>
+			<button type="button" class="calendar-chip calendar-chip--maintenance" data-calendar-filter="mantenimiento" aria-pressed="false">Mantenimientos</button>
+			<button type="button" class="calendar-chip calendar-chip--followup" data-calendar-filter="seguimiento" aria-pressed="false">Seguimientos</button>
+			<button type="button" class="calendar-chip calendar-chip--clear" data-calendar-filter-clear disabled>Limpiar</button>
+		</div>
+	</div>
+	{{ calendar_events|json_script:"home-calendar-events" }}
+	<div class="calendar-shell">
+		<div class="calendar-panel">
+			<div id="home-calendar" class="home-calendar"></div>
+		</div>
+		<div class="calendar-sidebar">
+			<div class="notice-card notice-card--accent">
+				<p><strong>Interaccion</strong></p>
+				<p>Haz clic en un evento para ver los detalles completos.</p>
+			</div>
+			<div class="notice-card">
+				<p><strong>Resumen rapido</strong></p>
+				<ul class="calendar-summary">
+					<li>Tickets activos: {{ dashboard_counts.tickets_abiertos }}</li>
+					<li>Mantenimientos proximos: {{ dashboard_counts.mantenimientos_proximos }}</li>
+					<li>Seguimientos proximos: {{ dashboard_counts.agendas_proximas }}</li>
+				</ul>
+			</div>
+		</div>
+	</div>
+	<div class="calendar-modal" id="calendar-event-modal" hidden aria-hidden="true">
+		<div class="calendar-modal__backdrop" data-calendar-modal-close></div>
+		<div class="calendar-modal__panel" role="dialog" aria-modal="true" aria-labelledby="calendar-event-title">
+			<button type="button" class="calendar-modal__close" aria-label="Cerrar detalle" data-calendar-modal-close>&times;</button>
+			<p class="calendar-modal__eyebrow" id="calendar-event-type"></p>
+			<h3 class="calendar-modal__title" id="calendar-event-title"></h3>
+			<p class="calendar-modal__subtitle" id="calendar-event-subtitle"></p>
+			<dl class="calendar-modal__details" id="calendar-event-details"></dl>
+			<div class="calendar-modal__actions">
+				<a class="btn btn-primary" id="calendar-event-link" href="#">Ir al caso</a>
+				<button type="button" class="btn btn-outline-secondary" data-calendar-modal-close>Cerrar</button>
+			</div>
+		</div>
+	</div>
+</section>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+{% if user.is_authenticated %}
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/locales/es.global.min.js"></script>
+<script>
+(function () {
+	const calendarElement = document.getElementById("home-calendar");
+	const dataElement = document.getElementById("home-calendar-events");
+	const modal = document.getElementById("calendar-event-modal");
+	const modalType = document.getElementById("calendar-event-type");
+	const modalTitle = document.getElementById("calendar-event-title");
+	const modalSubtitle = document.getElementById("calendar-event-subtitle");
+	const modalDetails = document.getElementById("calendar-event-details");
+	const modalLink = document.getElementById("calendar-event-link");
+	const filterButtons = Array.from(document.querySelectorAll("[data-calendar-filter]"));
+	const clearFilterButton = document.querySelector("[data-calendar-filter-clear]");
+	let activeFilter = null;
+	if (!calendarElement || !dataElement || !modal || typeof FullCalendar === "undefined") {
+		return;
+	}
+
+	const allEvents = JSON.parse(dataElement.textContent || "[]");
+	const dateFormatter = new Intl.DateTimeFormat("es-MX", {
+		dateStyle: "full",
+		timeStyle: "short",
+	});
+	const calendarFilterGroups = {
+		ticket: ["ticket"],
+		mantenimiento: ["mantenimiento"],
+		seguimiento: ["seguimiento", "seguimiento_ticket"],
+	};
+
+	const getVisibleEvents = () => {
+		if (!activeFilter) {
+			return allEvents;
+		}
+		const allowedTypes = calendarFilterGroups[activeFilter] || [activeFilter];
+		return allEvents.filter((event) => allowedTypes.includes((event.extendedProps || {}).caseType));
+	};
+
+	const syncFilterState = () => {
+		filterButtons.forEach((button) => {
+			const isActive = button.dataset.calendarFilter === activeFilter;
+			button.classList.toggle("is-active", isActive);
+			button.setAttribute("aria-pressed", String(isActive));
+		});
+		if (clearFilterButton) {
+			clearFilterButton.disabled = !activeFilter;
+		}
+	};
+
+	const applyFilter = (nextFilter) => {
+		activeFilter = nextFilter;
+		syncFilterState();
+		calendar.refetchEvents();
+	};
+
+	const hideModal = () => {
+		modal.hidden = true;
+		modal.setAttribute("aria-hidden", "true");
+		document.body.classList.remove("calendar-modal-open");
+	};
+
+	const renderDetails = (items) => {
+		modalDetails.innerHTML = "";
+		if (!items.length) {
+			const empty = document.createElement("p");
+			empty.className = "calendar-modal__empty";
+			empty.textContent = "Sin detalles adicionales.";
+			modalDetails.appendChild(empty);
+			return;
+		}
+		items.forEach((item) => {
+			if (!item || !item.label) return;
+			const term = document.createElement("dt");
+			term.textContent = item.label;
+			const definition = document.createElement("dd");
+			definition.textContent = item.value ?? "Sin dato";
+			modalDetails.append(term, definition);
+		});
+	};
+
+	const showModal = (event) => {
+		const extendedProps = event.extendedProps || {};
+		const details = Array.isArray(extendedProps.details) ? extendedProps.details : [];
+		const startLabel = event.start ? dateFormatter.format(event.start) : "Sin fecha";
+		const caseLabel = extendedProps.caseLabel ? `Caso ${extendedProps.caseLabel}` : "Caso";
+		modalType.textContent = extendedProps.caseTypeLabel || extendedProps.caseType || "Caso";
+		modalTitle.textContent = event.title || caseLabel;
+		modalSubtitle.textContent = `${caseLabel} · ${startLabel}`;
+		modal.style.setProperty("--calendar-accent", event.backgroundColor || "#1d4ed8");
+		renderDetails(details);
+		if (extendedProps.actionUrl) {
+			modalLink.hidden = false;
+			modalLink.href = extendedProps.actionUrl;
+			modalLink.textContent = extendedProps.actionText || "Ir al caso";
+		} else {
+			modalLink.hidden = true;
+		}
+		modal.hidden = false;
+		modal.setAttribute("aria-hidden", "false");
+		document.body.classList.add("calendar-modal-open");
+	};
+
+	modal.addEventListener("click", (event) => {
+		if (event.target.matches("[data-calendar-modal-close]")) hideModal();
+	});
+	document.addEventListener("keydown", (event) => {
+		if (event.key === "Escape" && !modal.hidden) hideModal();
+	});
+
+	const calendar = new FullCalendar.Calendar(calendarElement, {
+		initialView: "dayGridMonth",
+		height: "auto",
+		locale: "es",
+		headerToolbar: {
+			left: "prev,next today",
+			center: "title",
+			right: "dayGridMonth,timeGridWeek,listWeek",
+		},
+		buttonText: { today: "Hoy", month: "Mes", week: "Semana", list: "Lista" },
+		navLinks: true,
+		nowIndicator: true,
+		dayMaxEvents: true,
+		events(fetchInfo, successCallback) {
+			successCallback(getVisibleEvents());
+		},
+		eventClick(info) {
+			info.jsEvent.preventDefault();
+			showModal(info.event);
+		},
+	});
+
+	filterButtons.forEach((button) => {
+		button.addEventListener("click", () => applyFilter(button.dataset.calendarFilter || null));
+	});
+	if (clearFilterButton) {
+		clearFilterButton.addEventListener("click", () => applyFilter(null));
+	}
+	syncFilterState();
+	calendar.render();
+})();
+</script>
+{% endif %}
+{% endblock %}

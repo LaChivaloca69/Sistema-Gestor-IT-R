@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}Equipos{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+	<div>
+		<p class="eyebrow mb-2">Inventario</p>
+		<h1 class="h3 mb-1">Listado de equipos</h1>
+		<p class="text-muted mb-0">Gestiona los equipos registrados en el sistema.</p>
+	</div>
+	<a class="btn btn-primary" href="{% url 'equipo_create' %}">Nuevo equipo</a>
+</div>
+
+<div class="table-responsive">
+	<table class="table table-striped table-hover align-middle">
+		<thead class="table-light">
+			<tr>
+				<th>Codigo inventario</th>
+				<th>Numero serie</th>
+				<th>Categoria</th>
+				<th>Marca</th>
+				<th>Modelo</th>
+				<th>Estado</th>
+				<th>Proveedor</th>
+				<th>Ubicacion</th>
+				<th>Activo</th>
+				<th>Fecha alta</th>
+				<th>Imagen</th>
+				<th class="text-nowrap">Acciones</th>
+			</tr>
+		</thead>
+		<tbody>
+			{% for item in items %}
+			<tr class="table-row-click" data-href="{% url 'equipo_update' item.pk %}">
+				<td><strong>{{ item.codigo_inventario }}</strong></td>
+				<td>{{ item.numero_serie }}</td>
+				<td>{{ item.categoria }}</td>
+				<td>{{ item.marca }}</td>
+				<td>{{ item.modelo }}</td>
+				<td><span class="status-badge status-badge--{{ item.estado_equipo|slugify }}">{{ item.estado_equipo }}</span></td>
+				<td>{{ item.proveedor }}</td>
+				<td>{{ item.ubicacion }}</td>
+				<td>
+					{% if item.activo %}
+					<span class="status-badge status-badge--asignado">Si</span>
+					{% else %}
+					<span class="status-badge status-badge--baja">No</span>
+					{% endif %}
+				</td>
+				<td>{{ item.fecha_alta }}</td>
+				<td>
+					{% if item.imagen %}
+						<a href="{{ item.imagen.url }}" target="_blank" rel="noopener">
+							<img src="{{ item.imagen.url }}" alt="{{ item.codigo_inventario }}" style="height:40px; width:auto; border-radius:4px;" />
+						</a>
+					{% else %}
+						<span class="text-muted">-</span>
+					{% endif %}
+				</td>
+				<td>
+					<div class="row-actions">
+						<a class="btn btn-primary btn-sm" href="{% url 'equipo_update' item.pk %}">Abrir</a>
+						<div class="dropdown">
+							<button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">⋯</button>
+							<ul class="dropdown-menu dropdown-menu-end">
+								<li><a class="dropdown-item" href="{% url 'equipo_update' item.pk %}">Editar</a></li>
+								<li><hr class="dropdown-divider"></li>
+								<li><a class="dropdown-item text-danger" href="{% url 'equipo_delete' item.pk %}">Eliminar</a></li>
+							</ul>
+						</div>
+					</div>
+				</td>
+			</tr>
+			{% empty %}
+			<tr>
+				<td colspan="12" class="text-center text-muted py-4">
+					No hay equipos.
+					<a href="{% url 'equipo_create' %}">Crear el primero</a>
+				</td>
+			</tr>
+			{% endfor %}
+		</tbody>
+	</table>
+</div>
+{% endblock %}

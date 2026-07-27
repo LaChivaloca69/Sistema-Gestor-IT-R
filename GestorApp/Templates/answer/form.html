@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Editar Answer{% else %}Nuevo Answer{% endif %}{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+	<div>
+		<p class="eyebrow mb-2">Soporte</p>
+		<h1 class="h3 mb-1">{% if object %}Editar answer{% else %}Nuevo answer{% endif %}</h1>
+		<p class="text-muted mb-0">Captura la informacion principal del answer.</p>
+	</div>
+	<a class="btn btn-outline-secondary" href="{% url 'answer_list' %}">Volver</a>
+</div>
+
+<div class="card shadow-sm border-0">
+	<div class="card-body">
+		<form method="post" class="stack-form">
+			{% csrf_token %}
+			{{ form.non_field_errors }}
+			{{ form.as_p }}
+			<div class="d-flex justify-content-end gap-2 mt-3">
+				<a class="btn btn-outline-secondary" href="{% url 'answer_list' %}">Cancelar</a>
+				<button class="btn btn-primary" type="submit">Guardar</button>
+			</div>
+		</form>
+	</div>
+</div>
+{% endblock %}
