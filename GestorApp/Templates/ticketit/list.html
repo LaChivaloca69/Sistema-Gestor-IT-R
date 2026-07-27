@@ -14,6 +14,25 @@
 
 <form class="filters" method="get">
 	<div>
+		<label for="filter_search">Buscar</label>
+		<input
+			id="filter_search"
+			name="q"
+			type="search"
+			value="{{ search_query }}"
+			placeholder="Folio, problema, equipo, usuario"
+			data-chip-label="Busqueda"
+		/>
+	</div>
+	<div>
+		<label for="filter_scope">Vista</label>
+		<select id="filter_scope" name="scope" data-chip-label="Vista">
+			<option value="" {% if not selected_scope %}selected{% endif %}>Todos</option>
+			<option value="mios" {% if selected_scope == "mios" %}selected{% endif %}>Mis tickets</option>
+			<option value="asignados" {% if selected_scope == "asignados" %}selected{% endif %}>Asignados a mi</option>
+		</select>
+	</div>
+	<div>
 		<label for="filter_tipo">Tipo</label>
 		<select id="filter_tipo" name="tipo_ticket" data-chip-label="Tipo">
 			<option value="">Todos</option>
@@ -52,43 +71,52 @@
 			<tr>
 				<th>Folio</th>
 				<th>Fecha</th>
+				<th>Problema</th>
 				<th>Area</th>
 				<th>Solicitado por</th>
+				<th>Asignado a</th>
 				<th>Tipo</th>
 				<th>Prioridad</th>
-				<th>Equipo</th>
 				<th>Estatus</th>
-				<th>Imagen</th>
 				<th class="text-nowrap">Acciones</th>
 			</tr>
 		</thead>
 		<tbody>
 			{% for item in items %}
-			<tr class="table-row-click" data-href="{% url 'ticketit_update' item.pk %}">
+			<tr class="table-row-click" data-href="{% url 'ticketit_detail' item.pk %}">
 				<td><strong>{{ item.folio_ticket }}</strong></td>
 				<td>{{ item.fecha_support }}</td>
-				<td>{{ item.area }}</td>
-				<td>{{ item.solicitado_por }}</td>
+				<td>{{ item.requerimiento|truncatechars:48 }}</td>
+				<td>{{ item.area|default:"-" }}</td>
+				<td>{{ item.solicitado_por|default:"-" }}</td>
+				<td>{{ item.asignado_a|default:"-" }}</td>
 				<td>{{ item.tipo_ticket }}</td>
 				<td><span class="status-badge status-badge--prio-{{ item.prioridad|slugify }}">{{ item.prioridad }}</span></td>
-				<td>{{ item.equipo|default:"-" }}</td>
 				<td><span class="status-badge status-badge--{{ item.status|slugify }}">{{ item.status }}</span></td>
 				<td>
-					{% if item.imagen %}
-						<a href="{{ item.imagen.url }}" target="_blank" rel="noopener">
-							<img src="{{ item.imagen.url }}" alt="{{ item.folio_ticket }}" style="height:40px; width:auto; border-radius:4px;" />
-						</a>
-					{% else %}
-						<span class="text-muted">-</span>
-					{% endif %}
-				</td>
-				<td>
 					<div class="row-actions">
-						<a class="btn btn-primary btn-sm" href="{% url 'ticketit_update' item.pk %}">Abrir</a>
+						<a class="btn btn-primary btn-sm" href="{% url 'ticketit_detail' item.pk %}">Abrir</a>
 						<div class="dropdown">
 							<button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">⋯</button>
 							<ul class="dropdown-menu dropdown-menu-end">
+								<li><a class="dropdown-item" href="{% url 'ticketit_detail' item.pk %}">Ver detalle</a></li>
 								<li><a class="dropdown-item" href="{% url 'ticketit_update' item.pk %}">Editar</a></li>
+								{% if can_manage_flow and item.puede_marcar_en_revision %}
+								<li>
+									<form method="post" action="{% url 'ticketit_marcar_revision' item.pk %}">
+										{% csrf_token %}
+										<button class="dropdown-item" type="submit">Marcar En Revision</button>
+									</form>
+								</li>
+								{% endif %}
+								{% if can_manage_flow and item.puede_reabrir %}
+								<li>
+									<form method="post" action="{% url 'ticketit_reabrir' item.pk %}">
+										{% csrf_token %}
+										<button class="dropdown-item" type="submit">Reabrir</button>
+									</form>
+								</li>
+								{% endif %}
 								<li><hr class="dropdown-divider"></li>
 								<li><a class="dropdown-item text-danger" href="{% url 'ticketit_delete' item.pk %}">Eliminar</a></li>
 							</ul>
@@ -107,4 +135,21 @@
 		</tbody>
 	</table>
 </div>
+
+{% if page_obj.paginator.num_pages > 1 %}
+<nav class="list-pagination" aria-label="Paginacion de tickets">
+	<div class="text-muted small">
+		Pagina {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+		· {{ page_obj.paginator.count }} tickets
+	</div>
+	<div class="d-flex flex-wrap gap-2">
+		{% if page_obj.has_previous %}
+			<a class="btn btn-outline-secondary btn-sm" href="?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">Anterior</a>
+		{% endif %}
+		{% if page_obj.has_next %}
+			<a class="btn btn-outline-secondary btn-sm" href="?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">Siguiente</a>
+		{% endif %}
+	</div>
+</nav>
+{% endif %}
 {% endblock %}

@@ -287,6 +287,14 @@ class TicketIT(models.Model):
         related_name='tickets_support_solicitados',
         verbose_name='Solicitado por',
     )
+    asignado_a = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='tickets_support_asignados',
+        verbose_name='Asignado a',
+    )
     tipo_ticket = models.CharField(max_length=30, choices=TipoTicketSupport.choices, default=TipoTicketSupport.HELPDESK)
     sub_tipo_ticket = models.CharField(max_length=150, blank=True, null=True)
     prioridad = models.CharField(max_length=10, choices=PrioridadSupport.choices, default=PrioridadSupport.MEDIA)
@@ -302,11 +310,28 @@ class TicketIT(models.Model):
         verbose_name = 'Support'
         verbose_name_plural = 'Support'
 
+    @property
+    def puede_marcar_en_revision(self):
+        return self.status == EstadoSupport.ABIERTO and not self.seguimientos.exists()
+
+    @property
+    def puede_reabrir(self):
+        return self.status == EstadoSupport.CERRADO
+
     def refresh_status_from_followups(self, save=True):
+        """
+        Flujo automatico:
+        - Sin seguimientos: Abierto (o En Revision si ya se tomo el ticket)
+        - Ultimo seguimiento abierto: En Proceso
+        - Ultimo seguimiento concluido: Cerrado
+        """
         ultimo_seguimiento = self.seguimientos.order_by('-fecha_check', '-pk').first()
 
         if ultimo_seguimiento is None:
-            nuevo_status = EstadoSupport.ABIERTO
+            if self.status == EstadoSupport.EN_REVISION:
+                nuevo_status = EstadoSupport.EN_REVISION
+            else:
+                nuevo_status = EstadoSupport.ABIERTO
         elif ultimo_seguimiento.ya_terminado:
             nuevo_status = EstadoSupport.CERRADO
         else:
@@ -317,6 +342,34 @@ class TicketIT(models.Model):
             if save:
                 self.save(update_fields=['status'])
 
+        return self.status
+
+    def marcar_en_revision(self, save=True):
+        if not self.puede_marcar_en_revision:
+            raise ValidationError(
+                'Solo se puede marcar En Revision un ticket Abierto sin seguimientos.'
+            )
+        self.status = EstadoSupport.EN_REVISION
+        if save:
+            self.save(update_fields=['status'])
+        return self.status
+
+    def reabrir(self, usuario=None, motivo=''):
+        if not self.puede_reabrir:
+            raise ValidationError('Solo se pueden reabrir tickets Cerrados.')
+
+        texto = (motivo or '').strip() or 'Ticket reabierto.'
+        SeguimientoTicket(
+            ticket=self,
+            usuario=usuario,
+            avance_realizado=texto,
+            pendiente='',
+            proximo_paso='',
+            solucion='',
+            observacion='Reapertura del ticket.',
+            ya_terminado=False,
+        ).save()
+        self.refresh_from_db(fields=['status'])
         return self.status
 
     @classmethod
@@ -400,6 +453,8 @@ class SeguimientoTicket(models.Model):
                 raise ValidationError({'folio_check': 'El folio de Check debe tener formato SPR0-000001.'})
         if self.ticket_id and self.folio_check and self.folio_check.upper() != self.ticket.folio_ticket:
             raise ValidationError({'folio_check': 'El folio de Check debe coincidir con el folio del Support seleccionado.'})
+        if self.ya_terminado and not (self.solucion or '').strip():
+            raise ValidationError({'solucion': 'Indica la solucion al concluir el seguimiento.'})
 
     def save(self, *args, **kwargs):
         previous_ticket_id = None

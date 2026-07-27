@@ -95,11 +95,11 @@
 				</thead>
 				<tbody>
 					{% for item in recent_tickets %}
-					<tr class="table-row-click" data-href="{% url 'ticketit_update' item.pk %}">
+					<tr class="table-row-click" data-href="{% url 'ticketit_detail' item.pk %}">
 						<td><strong>{{ item.folio_ticket }}</strong></td>
 						<td><span class="status-badge status-badge--{{ item.status|slugify }}">{{ item.status }}</span></td>
 						<td><span class="status-badge status-badge--prio-{{ item.prioridad|slugify }}">{{ item.prioridad }}</span></td>
-						<td class="text-end"><a class="btn btn-primary btn-sm" href="{% url 'ticketit_update' item.pk %}">Abrir</a></td>
+						<td class="text-end"><a class="btn btn-primary btn-sm" href="{% url 'ticketit_detail' item.pk %}">Abrir</a></td>
 					</tr>
 					{% empty %}
 					<tr><td colspan="4" class="text-muted text-center py-3">No hay tickets activos.</td></tr>

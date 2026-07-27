@@ -3,13 +3,23 @@
 {% block title %}Eliminar Support{% endblock %}
 
 {% block content %}
-<h1>Eliminar Support</h1>
-<p>Estas seguro que deseas eliminar "{{ object }}"?</p>
-<div class="actions">
-	<a class="btn" href="{% url 'ticketit_list' %}">Volver</a>
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+	<div>
+		<p class="eyebrow mb-2">Confirmacion</p>
+		<h1 class="h3 mb-1">Eliminar ticket</h1>
+		<p class="text-muted mb-0">Esta accion no se puede deshacer.</p>
+	</div>
+	<a class="btn btn-outline-secondary" href="{% url 'ticketit_detail' object.pk %}">Volver</a>
 </div>
-<form method="post">
-	{% csrf_token %}
-	<button class="btn btn-danger" type="submit">Eliminar</button>
-</form>
+
+<div class="card shadow-sm border-0">
+	<div class="card-body">
+		<p class="mb-4">Estas seguro que deseas eliminar <strong>{{ object.folio_ticket }}</strong>?</p>
+		<form method="post" class="d-flex flex-wrap gap-2">
+			{% csrf_token %}
+			<a class="btn btn-outline-secondary" href="{% url 'ticketit_detail' object.pk %}">Cancelar</a>
+			<button class="btn btn-danger" type="submit">Eliminar</button>
+		</form>
+	</div>
+</div>
 {% endblock %}

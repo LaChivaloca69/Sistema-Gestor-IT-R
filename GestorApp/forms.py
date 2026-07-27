@@ -101,24 +101,22 @@ class TicketITForm(forms.ModelForm):
 
     class Meta:
         model = TicketIT
-        exclude = ["folio_ticket", "fecha_support"]
-        fields = "__all__"
+        exclude = ["folio_ticket", "fecha_support", "status"]
         labels = {
             "requerimiento": "Problema que presenta",
             "solicitado_por": "Solicitado por",
+            "asignado_a": "Asignado a",
             "area": "Área",
             "puesto": "Puesto",
-            "solicitado_por": "Solicitado por",
             "tipo_ticket": "Tipo de ticket",
-            "sub_tipo_ticket": "Tipo de subtipo(cambiar este texto expicar mejor)",
+            "sub_tipo_ticket": "Subtipo de ticket",
             "prioridad": "Prioridad",
             "equipo": "Equipo",
             "tipo_equipo": "Tipo de equipo",
-            "Otro_tipo_equipo": "Otro tipo de equipo",
+            "otro_tipo_equipo": "Otro tipo de equipo",
             "detalle": "Detalle",
             "descripcion": "Descripción",
             "imagen": "Imagen",
-            "Status": "Estado",
         }
         help_texts = {
             "requerimiento": "Descripcion breve del problema.",
@@ -126,6 +124,7 @@ class TicketITForm(forms.ModelForm):
             "tipo_ticket": "Seleccione el tipo de ticket.",
             "sub_tipo_ticket": "Seleccione el subtipo de ticket.",
             "prioridad": "Seleccione la prioridad del ticket.",
+            "asignado_a": "Tecnico o staff responsable del ticket.",
             "detalle": "Proporcione detalles adicionales sobre el problema.",
             "descripcion": "Describa detalladamente el problema o solicitud.",
             "imagen": "Adjunte una imagen del problema, si aplica.",
@@ -173,7 +172,22 @@ class TicketITForm(forms.ModelForm):
             ):
                 self.fields["solicitado_por"].initial = self.request_user
                 self.fields["solicitado_por"].disabled = True
-                # self.fields["solicitado_por"].help_text = "Asignado automaticamente desde tu usuario."
+
+        if "asignado_a" in self.fields:
+            user_model = get_user_model()
+            user_qs = user_model.objects.filter(is_staff=True)
+            if any(field.name == "is_active" for field in user_model._meta.fields):
+                user_qs = user_qs.filter(is_active=True)
+            if self.instance and self.instance.asignado_a_id:
+                user_qs = user_model.objects.filter(pk=self.instance.asignado_a_id) | user_qs
+            self.fields["asignado_a"].queryset = user_qs.distinct().order_by(
+                user_model.USERNAME_FIELD
+            )
+            self.fields["asignado_a"].required = False
+            if not is_admin_user(self.request_user):
+                self.fields["asignado_a"].disabled = True
+                if not (self.instance and self.instance.pk):
+                    self.fields.pop("asignado_a")
 
         if not (self.instance and self.instance.pk) and self.request_personal:
             if "area" in self.fields:
@@ -232,6 +246,10 @@ class TicketITForm(forms.ModelForm):
             and not instance.solicitado_por_id
         ):
             instance.solicitado_por = self.request_user
+
+        # Asignar a alguien un ticket Abierto lo pasa a En Revision.
+        if instance.asignado_a_id and instance.status == EstadoSupport.ABIERTO:
+            instance.status = EstadoSupport.EN_REVISION
 
         if commit:
             instance.save()
@@ -307,14 +325,24 @@ class SeguimientoTicketForm(forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
+        self.fixed_ticket = kwargs.pop("ticket", None)
+        self.request_user = kwargs.pop("request_user", None)
         super().__init__(*args, **kwargs)
-        qs = TicketIT.objects.exclude(status=EstadoSupport.CERRADO)
-        if self.instance and self.instance.ticket_id:
-            qs = TicketIT.objects.filter(
-                Q(status__in=[EstadoSupport.ABIERTO, EstadoSupport.EN_REVISION, EstadoSupport.EN_PROCESO])
-                | Q(pk=self.instance.ticket_id)
-            )
-        self.fields["ticket"].queryset = qs.order_by("folio_ticket")
+
+        if self.fixed_ticket is not None:
+            self.fields["ticket"].initial = self.fixed_ticket
+            self.fields["ticket"].queryset = TicketIT.objects.filter(pk=self.fixed_ticket.pk)
+            self.fields["ticket"].disabled = True
+            self.fields["ticket"].widget = forms.HiddenInput()
+        else:
+            qs = TicketIT.objects.exclude(status=EstadoSupport.CERRADO)
+            if self.instance and self.instance.ticket_id:
+                qs = TicketIT.objects.filter(
+                    Q(status__in=[EstadoSupport.ABIERTO, EstadoSupport.EN_REVISION, EstadoSupport.EN_PROCESO])
+                    | Q(pk=self.instance.ticket_id)
+                )
+            self.fields["ticket"].queryset = qs.order_by("folio_ticket")
+
         if "usuario" in self.fields:
             user_model = get_user_model()
             user_qs = user_model.objects.filter(is_staff=True)
@@ -325,6 +353,34 @@ class SeguimientoTicketForm(forms.ModelForm):
             self.fields["usuario"].queryset = user_qs.distinct().order_by(
                 user_model.USERNAME_FIELD
             )
+            if (
+                not (self.instance and self.instance.pk)
+                and self.request_user
+                and getattr(self.request_user, "is_authenticated", False)
+                and is_admin_user(self.request_user)
+            ):
+                self.fields["usuario"].initial = self.request_user
+
+        if "solucion" in self.fields:
+            self.fields["solucion"].required = False
+            self.fields["solucion"].help_text = "Obligatoria al marcar Concluido."
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if self.fixed_ticket is not None:
+            cleaned_data["ticket"] = self.fixed_ticket
+        if cleaned_data.get("ya_terminado") and not (cleaned_data.get("solucion") or "").strip():
+            self.add_error("solucion", "Indica la solucion al concluir el seguimiento.")
+        return cleaned_data
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        if self.fixed_ticket is not None:
+            instance.ticket = self.fixed_ticket
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance
 
 
 class AnswerForm(forms.ModelForm):

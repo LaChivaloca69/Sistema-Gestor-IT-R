@@ -5,14 +5,33 @@
 
 {% block content %}
 
-<div class="d-flex flex-wrap justify-content-between aligh-items-center gap-3 mb-4">
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
 	<div>
 		<p class="eyebrow mb-2">Soporte</p>
 		<h1 class="h3 mb-1">{% if object %}Editar Support{% else %}Nuevo Support{% endif %}</h1>
 		<p class="text-muted mb-0">Captura la informacion principal del soporte.</p>
 	</div>
-	<a class="btn btn-outline-secondary" href="{% url 'ticketit_list' %}">Volver</a>
+	<div class="d-flex flex-wrap gap-2">
+		{% if object %}
+			<a class="btn btn-outline-primary" href="{% url 'ticketit_detail' object.pk %}">Ver detalle</a>
+		{% endif %}
+		<a class="btn btn-outline-secondary" href="{% url 'ticketit_list' %}">Volver</a>
+	</div>
 </div>
+
+{% if object %}
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+	<span class="text-muted">Estado:</span>
+	<span class="status-badge status-badge--{{ object.status|slugify }}">{{ object.status }}</span>
+	{% if object.asignado_a %}
+		<span class="text-muted ms-2">Asignado a:</span>
+		<strong>{{ object.asignado_a }}</strong>
+	{% endif %}
+</div>
+<p class="text-muted small mb-3">
+	El estado se actualiza automaticamente desde el detalle del ticket y los seguimientos.
+</p>
+{% endif %}
 
 <div class="card shadow-sm border-0">
 	<div class="card-body">
@@ -21,7 +40,11 @@
 			{{ form.non_field_errors }}
 			{% bootstrap_form form %}
 			<div class="d-flex justify-content-end gap-2 mt-3">
-				<a class="btn btn-outline-secondary" href="{% url 'ticketit_list' %}">Cancelar</a>
+				{% if object %}
+					<a class="btn btn-outline-secondary" href="{% url 'ticketit_detail' object.pk %}">Cancelar</a>
+				{% else %}
+					<a class="btn btn-outline-secondary" href="{% url 'ticketit_list' %}">Cancelar</a>
+				{% endif %}
 				<button class="btn btn-primary" type="submit">Guardar</button>
 			</div>
 		</form>

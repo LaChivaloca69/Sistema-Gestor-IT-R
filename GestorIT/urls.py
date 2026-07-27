@@ -143,8 +143,19 @@ urlpatterns = [
     # -------------- Ticket de soporte Urls -------------
     path('Ticketit/', login_required(views.ticketit_list), name='ticketit_list'),
     path('Ticketit/create/', login_required(views.ticketit_create), name='ticketit_create'),
+    path('Ticketit/<int:pk>/', login_required(views.ticketit_detail), name='ticketit_detail'),
     path('Ticketit/update/<int:pk>/', login_required(views.ticketit_update), name='ticketit_update'),
     path('Ticketit/delete/<int:pk>/', login_required(views.ticketit_delete), name='ticketit_delete'),
+    path(
+        'Ticketit/<int:pk>/marcar-revision/',
+        views.admin_required(views.ticketit_marcar_revision),
+        name='ticketit_marcar_revision',
+    ),
+    path(
+        'Ticketit/<int:pk>/reabrir/',
+        views.admin_required(views.ticketit_reabrir),
+        name='ticketit_reabrir',
+    ),
     path(
         'Ticketit/subtipos/',
         login_required(views.ticketit_subtipo_choices),

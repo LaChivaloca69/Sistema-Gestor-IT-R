@@ -5,7 +5,9 @@ from django import forms
 from django.contrib import messages
 from django.contrib.auth import get_user_model, login
 from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
+from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Q
 from django.http import HttpResponse, JsonResponse
@@ -25,6 +27,7 @@ from .forms import (
 )
 
 from .models import (
+    AccionHistorial,
     AgendaMantenimiento,
     Answer,
     Area,
@@ -1984,31 +1987,122 @@ def agendamantenimiento_delete(request, pk):
 # ============ TicketIT views ==============
 # Formulario de ticket
 
+TICKET_LIST_PAGE_SIZE = 20
+
+
+def _ticketit_queryset():
+    return TicketIT.objects.select_related(
+        "area",
+        "puesto",
+        "solicitado_por",
+        "asignado_a",
+        "equipo",
+        "tipo_equipo",
+    )
 
 
 def ticketit_list(request):
-    items = TicketIT.objects.all()
+    items = _ticketit_queryset().order_by("-fecha_support", "-pk")
+    search_query = (request.GET.get("q") or "").strip()
     selected_tipo = request.GET.get("tipo_ticket", "")
     selected_prioridad = request.GET.get("prioridad", "")
     selected_status = request.GET.get("status", "")
+    selected_scope = request.GET.get("scope", "")
 
+    if search_query:
+        items = items.filter(
+            Q(folio_ticket__icontains=search_query)
+            | Q(requerimiento__icontains=search_query)
+            | Q(descripcion__icontains=search_query)
+            | Q(detalle__icontains=search_query)
+            | Q(equipo__codigo_inventario__icontains=search_query)
+            | Q(solicitado_por__username__icontains=search_query)
+            | Q(asignado_a__username__icontains=search_query)
+        )
     if selected_tipo:
         items = items.filter(tipo_ticket=selected_tipo)
     if selected_prioridad:
         items = items.filter(prioridad=selected_prioridad)
     if selected_status:
         items = items.filter(status=selected_status)
+    if selected_scope == "mios":
+        items = items.filter(solicitado_por=request.user)
+    elif selected_scope == "asignados":
+        items = items.filter(asignado_a=request.user)
+
+    paginator = Paginator(items, TICKET_LIST_PAGE_SIZE)
+    page_obj = paginator.get_page(request.GET.get("page"))
 
     context = {
-        "items": items,
+        "items": page_obj,
+        "page_obj": page_obj,
+        "search_query": search_query,
         "tipo_choices": TipoTicketSupport.choices,
         "prioridad_choices": PrioridadSupport.choices,
         "status_choices": EstadoSupport.choices,
         "selected_tipo": selected_tipo,
         "selected_prioridad": selected_prioridad,
         "selected_status": selected_status,
+        "selected_scope": selected_scope,
+        "can_manage_flow": is_admin_user(request.user),
     }
     return render(request, "ticketit/list.html", context)
+
+
+def ticketit_detail(request, pk):
+    ticket = get_object_or_404(
+        _ticketit_queryset().prefetch_related("seguimientos__usuario"),
+        pk=pk,
+    )
+    can_manage_flow = is_admin_user(request.user)
+    can_add_seguimiento = can_manage_flow and ticket.status != EstadoSupport.CERRADO
+    seguimiento_form = None
+
+    if can_add_seguimiento and request.method == "POST" and request.POST.get("form_type") == "seguimiento":
+        seguimiento_form = SeguimientoTicketForm(
+            request.POST,
+            ticket=ticket,
+            request_user=request.user,
+        )
+        if seguimiento_form.is_valid():
+            seguimiento = seguimiento_form.save()
+            if not ticket.asignado_a_id and request.user.is_authenticated:
+                ticket.asignado_a = request.user
+                ticket.save(update_fields=["asignado_a"])
+            historial.registrar_creacion(
+                request,
+                modulo=ModuloHistorial.SEGUIMIENTO,
+                titulo=f"Seguimiento en {seguimiento.folio_check or ticket.folio_ticket}",
+                objeto=seguimiento,
+                entidad_relacionada=ticket,
+                enlace_nombre="ticketit_detail",
+                enlace_pk=ticket.pk,
+                metadata={"ticket_id": ticket.pk},
+            )
+            messages.success(request, "Seguimiento registrado correctamente.")
+            return redirect("ticketit_detail", pk=ticket.pk)
+
+    if can_add_seguimiento and seguimiento_form is None:
+        seguimiento_form = SeguimientoTicketForm(
+            ticket=ticket,
+            request_user=request.user,
+        )
+
+    seguimientos = ticket.seguimientos.select_related("usuario").order_by(
+        "-fecha_check", "-pk"
+    )
+
+    return render(
+        request,
+        "ticketit/detail.html",
+        {
+            "object": ticket,
+            "seguimientos": seguimientos,
+            "seguimiento_form": seguimiento_form,
+            "can_manage_flow": can_manage_flow,
+            "can_add_seguimiento": can_add_seguimiento,
+        },
+    )
 
 
 def ticketit_create(request):
@@ -2021,18 +2115,22 @@ def ticketit_create(request):
                 modulo=ModuloHistorial.TICKET,
                 titulo=f"Ticket creado: {ticket.folio_ticket}",
                 objeto=ticket,
-                enlace_nombre="ticketit_update",
+                enlace_nombre="ticketit_detail",
                 metadata={"estado": ticket.status, "prioridad": ticket.prioridad},
             )
             messages.success(request, "Support creado correctamente.")
-            return redirect("ticketit_list")
+            return redirect("ticketit_detail", pk=ticket.pk)
     else:
         form = TicketITForm(request_user=request.user)
-    return render(request, "ticketit/form.html", {"form": form})
+    return render(
+        request,
+        "ticketit/form.html",
+        {"form": form, "can_manage_flow": is_admin_user(request.user)},
+    )
 
 
 def ticketit_update(request, pk):
-    ticket = get_object_or_404(TicketIT, pk=pk)
+    ticket = get_object_or_404(_ticketit_queryset(), pk=pk)
     if request.method == "POST":
         form = TicketITForm(
             request.POST,
@@ -2048,13 +2146,21 @@ def ticketit_update(request, pk):
                 titulo=f"Ticket actualizado: {ticket.folio_ticket}",
                 objeto=ticket,
                 form=form,
-                enlace_nombre="ticketit_update",
+                enlace_nombre="ticketit_detail",
             )
             messages.success(request, "Support actualizado correctamente.")
-            return redirect("ticketit_list")
+            return redirect("ticketit_detail", pk=ticket.pk)
     else:
         form = TicketITForm(instance=ticket, request_user=request.user)
-    return render(request, "ticketit/form.html", {"form": form, "object": ticket})
+    return render(
+        request,
+        "ticketit/form.html",
+        {
+            "form": form,
+            "object": ticket,
+            "can_manage_flow": is_admin_user(request.user),
+        },
+    )
 
 
 def ticketit_delete(request, pk):
@@ -2073,6 +2179,59 @@ def ticketit_delete(request, pk):
     return render(request, "ticketit/confirm_delete.html", {"object": ticket})
 
 
+def ticketit_marcar_revision(request, pk):
+    ticket = get_object_or_404(TicketIT, pk=pk)
+    if request.method != "POST":
+        return redirect("ticketit_detail", pk=pk)
+
+    try:
+        ticket.marcar_en_revision()
+    except ValidationError as exc:
+        messages.error(request, " ".join(exc.messages))
+        return redirect("ticketit_detail", pk=pk)
+
+    if not ticket.asignado_a_id:
+        ticket.asignado_a = request.user
+        ticket.save(update_fields=["asignado_a"])
+
+    historial.registrar_historial(
+        request=request,
+        modulo=ModuloHistorial.TICKET,
+        accion=AccionHistorial.CAMBIO_ESTADO,
+        titulo=f"Ticket en revision: {ticket.folio_ticket}",
+        objeto=ticket,
+        enlace_nombre="ticketit_detail",
+        metadata={"estado": ticket.status},
+    )
+    messages.success(request, f"{ticket.folio_ticket} marcado En Revision.")
+    return redirect("ticketit_detail", pk=pk)
+
+
+def ticketit_reabrir(request, pk):
+    ticket = get_object_or_404(TicketIT, pk=pk)
+    if request.method != "POST":
+        return redirect("ticketit_detail", pk=pk)
+
+    motivo = (request.POST.get("motivo") or "").strip()
+    try:
+        ticket.reabrir(usuario=request.user, motivo=motivo)
+    except ValidationError as exc:
+        messages.error(request, " ".join(exc.messages))
+        return redirect("ticketit_detail", pk=pk)
+
+    historial.registrar_historial(
+        request=request,
+        modulo=ModuloHistorial.TICKET,
+        accion=AccionHistorial.CAMBIO_ESTADO,
+        titulo=f"Ticket reabierto: {ticket.folio_ticket}",
+        objeto=ticket,
+        enlace_nombre="ticketit_detail",
+        metadata={"estado": ticket.status, "motivo": motivo or "Ticket reabierto."},
+    )
+    messages.success(request, f"{ticket.folio_ticket} reabierto ({ticket.status}).")
+    return redirect("ticketit_detail", pk=pk)
+
+
 def ticketit_subtipo_choices(request):
     tipo_ticket = request.GET.get("tipo_ticket")
     choices = get_subtipo_ticket_choices(tipo_ticket)
@@ -2084,13 +2243,15 @@ def ticketit_subtipo_choices(request):
 
 
 def seguimientoticket_list(request):
-    items = SeguimientoTicket.objects.all()
+    items = SeguimientoTicket.objects.select_related(
+        "ticket", "usuario"
+    ).order_by("-fecha_check", "-pk")
     return render(request, "seguimientoticket/list.html", {"items": items})
 
 
 def seguimientoticket_create(request):
     if request.method == "POST":
-        form = SeguimientoTicketForm(request.POST)
+        form = SeguimientoTicketForm(request.POST, request_user=request.user)
         if form.is_valid():
             seguimiento = form.save()
             historial.registrar_creacion(
@@ -2105,14 +2266,18 @@ def seguimientoticket_create(request):
             messages.success(request, "Check creado correctamente.")
             return redirect("seguimientoticket_list")
     else:
-        form = SeguimientoTicketForm()
+        form = SeguimientoTicketForm(request_user=request.user)
     return render(request, "seguimientoticket/form.html", {"form": form})
 
 
 def seguimientoticket_update(request, pk):
     seguimiento = get_object_or_404(SeguimientoTicket, pk=pk)
     if request.method == "POST":
-        form = SeguimientoTicketForm(request.POST, instance=seguimiento)
+        form = SeguimientoTicketForm(
+            request.POST,
+            instance=seguimiento,
+            request_user=request.user,
+        )
         if form.is_valid():
             seguimiento = form.save()
             historial.registrar_actualizacion(
@@ -2127,7 +2292,7 @@ def seguimientoticket_update(request, pk):
             messages.success(request, "Check actualizado correctamente.")
             return redirect("seguimientoticket_list")
     else:
-        form = SeguimientoTicketForm(instance=seguimiento)
+        form = SeguimientoTicketForm(instance=seguimiento, request_user=request.user)
     return render(request, "seguimientoticket/form.html", {"form": form, "object": seguimiento})
 
 
@@ -2140,8 +2305,11 @@ def seguimientoticket_delete(request, pk):
             titulo=f"Seguimiento eliminado: {seguimiento.folio_check or seguimiento.pk}",
             objeto=seguimiento,
         )
+        ticket_pk = seguimiento.ticket_id
         seguimiento.delete()
         messages.success(request, "Check eliminado correctamente.")
+        if ticket_pk and request.GET.get("next") == "ticket":
+            return redirect("ticketit_detail", pk=ticket_pk)
         return redirect("seguimientoticket_list")
     return render(request, "seguimientoticket/confirm_delete.html", {"object": seguimiento})
 
@@ -2876,7 +3044,7 @@ def _build_home_calendar_events():
                 case_type="ticket",
                 case_type_label="Ticket de soporte",
                 case_label=ticket.folio_ticket,
-                action_url=reverse("ticketit_update", args=[ticket.pk]),
+                action_url=reverse("ticketit_detail", args=[ticket.pk]),
                 action_text="Abrir ticket",
             )
         )
