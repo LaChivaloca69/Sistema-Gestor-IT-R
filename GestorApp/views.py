@@ -546,7 +546,7 @@ class PersonalForm(forms.ModelForm):
     password1 = forms.CharField(
         widget=forms.PasswordInput,
         required=False,
-        label="Contrasena",
+        label="Contraseña",
     )
     password2 = forms.CharField(
         widget=forms.PasswordInput,
