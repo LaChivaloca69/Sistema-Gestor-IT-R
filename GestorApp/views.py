@@ -1,3 +1,4 @@
+import csv
 from datetime import date, datetime, timedelta
 from functools import wraps
 
@@ -9,7 +10,7 @@ from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Count, Q, Sum, Max, F
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -55,10 +56,12 @@ from .models import (
     PrioridadSupport,
     Proveedor,
     Puesto,
+    SLA_HORAS_POR_PRIORIDAD,
     SeguimientoTicket,
     TicketIT,
     TipoMoneda,
     TipoMovimiento,
+    TipoMantenimiento,
     TipoTicketSupport,
     TipoPlantillaDocumento,
     Ubicacion,
@@ -83,6 +86,155 @@ def admin_required(view_func):
         return view_func(request, *args, **kwargs)
 
     return _wrapped
+
+
+def _ticket_has_seguimientos(ticket):
+    if ticket is None:
+        return False
+    if hasattr(ticket, "seguimientos_count"):
+        return bool(ticket.seguimientos_count)
+    return ticket.seguimientos.exists()
+
+
+def user_can_view_ticket(user, ticket):
+    if not user or not user.is_authenticated or ticket is None:
+        return False
+    if is_admin_user(user):
+        return True
+    return ticket.solicitado_por_id == user.id
+
+
+def user_can_edit_ticket(user, ticket):
+    if not user or not user.is_authenticated or ticket is None:
+        return False
+    if is_admin_user(user):
+        return True
+    if ticket.solicitado_por_id != user.id:
+        return False
+    # Solicitante solo edita mientras el ticket sigue Abierto y sin checks.
+    return ticket.status == EstadoSupport.ABIERTO and not _ticket_has_seguimientos(ticket)
+
+
+def user_can_delete_ticket(user, ticket):
+    if not is_admin_user(user) or ticket is None:
+        return False
+    return not _ticket_has_seguimientos(ticket)
+
+
+def user_can_manage_ticket_flow(user):
+    return is_admin_user(user)
+
+
+def _deny_ticket_access(request, message="No tienes permisos para este ticket."):
+    messages.error(request, message)
+    return redirect("ticketit_list")
+
+
+def _tickets_for_user(user, qs=None):
+    qs = qs if qs is not None else TicketIT.objects.all()
+    if is_admin_user(user):
+        return qs
+    return qs.filter(solicitado_por=user)
+
+
+def _tickets_sla_vencidos_q(now=None):
+    now = now or timezone.now()
+    query = Q(pk__in=[])  # empty base
+    for prioridad, horas in SLA_HORAS_POR_PRIORIDAD.items():
+        query |= Q(
+            prioridad=prioridad,
+            fecha_support__lt=now - timedelta(hours=horas),
+        )
+    return query
+
+
+def _tickets_sla_por_vencer_q(now=None):
+    """Tickets activos cuyo SLA(service level agreement) aun no vence pero estan cerca del limite."""
+    now = now or timezone.now()
+    query = Q(pk__in=[])
+    for prioridad, horas in SLA_HORAS_POR_PRIORIDAD.items():
+        limite_vencido = now - timedelta(hours=horas)
+        umbral = min(timedelta(hours=4), timedelta(hours=horas) * 0.25)
+        # Por vencer: fecha_support > limite_vencido (aun no vencido)
+        # y fecha_support <= now - (horas*timedelta - umbral)  i.e. within umbral of deadline
+        inicio_aviso = now - timedelta(hours=horas) + umbral
+        query |= Q(
+            prioridad=prioridad,
+            fecha_support__gt=limite_vencido,
+            fecha_support__lte=inicio_aviso,
+        )
+    return query
+
+
+def _tickets_abiertos_qs(user=None):
+    qs = TicketIT.objects.exclude(status=EstadoSupport.CERRADO)
+    if user is not None:
+        qs = _tickets_for_user(user, qs)
+    return qs
+
+
+def _ticket_dashboard_context(user):
+    abiertos = _tickets_abiertos_qs(user).annotate(seguimientos_count=Count("seguimientos"))
+    now = timezone.now()
+    sla_vencidos_qs = abiertos.filter(_tickets_sla_vencidos_q(now)).order_by("fecha_support")
+    sla_por_vencer_qs = abiertos.filter(_tickets_sla_por_vencer_q(now)).order_by("fecha_support")
+    sin_seguimiento_qs = abiertos.filter(seguimientos_count=0).order_by("-fecha_support")
+
+    por_prioridad = []
+    for value, label in PrioridadSupport.choices:
+        count = abiertos.filter(prioridad=value).count()
+        por_prioridad.append(
+            {
+                "value": value,
+                "label": label,
+                "count": count,
+                "horas_sla": SLA_HORAS_POR_PRIORIDAD.get(value),
+            }
+        )
+
+    por_tipo = []
+    for value, label in TipoTicketSupport.choices:
+        por_tipo.append(
+            {
+                "value": value,
+                "label": label,
+                "count": abiertos.filter(tipo_ticket=value).count(),
+            }
+        )
+
+    por_estado = []
+    for value, label in EstadoSupport.choices:
+        if value == EstadoSupport.CERRADO:
+            continue
+        por_estado.append(
+            {
+                "value": value,
+                "label": label,
+                "count": abiertos.filter(status=value).count(),
+            }
+        )
+
+    return {
+        "ticket_dashboard": {
+            "abiertos": abiertos.count(),
+            "sla_vencidos": sla_vencidos_qs.count(),
+            "sla_por_vencer": sla_por_vencer_qs.count(),
+            "sin_seguimiento": sin_seguimiento_qs.count(),
+            "por_prioridad": por_prioridad,
+            "por_tipo": por_tipo,
+            "por_estado": por_estado,
+            "sla_tabla": [
+                {"prioridad": label, "horas": SLA_HORAS_POR_PRIORIDAD[value]}
+                for value, label in PrioridadSupport.choices
+            ],
+            "tickets_sla_vencidos": list(
+                sla_vencidos_qs.select_related("solicitado_por", "asignado_a")[:8]
+            ),
+            "tickets_sin_seguimiento": list(
+                sin_seguimiento_qs.select_related("solicitado_por", "asignado_a")[:8]
+            ),
+        }
+    }
 
 
 def _parse_date(value):
@@ -164,6 +316,52 @@ def _get_equipo_responsable(equipo):
     return None
 
 
+def _cerrar_asignaciones_activas(equipo, exclude_pk=None, observaciones=None):
+    """Marca como Devuelta cualquier asignacion activa del equipo."""
+    if not equipo:
+        return 0
+    qs = AsignacionEquipo.objects.filter(
+        equipo=equipo,
+        estado_asignacion=EstadoAsignacion.ACTIVA,
+    )
+    if exclude_pk:
+        qs = qs.exclude(pk=exclude_pk)
+    now = timezone.now()
+    updated = 0
+    for asignacion in qs:
+        asignacion.estado_asignacion = EstadoAsignacion.DEVUELTA
+        if not asignacion.fecha_devolucion:
+            asignacion.fecha_devolucion = now
+        if observaciones and not asignacion.observaciones:
+            asignacion.observaciones = observaciones
+        asignacion.save(
+            update_fields=["estado_asignacion", "fecha_devolucion", "observaciones"]
+        )
+        updated += 1
+    return updated
+
+
+def _reconciliar_estado_equipo(equipo, save=True):
+    """
+    Disponible/Asignado siguen a la asignacion activa.
+    No toca Baja ni En Mantenimiento.
+    """
+    if not equipo:
+        return None
+    if equipo.estado_equipo in {EstadoEquipo.BAJA, EstadoEquipo.EN_MANTENIMIENTO}:
+        return equipo
+    tiene_activa = AsignacionEquipo.objects.filter(
+        equipo=equipo,
+        estado_asignacion=EstadoAsignacion.ACTIVA,
+    ).exists()
+    nuevo = EstadoEquipo.ASIGNADO if tiene_activa else EstadoEquipo.DISPONIBLE
+    if equipo.estado_equipo != nuevo:
+        equipo.estado_equipo = nuevo
+        if save:
+            equipo.save(update_fields=["estado_equipo"])
+    return equipo
+
+
 def _crear_movimiento(
     equipo,
     tipo_movimiento,
@@ -192,7 +390,7 @@ def _crear_movimiento(
         objeto=movimiento,
         objeto_etiqueta=str(equipo),
         entidad_relacionada=equipo,
-        enlace_nombre="movimientoequipo_update",
+        enlace_nombre="movimientoequipo_detail",
         es_automatico=True,
         nivel=NivelHistorial.INFO,
         metadata={
@@ -1044,6 +1242,149 @@ def categoriaequipo_delete(request, pk):
     return render(request, "categoriaequipo/confirm_delete.html", {"object": categoria})
 
 # ============  Equipo views ==============
+EQUIPO_LIST_PAGE_SIZE = 20
+EQUIPO_ASIGNACION_ALERTA_DIAS = 180
+EQUIPO_MANTENIMIENTO_LARGO_DIAS = 14
+
+
+def _equipo_queryset():
+    return Equipo.objects.select_related(
+        "categoria",
+        "proveedor",
+        "ubicacion",
+        "ubicacion__edificio",
+        "ubicacion__zona",
+    )
+
+
+def _equipos_sin_ubicacion_qs():
+    return (
+        _equipo_queryset()
+        .filter(ubicacion__isnull=True)
+        .exclude(estado_equipo=EstadoEquipo.BAJA)
+        .filter(activo=True)
+    )
+
+
+def _equipos_mantenimiento_largo_qs(now=None, dias=EQUIPO_MANTENIMIENTO_LARGO_DIAS):
+    now = now or timezone.now()
+    limite = now - timedelta(days=dias)
+    return (
+        _equipo_queryset()
+        .filter(estado_equipo=EstadoEquipo.EN_MANTENIMIENTO)
+        .annotate(
+            ultimo_inicio_mant=Max(
+                "movimientos__fecha_movimiento",
+                filter=Q(movimientos__tipo_movimiento=TipoMovimiento.MANTENIMIENTO),
+            )
+        )
+        .filter(Q(ultimo_inicio_mant__lte=limite) | Q(ultimo_inicio_mant__isnull=True))
+        .order_by(F("ultimo_inicio_mant").asc(nulls_first=True), "codigo_inventario")
+    )
+
+
+def _asignaciones_antiguas_qs(today=None, dias=EQUIPO_ASIGNACION_ALERTA_DIAS):
+    today = today or timezone.localdate()
+    cutoff = today - timedelta(days=dias)
+    return (
+        AsignacionEquipo.objects.select_related("equipo", "personal", "equipo__categoria")
+        .filter(
+            estado_asignacion=EstadoAsignacion.ACTIVA,
+            fecha_asignacion__date__lte=cutoff,
+        )
+        .exclude(equipo__estado_equipo=EstadoEquipo.BAJA)
+        .order_by("fecha_asignacion", "pk")
+    )
+
+
+def _equipos_alerta_context(
+    today=None,
+    asignacion_dias=EQUIPO_ASIGNACION_ALERTA_DIAS,
+    mant_dias=EQUIPO_MANTENIMIENTO_LARGO_DIAS,
+):
+    today = today or timezone.localdate()
+    sin_ubicacion_qs = _equipos_sin_ubicacion_qs().order_by("codigo_inventario")
+    mant_largo_qs = _equipos_mantenimiento_largo_qs(dias=mant_dias)
+    asign_antiguas_qs = _asignaciones_antiguas_qs(today=today, dias=asignacion_dias)
+    return {
+        "equipos_sin_ubicacion": list(sin_ubicacion_qs[:8]),
+        "equipos_sin_ubicacion_count": sin_ubicacion_qs.count(),
+        "equipos_mant_largo": list(mant_largo_qs[:8]),
+        "equipos_mant_largo_count": mant_largo_qs.count(),
+        "asignaciones_antiguas": list(asign_antiguas_qs[:8]),
+        "asignaciones_antiguas_count": asign_antiguas_qs.count(),
+        "equipos_asignacion_alerta_dias": asignacion_dias,
+        "equipos_mant_largo_dias": mant_dias,
+    }
+
+
+def _equipo_dashboard_context(today=None):
+    today = today or timezone.localdate()
+    alerta = _equipos_alerta_context(today=today)
+    qs = _equipo_queryset()
+
+    por_estado = []
+    for value, label in EstadoEquipo.choices:
+        por_estado.append(
+            {
+                "value": value,
+                "label": label,
+                "count": qs.filter(estado_equipo=value).count(),
+            }
+        )
+
+    por_categoria = list(
+        qs.values("categoria_id", "categoria__nombre_categoria")
+        .annotate(total=Count("id"))
+        .order_by("-total", "categoria__nombre_categoria")[:10]
+    )
+
+    por_ubicacion = list(
+        qs.exclude(ubicacion__isnull=True)
+        .values(
+            "ubicacion_id",
+            "ubicacion__edificio__nombre_edificio",
+            "ubicacion__zona__nombre_zona",
+            "ubicacion__referencia",
+        )
+        .annotate(total=Count("id"))
+        .order_by("-total")[:8]
+    )
+
+    return {
+        "equipo_dashboard": {
+            "total": qs.count(),
+            "activos": qs.filter(activo=True).exclude(estado_equipo=EstadoEquipo.BAJA).count(),
+            "disponibles": qs.filter(estado_equipo=EstadoEquipo.DISPONIBLE).count(),
+            "asignados": qs.filter(estado_equipo=EstadoEquipo.ASIGNADO).count(),
+            "en_mantenimiento": qs.filter(estado_equipo=EstadoEquipo.EN_MANTENIMIENTO).count(),
+            "baja": qs.filter(estado_equipo=EstadoEquipo.BAJA).count(),
+            "sin_ubicacion": alerta["equipos_sin_ubicacion_count"],
+            "mant_largo": alerta["equipos_mant_largo_count"],
+            "asignaciones_antiguas": alerta["asignaciones_antiguas_count"],
+            "por_estado": por_estado,
+            "por_categoria": por_categoria,
+            "por_ubicacion": por_ubicacion,
+            "lista_sin_ubicacion": alerta["equipos_sin_ubicacion"],
+            "lista_mant_largo": alerta["equipos_mant_largo"],
+            "lista_asignaciones_antiguas": alerta["asignaciones_antiguas"],
+            "asignacion_alerta_dias": alerta["equipos_asignacion_alerta_dias"],
+            "mant_largo_dias": alerta["equipos_mant_largo_dias"],
+        }
+    }
+
+
+def equipo_dashboard(request):
+    return render(
+        request,
+        "equipo/dashboard.html",
+        {
+            "today": timezone.localdate(),
+            **_equipo_dashboard_context(),
+        },
+    )
+
+
 class EquipoForm(forms.ModelForm):
     class Meta:
         model = Equipo
@@ -1057,12 +1398,14 @@ class EquipoForm(forms.ModelForm):
             "proveedor": "Proveedor",
             "Numero_Pedimiento": "Número de pedimiento",
             "descripcion_equipo": "Descripción del equipo",
-            "proveedor": "Proveedor",
             "estado_equipo": "Estado del equipo",
             "ubicacion": "Ubicación",
             "fecha_alta": "Fecha de alta",
             "fecha_baja": "Fecha de baja",
-            }
+            "motivo_baja": "Motivo de baja",
+            "activo": "Activo",
+            "imagen": "Imagen",
+        }
         help_texts = {
             "codigo_inventario": "Código único de inventario del equipo.",
             "numero_serie": "Número de serie del equipo.",
@@ -1072,7 +1415,10 @@ class EquipoForm(forms.ModelForm):
             "proveedor": "Proveedor del equipo.",
             "Numero_Pedimiento": "Número de pedimiento del equipo(si aplica).",
             "descripcion_equipo": "Descripción detallada del equipo.",
-            "estado_equipo": "Estado actual del equipo.",
+            "estado_equipo": (
+                "Disponible/Asignado se sincronizan con la asignacion activa. "
+                "Usa En Mantenimiento/Baja con cuidado."
+            ),
             "ubicacion": "Ubicación física del equipo.",
             "fecha_alta": "Fecha en que se dio de alta el equipo.",
             "fecha_baja": "Fecha en que se dio de baja el equipo (si aplica).",
@@ -1099,17 +1445,21 @@ class EquipoForm(forms.ModelForm):
 
         return imagen
 
-def equipo_list(request):
-    items = Equipo.objects.select_related("categoria", "proveedor", "ubicacion").all()
+
+def _filtrar_equipos(request):
+    items = _equipo_queryset().order_by("-fecha_alta", "-pk")
     search_query = (request.GET.get("q") or "").strip()
     selected_categoria = request.GET.get("categoria", "")
     selected_estado = request.GET.get("estado_equipo", "")
     selected_activo = request.GET.get("activo", "")
     selected_ubicacion = request.GET.get("ubicacion", "")
+    selected_sin_ubicacion = request.GET.get("sin_ubicacion", "")
+    selected_alerta = (request.GET.get("alerta") or "").strip()
     fecha_desde_raw = request.GET.get("fecha_alta_desde", "")
     fecha_hasta_raw = request.GET.get("fecha_alta_hasta", "")
     fecha_mes = request.GET.get("fecha_alta_mes", "")
     fecha_rango = request.GET.get("fecha_alta_rango", "")
+    today = timezone.localdate()
 
     if search_query:
         items = items.filter(
@@ -1117,6 +1467,8 @@ def equipo_list(request):
             | Q(numero_serie__icontains=search_query)
             | Q(marca__icontains=search_query)
             | Q(modelo__icontains=search_query)
+            | Q(descripcion_equipo__icontains=search_query)
+            | Q(Numero_Pedimiento__icontains=search_query)
         )
     if selected_categoria:
         items = items.filter(categoria_id=selected_categoria)
@@ -1126,12 +1478,24 @@ def equipo_list(request):
         items = items.filter(activo=True)
     elif selected_activo == "false":
         items = items.filter(activo=False)
-    if selected_ubicacion:
+    if selected_sin_ubicacion == "1":
+        items = items.filter(ubicacion__isnull=True)
+    elif selected_ubicacion:
         items = items.filter(ubicacion_id=selected_ubicacion)
+
+    if selected_alerta == "sin_ubicacion":
+        items = _equipos_sin_ubicacion_qs().order_by("codigo_inventario")
+    elif selected_alerta == "mant_largo":
+        items = _equipos_mantenimiento_largo_qs()
+    elif selected_alerta == "asignacion_antigua":
+        ids = _asignaciones_antiguas_qs(today=today).values_list("equipo_id", flat=True)
+        items = _equipo_queryset().filter(pk__in=ids).order_by("codigo_inventario")
+    elif selected_alerta == "baja":
+        items = items.filter(estado_equipo=EstadoEquipo.BAJA).order_by("-fecha_baja", "-pk")
 
     fecha_desde = _parse_date(fecha_desde_raw)
     fecha_hasta = _parse_date(fecha_hasta_raw)
-    if not fecha_desde and not fecha_hasta:
+    if not fecha_desde and not fecha_hasta and not selected_alerta:
         month_start, month_end = _month_bounds(fecha_mes)
         if month_start:
             fecha_desde, fecha_hasta = month_start, month_end
@@ -1139,7 +1503,75 @@ def equipo_list(request):
             range_start, range_end = _quick_range_bounds(fecha_rango)
             if range_start:
                 fecha_desde, fecha_hasta = range_start, range_end
-    items = _apply_date_filters(items, "fecha_alta", fecha_desde, fecha_hasta)
+    if not selected_alerta:
+        items = _apply_date_filters(items, "fecha_alta", fecha_desde, fecha_hasta)
+
+    filters = {
+        "search_query": search_query,
+        "selected_categoria": selected_categoria,
+        "selected_estado": selected_estado,
+        "selected_activo": selected_activo,
+        "selected_ubicacion": selected_ubicacion,
+        "selected_sin_ubicacion": selected_sin_ubicacion,
+        "selected_alerta": selected_alerta,
+        "fecha_alta_desde": fecha_desde_raw,
+        "fecha_alta_hasta": fecha_hasta_raw,
+        "fecha_alta_mes": fecha_mes,
+        "fecha_alta_rango": fecha_rango,
+    }
+    return items, filters
+
+
+def _export_equipos_csv(queryset):
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = 'attachment; filename="inventario_equipos.csv"'
+    response.write("\ufeff")
+    writer = csv.writer(response)
+    writer.writerow(
+        [
+            "Codigo",
+            "Serie",
+            "Marca",
+            "Modelo",
+            "Categoria",
+            "Estado",
+            "Activo",
+            "Ubicacion",
+            "Proveedor",
+            "Pedimiento",
+            "Fecha alta",
+            "Fecha baja",
+            "Motivo baja",
+        ]
+    )
+    for equipo in queryset.select_related("categoria", "proveedor", "ubicacion"):
+        writer.writerow(
+            [
+                equipo.codigo_inventario,
+                equipo.numero_serie or "",
+                equipo.marca or "",
+                equipo.modelo or "",
+                str(equipo.categoria) if equipo.categoria_id else "",
+                equipo.estado_equipo,
+                "Si" if equipo.activo else "No",
+                str(equipo.ubicacion) if equipo.ubicacion_id else "",
+                str(equipo.proveedor) if equipo.proveedor_id else "",
+                equipo.Numero_Pedimiento or "",
+                equipo.fecha_alta.isoformat() if equipo.fecha_alta else "",
+                equipo.fecha_baja.isoformat() if equipo.fecha_baja else "",
+                equipo.motivo_baja or "",
+            ]
+        )
+    return response
+
+
+def equipo_list(request):
+    items, filters = _filtrar_equipos(request)
+    if (request.GET.get("export") or "").lower() == "csv":
+        return _export_equipos_csv(items)
+
+    paginator = Paginator(items, EQUIPO_LIST_PAGE_SIZE)
+    page_obj = paginator.get_page(request.GET.get("page"))
 
     ubicaciones = Ubicacion.objects.select_related("edificio", "zona").order_by(
         "edificio__nombre_edificio",
@@ -1147,23 +1579,55 @@ def equipo_list(request):
         "referencia",
     )
     context = {
-        "items": items,
+        "items": page_obj,
+        "page_obj": page_obj,
         "categoria_choices": CategoriaEquipo.objects.order_by(
             "nombre_categoria"
         ).values_list("id", "nombre_categoria"),
         "estado_choices": EstadoEquipo.choices,
         "ubicacion_choices": [(ubicacion.pk, str(ubicacion)) for ubicacion in ubicaciones],
-        "search_query": search_query,
-        "selected_categoria": selected_categoria,
-        "selected_estado": selected_estado,
-        "selected_activo": selected_activo,
-        "selected_ubicacion": selected_ubicacion,
-        "fecha_alta_desde": fecha_desde_raw,
-        "fecha_alta_hasta": fecha_hasta_raw,
-        "fecha_alta_mes": fecha_mes,
-        "fecha_alta_rango": fecha_rango,
+        "equipos_asignacion_alerta_dias": EQUIPO_ASIGNACION_ALERTA_DIAS,
+        "equipos_mant_largo_dias": EQUIPO_MANTENIMIENTO_LARGO_DIAS,
+        **filters,
     }
     return render(request, "equipo/list.html", context)
+
+
+def equipo_detail(request, pk):
+    equipo = get_object_or_404(_equipo_queryset(), pk=pk)
+    asignacion_activa = _get_equipo_asignacion_activa(equipo)
+    movimientos = (
+        MovimientoEquipo.objects.select_related("responsable")
+        .filter(equipo=equipo)
+        .order_by("-fecha_movimiento", "-pk")[:20]
+    )
+    asignaciones = (
+        AsignacionEquipo.objects.select_related("personal")
+        .filter(equipo=equipo)
+        .order_by("-fecha_asignacion", "-pk")[:10]
+    )
+    mantenimientos = (
+        Mantenimiento.objects.select_related("cierre")
+        .filter(equipo=equipo)
+        .order_by("-fecha_programada", "-pk")[:10]
+    )
+    tickets = (
+        TicketIT.objects.select_related("solicitado_por", "asignado_a")
+        .filter(equipo=equipo)
+        .order_by("-fecha_support", "-pk")[:10]
+    )
+    return render(
+        request,
+        "equipo/detail.html",
+        {
+            "object": equipo,
+            "asignacion_activa": asignacion_activa,
+            "movimientos": movimientos,
+            "asignaciones": asignaciones,
+            "mantenimientos": mantenimientos,
+            "tickets": tickets,
+        },
+    )
 
 
 def equipo_create(request):
@@ -1171,12 +1635,13 @@ def equipo_create(request):
         form = EquipoForm(request.POST, request.FILES)
         if form.is_valid():
             equipo = form.save()
+            _reconciliar_estado_equipo(equipo)
             historial.registrar_creacion(
                 request,
                 modulo=ModuloHistorial.EQUIPO,
                 titulo=f"Equipo dado de alta: {equipo.codigo_inventario}",
                 objeto=equipo,
-                enlace_nombre="equipo_update",
+                enlace_nombre="equipo_detail",
             )
             _crear_movimiento(
                 equipo,
@@ -1187,27 +1652,28 @@ def equipo_create(request):
                 request=request,
             )
             messages.success(request, "Equipo creado correctamente.")
-            return redirect("equipo_list")
+            return redirect("equipo_detail", pk=equipo.pk)
     else:
         form = EquipoForm()
     return render(request, "equipo/form.html", {"form": form})
 
 
 def equipo_update(request, pk):
-    equipo = get_object_or_404(Equipo, pk=pk)
+    equipo = get_object_or_404(_equipo_queryset(), pk=pk)
     ubicacion_anterior = equipo.ubicacion
     estado_anterior = equipo.estado_equipo
     if request.method == "POST":
         form = EquipoForm(request.POST, request.FILES, instance=equipo)
         if form.is_valid():
             equipo = form.save()
+            _reconciliar_estado_equipo(equipo)
             historial.registrar_actualizacion(
                 request,
                 modulo=ModuloHistorial.EQUIPO,
                 titulo=f"Equipo actualizado: {equipo.codigo_inventario}",
                 objeto=equipo,
                 form=form,
-                enlace_nombre="equipo_update",
+                enlace_nombre="equipo_detail",
             )
             movimiento_creado = False
             if (
@@ -1234,28 +1700,28 @@ def equipo_update(request, pk):
                     request=request,
                 )
             messages.success(request, "Equipo actualizado correctamente.")
-            return redirect("equipo_list")
+            return redirect("equipo_detail", pk=equipo.pk)
     else:
         form = EquipoForm(instance=equipo)
     return render(request, "equipo/form.html", {"form": form, "object": equipo})
 
 
 def equipo_delete(request, pk):
-    equipo = get_object_or_404(Equipo, pk=pk)
+    equipo = get_object_or_404(_equipo_queryset(), pk=pk)
+    if not equipo.puede_eliminar_fisico:
+        messages.error(
+            request,
+            "No se puede eliminar: el equipo tiene historial (asignaciones, "
+            "mantenimientos, tickets o movimientos). Usa Dar de baja.",
+        )
+        return redirect("equipo_detail", pk=pk)
+
     if request.method == "POST":
         etiqueta = equipo.codigo_inventario
-        _crear_movimiento(
-            equipo,
-            TipoMovimiento.DADA_DE_BAJA,
-            origen=equipo.ubicacion,
-            destino=None,
-            responsable=_get_equipo_responsable(equipo),
-            request=request,
-        )
         historial.registrar_eliminacion(
             request,
             modulo=ModuloHistorial.EQUIPO,
-            titulo=f"Equipo dado de baja: {etiqueta}",
+            titulo=f"Equipo eliminado: {etiqueta}",
             objeto=equipo,
             metadata={"codigo_inventario": etiqueta},
             nivel=NivelHistorial.CRITICO,
@@ -1263,9 +1729,410 @@ def equipo_delete(request, pk):
         equipo.delete()
         messages.success(request, "Equipo eliminado correctamente.")
         return redirect("equipo_list")
-    return render(request, "equipo/confirm_delete.html", {"object": equipo})
+    return render(
+        request,
+        "equipo/confirm_delete.html",
+        {"object": equipo, "puede_eliminar": True},
+    )
+
+
+class EquipoBajaForm(forms.Form):
+    fecha_baja = forms.DateField(
+        label="Fecha de baja",
+        widget=forms.DateInput(attrs={"type": "date"}),
+    )
+    motivo_baja = forms.CharField(
+        label="Motivo de baja",
+        widget=forms.Textarea(attrs={"rows": 3}),
+        max_length=255,
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if not self.is_bound:
+            self.fields["fecha_baja"].initial = timezone.localdate()
+
+
+class EquipoUbicacionForm(forms.Form):
+    ubicacion = forms.ModelChoiceField(
+        queryset=Ubicacion.objects.none(),
+        required=False,
+        label="Nueva ubicacion",
+        empty_label="Sin ubicacion",
+    )
+    observaciones = forms.CharField(
+        required=False,
+        label="Observaciones",
+        max_length=255,
+        widget=forms.TextInput(),
+    )
+
+    def __init__(self, *args, **kwargs):
+        equipo = kwargs.pop("equipo", None)
+        super().__init__(*args, **kwargs)
+        self.fields["ubicacion"].queryset = Ubicacion.objects.select_related(
+            "edificio", "zona"
+        ).order_by(
+            "edificio__nombre_edificio",
+            "zona__nombre_zona",
+            "referencia",
+        )
+        if equipo and not self.is_bound:
+            self.fields["ubicacion"].initial = equipo.ubicacion_id
+
+
+class EquipoAsignarForm(forms.Form):
+    personal = forms.ModelChoiceField(
+        queryset=Personal.objects.none(),
+        label="Personal",
+    )
+    observaciones = forms.CharField(
+        required=False,
+        label="Observaciones",
+        max_length=255,
+        widget=forms.TextInput(),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["personal"].queryset = Personal.objects.order_by(
+            "numero_empleado",
+            "nombre",
+            "apellido_paterno",
+            "apellido_materno",
+        )
+
+
+def equipo_dar_baja(request, pk):
+    equipo = get_object_or_404(_equipo_queryset(), pk=pk)
+    if not equipo.puede_dar_de_baja:
+        messages.error(
+            request,
+            "No se puede dar de baja: ya esta en Baja o En Mantenimiento "
+            "(cierra el mantenimiento primero).",
+        )
+        return redirect("equipo_detail", pk=pk)
+
+    if request.method == "POST":
+        form = EquipoBajaForm(request.POST)
+        if form.is_valid():
+            _cerrar_asignaciones_activas(
+                equipo,
+                observaciones="Cerrada automaticamente por baja del equipo.",
+            )
+            equipo.estado_equipo = EstadoEquipo.BAJA
+            equipo.activo = False
+            equipo.fecha_baja = form.cleaned_data["fecha_baja"]
+            equipo.motivo_baja = form.cleaned_data["motivo_baja"]
+            equipo.save(
+                update_fields=[
+                    "estado_equipo",
+                    "activo",
+                    "fecha_baja",
+                    "motivo_baja",
+                ]
+            )
+            _crear_movimiento(
+                equipo,
+                TipoMovimiento.DADA_DE_BAJA,
+                origen=equipo.ubicacion,
+                destino=None,
+                responsable=_get_equipo_responsable(equipo),
+                observaciones=equipo.motivo_baja,
+                request=request,
+            )
+            historial.registrar_historial(
+                request=request,
+                modulo=ModuloHistorial.EQUIPO,
+                accion=AccionHistorial.CAMBIO_ESTADO,
+                titulo=f"Equipo dado de baja: {equipo.codigo_inventario}",
+                objeto=equipo,
+                enlace_nombre="equipo_detail",
+                enlace_pk=equipo.pk,
+                nivel=NivelHistorial.ADVERTENCIA,
+                metadata={
+                    "estado": equipo.estado_equipo,
+                    "fecha_baja": equipo.fecha_baja.isoformat(),
+                    "motivo_baja": equipo.motivo_baja,
+                },
+            )
+            messages.success(request, f"{equipo.codigo_inventario} dado de baja.")
+            return redirect("equipo_detail", pk=pk)
+    else:
+        form = EquipoBajaForm()
+
+    return render(
+        request,
+        "equipo/baja.html",
+        {"object": equipo, "form": form},
+    )
+
+
+def equipo_reactivar(request, pk):
+    equipo = get_object_or_404(_equipo_queryset(), pk=pk)
+    if request.method != "POST":
+        return redirect("equipo_detail", pk=pk)
+    if not equipo.puede_reactivar:
+        messages.error(request, "Solo se pueden reactivar equipos en Baja.")
+        return redirect("equipo_detail", pk=pk)
+
+    equipo.activo = True
+    equipo.fecha_baja = None
+    equipo.motivo_baja = None
+    equipo.estado_equipo = EstadoEquipo.DISPONIBLE
+    equipo.save(
+        update_fields=["activo", "fecha_baja", "motivo_baja", "estado_equipo"]
+    )
+    _reconciliar_estado_equipo(equipo)
+    _crear_movimiento(
+        equipo,
+        TipoMovimiento.DADA_DE_ALTA,
+        origen=None,
+        destino=equipo.ubicacion,
+        responsable=_get_equipo_responsable(equipo),
+        observaciones="Reactivacion de equipo en Baja.",
+        request=request,
+    )
+    historial.registrar_historial(
+        request=request,
+        modulo=ModuloHistorial.EQUIPO,
+        accion=AccionHistorial.CAMBIO_ESTADO,
+        titulo=f"Equipo reactivado: {equipo.codigo_inventario}",
+        objeto=equipo,
+        enlace_nombre="equipo_detail",
+        enlace_pk=equipo.pk,
+        metadata={"estado": equipo.estado_equipo},
+    )
+    messages.success(request, f"{equipo.codigo_inventario} reactivado.")
+    return redirect("equipo_detail", pk=pk)
+
+
+def equipo_devolver(request, pk):
+    equipo = get_object_or_404(_equipo_queryset(), pk=pk)
+    if request.method != "POST":
+        return redirect("equipo_detail", pk=pk)
+    asignacion = _get_equipo_asignacion_activa(equipo)
+    if not asignacion:
+        messages.error(request, "No hay asignacion activa para devolver.")
+        return redirect("equipo_detail", pk=pk)
+
+    personal = asignacion.personal
+    asignacion.estado_asignacion = EstadoAsignacion.DEVUELTA
+    asignacion.fecha_devolucion = timezone.now()
+    asignacion.save(update_fields=["estado_asignacion", "fecha_devolucion"])
+    _reconciliar_estado_equipo(equipo)
+    _crear_movimiento(
+        equipo,
+        TipoMovimiento.CAMBIO_ASIGNACION,
+        origen=equipo.ubicacion,
+        destino=equipo.ubicacion,
+        responsable=personal,
+        observaciones=f"Devolucion de {personal}.",
+        request=request,
+    )
+    historial.registrar_historial(
+        request=request,
+        modulo=ModuloHistorial.ASIGNACION,
+        accion=AccionHistorial.CAMBIO_ESTADO,
+        titulo=f"Devolucion: {equipo.codigo_inventario} / {personal}",
+        objeto=asignacion,
+        entidad_relacionada=equipo,
+        enlace_nombre="equipo_detail",
+        enlace_pk=equipo.pk,
+    )
+    messages.success(request, f"Equipo devuelto por {personal}.")
+    return redirect("equipo_detail", pk=pk)
+
+
+def equipo_asignar(request, pk):
+    equipo = get_object_or_404(_equipo_queryset(), pk=pk)
+    if not equipo.puede_asignarse:
+        messages.error(
+            request,
+            "No se puede asignar este equipo (Baja, En Mantenimiento o inactivo).",
+        )
+        return redirect("equipo_detail", pk=pk)
+
+    if request.method == "POST":
+        form = EquipoAsignarForm(request.POST)
+        if form.is_valid():
+            personal = form.cleaned_data["personal"]
+            observaciones = form.cleaned_data.get("observaciones") or ""
+            existente = _get_equipo_asignacion_activa(equipo)
+            if existente:
+                _cerrar_asignaciones_activas(
+                    equipo,
+                    observaciones="Cerrada automaticamente por reasignacion.",
+                )
+            asignacion = AsignacionEquipo.objects.create(
+                equipo=equipo,
+                personal=personal,
+                estado_asignacion=EstadoAsignacion.ACTIVA,
+                observaciones=observaciones or None,
+            )
+            _reconciliar_estado_equipo(equipo)
+            _crear_movimiento(
+                equipo,
+                TipoMovimiento.CAMBIO_ASIGNACION if existente else TipoMovimiento.ASIGNACION,
+                origen=equipo.ubicacion,
+                destino=equipo.ubicacion,
+                responsable=personal,
+                observaciones=observaciones or None,
+                request=request,
+            )
+            historial.registrar_historial(
+                request=request,
+                modulo=ModuloHistorial.ASIGNACION,
+                accion=AccionHistorial.ASIGNACION,
+                titulo=f"Asignacion de {equipo} a {personal}",
+                objeto=asignacion,
+                entidad_relacionada=equipo,
+                enlace_nombre="equipo_detail",
+                enlace_pk=equipo.pk,
+            )
+            messages.success(request, f"Equipo asignado a {personal}.")
+            return redirect("equipo_detail", pk=pk)
+    else:
+        form = EquipoAsignarForm()
+
+    return render(
+        request,
+        "equipo/asignar.html",
+        {"object": equipo, "form": form},
+    )
+
+
+def equipo_cambiar_ubicacion(request, pk):
+    equipo = get_object_or_404(_equipo_queryset(), pk=pk)
+    if not equipo.puede_cambiar_ubicacion:
+        messages.error(request, "No se puede cambiar ubicacion de un equipo en Baja.")
+        return redirect("equipo_detail", pk=pk)
+
+    if request.method == "POST":
+        form = EquipoUbicacionForm(request.POST, equipo=equipo)
+        if form.is_valid():
+            ubicacion_anterior = equipo.ubicacion
+            nueva = form.cleaned_data.get("ubicacion")
+            observaciones = form.cleaned_data.get("observaciones") or ""
+            if ubicacion_anterior == nueva:
+                messages.info(request, "La ubicacion no cambio.")
+                return redirect("equipo_detail", pk=pk)
+            equipo.ubicacion = nueva
+            equipo.save(update_fields=["ubicacion"])
+            _crear_movimiento(
+                equipo,
+                TipoMovimiento.CAMBIO_UBICACION,
+                origen=ubicacion_anterior,
+                destino=nueva,
+                responsable=_get_equipo_responsable(equipo),
+                observaciones=observaciones or None,
+                request=request,
+            )
+            historial.registrar_historial(
+                request=request,
+                modulo=ModuloHistorial.EQUIPO,
+                accion=AccionHistorial.ACTUALIZACION,
+                titulo=f"Cambio de ubicacion: {equipo.codigo_inventario}",
+                objeto=equipo,
+                enlace_nombre="equipo_detail",
+                enlace_pk=equipo.pk,
+                metadata={
+                    "origen": str(ubicacion_anterior) if ubicacion_anterior else None,
+                    "destino": str(nueva) if nueva else None,
+                },
+            )
+            messages.success(request, "Ubicacion actualizada.")
+            return redirect("equipo_detail", pk=pk)
+    else:
+        form = EquipoUbicacionForm(equipo=equipo)
+
+    return render(
+        request,
+        "equipo/ubicacion.html",
+        {"object": equipo, "form": form},
+    )
 
 # ============  MovimientoEquipo views ==============
+MOVIMIENTO_LIST_PAGE_SIZE = 25
+
+
+def _movimiento_queryset():
+    return MovimientoEquipo.objects.select_related(
+        "equipo",
+        "equipo__categoria",
+        "responsable",
+    )
+
+
+def _filtrar_movimientos(request):
+    items = _movimiento_queryset().order_by("-fecha_movimiento", "-pk")
+    search_query = (request.GET.get("q") or "").strip()
+    selected_tipo = request.GET.get("tipo_movimiento", "")
+    selected_equipo = request.GET.get("equipo", "")
+    fecha_desde_raw = request.GET.get("fecha_desde", "")
+    fecha_hasta_raw = request.GET.get("fecha_hasta", "")
+
+    if search_query:
+        items = items.filter(
+            Q(equipo__codigo_inventario__icontains=search_query)
+            | Q(origen__icontains=search_query)
+            | Q(destino__icontains=search_query)
+            | Q(observaciones__icontains=search_query)
+            | Q(responsable__nombre__icontains=search_query)
+            | Q(responsable__apellido_paterno__icontains=search_query)
+        )
+    if selected_tipo:
+        items = items.filter(tipo_movimiento=selected_tipo)
+    if selected_equipo:
+        items = items.filter(equipo_id=selected_equipo)
+
+    fecha_desde = _parse_date(fecha_desde_raw)
+    fecha_hasta = _parse_date(fecha_hasta_raw)
+    items = _apply_date_filters(items, "fecha_movimiento", fecha_desde, fecha_hasta)
+
+    filters = {
+        "search_query": search_query,
+        "selected_tipo": selected_tipo,
+        "selected_equipo": selected_equipo,
+        "fecha_desde": fecha_desde_raw,
+        "fecha_hasta": fecha_hasta_raw,
+    }
+    return items, filters
+
+
+def _export_movimientos_csv(queryset):
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = 'attachment; filename="movimientos_equipo.csv"'
+    response.write("\ufeff")
+    writer = csv.writer(response)
+    writer.writerow(
+        [
+            "Fecha",
+            "Equipo",
+            "Tipo",
+            "Origen",
+            "Destino",
+            "Responsable",
+            "Observaciones",
+        ]
+    )
+    for item in queryset:
+        writer.writerow(
+            [
+                timezone.localtime(item.fecha_movimiento).strftime("%Y-%m-%d %H:%M")
+                if item.fecha_movimiento
+                else "",
+                str(item.equipo) if item.equipo_id else "",
+                item.tipo_movimiento,
+                item.origen or "",
+                item.destino or "",
+                str(item.responsable) if item.responsable_id else "",
+                item.observaciones or "",
+            ]
+        )
+    return response
+
+
 class MovimientoEquipoForm(forms.ModelForm):
     ubicacion_origen = forms.ModelChoiceField(
         queryset=Ubicacion.objects.none(),
@@ -1299,6 +2166,10 @@ class MovimientoEquipoForm(forms.ModelForm):
         help_texts = {
             "responsable": "Responsable actual del equipo.",
             "observaciones": "Opcional. Puedes agregar comentarios sobre el movimiento.",
+            "tipo_movimiento": (
+                "Preferible usar las acciones del detalle del equipo "
+                "(asignar, devolver, ubicacion, baja). Este registro es solo auditoria."
+            ),
         }
         widgets = {
             "observaciones": forms.Textarea(attrs={"rows": 3}),
@@ -1363,6 +2234,7 @@ class MovimientoEquipoForm(forms.ModelForm):
                 equipo.save(update_fields=["ubicacion"])
         return instance
 
+
 def movimientoequipo_list(request):
     items = HistorialActividad.objects.select_related("usuario").order_by("-fecha")
     selected_modulo = request.GET.get("modulo", "")
@@ -1417,8 +2289,34 @@ def movimientoequipo_list(request):
 
 
 def movimientoequipo_registros(request):
-    items = MovimientoEquipo.objects.select_related("equipo", "responsable").order_by("-fecha_movimiento")
-    return render(request, "movimientoequipo/registros.html", {"items": items})
+    items, filters = _filtrar_movimientos(request)
+    if (request.GET.get("export") or "").lower() == "csv":
+        return _export_movimientos_csv(items)
+
+    paginator = Paginator(items, MOVIMIENTO_LIST_PAGE_SIZE)
+    page_obj = paginator.get_page(request.GET.get("page"))
+    context = {
+        "items": page_obj,
+        "page_obj": page_obj,
+        "tipo_choices": TipoMovimiento.choices,
+        "equipo_choices": Equipo.objects.order_by("codigo_inventario").values_list(
+            "id", "codigo_inventario"
+        ),
+        **filters,
+    }
+    return render(request, "movimientoequipo/registros.html", context)
+
+
+def movimientoequipo_detail(request, pk):
+    movimiento = get_object_or_404(_movimiento_queryset(), pk=pk)
+    return render(
+        request,
+        "movimientoequipo/detail.html",
+        {
+            "object": movimiento,
+            "equipo": movimiento.equipo,
+        },
+    )
 
 
 def movimientoequipo_equipo_info(request):
@@ -1459,50 +2357,37 @@ def movimientoequipo_create(request):
                 titulo=f"Movimiento manual: {movimiento.equipo}",
                 descripcion=movimiento.observaciones or "",
                 objeto=movimiento,
-                enlace_nombre="movimientoequipo_update",
+                enlace_nombre="movimientoequipo_detail",
                 metadata={"tipo_movimiento": movimiento.tipo_movimiento},
             )
-            messages.success(request, "Movimiento creado correctamente.")
-            return redirect("movimientoequipo_list")
+            messages.success(
+                request,
+                "Movimiento registrado. Queda como auditoria (no editable).",
+            )
+            return redirect("movimientoequipo_detail", pk=movimiento.pk)
     else:
-        form = MovimientoEquipoForm()
+        initial = {}
+        equipo_id = request.GET.get("equipo")
+        if equipo_id and str(equipo_id).isdigit():
+            initial["equipo"] = int(equipo_id)
+        form = MovimientoEquipoForm(initial=initial)
     return render(request, "movimientoequipo/form.html", {"form": form})
 
 
 def movimientoequipo_update(request, pk):
-    movimiento = get_object_or_404(MovimientoEquipo, pk=pk)
-    if request.method == "POST":
-        form = MovimientoEquipoForm(request.POST, instance=movimiento)
-        if form.is_valid():
-            movimiento = form.save()
-            historial.registrar_actualizacion(
-                request,
-                modulo=ModuloHistorial.MOVIMIENTO_EQUIPO,
-                titulo=f"Movimiento actualizado: {movimiento.equipo}",
-                objeto=movimiento,
-                form=form,
-                enlace_nombre="movimientoequipo_update",
-            )
-            messages.success(request, "Movimiento actualizado correctamente.")
-            return redirect("movimientoequipo_list")
-    else:
-        form = MovimientoEquipoForm(instance=movimiento)
-    return render(request, "movimientoequipo/form.html", {"form": form, "object": movimiento})
+    messages.warning(
+        request,
+        "Los movimientos son solo auditoria y no se pueden editar.",
+    )
+    return redirect("movimientoequipo_detail", pk=pk)
 
 
 def movimientoequipo_delete(request, pk):
-    movimiento = get_object_or_404(MovimientoEquipo, pk=pk)
-    if request.method == "POST":
-        historial.registrar_eliminacion(
-            request,
-            modulo=ModuloHistorial.MOVIMIENTO_EQUIPO,
-            titulo=f"Movimiento eliminado: {movimiento.equipo}",
-            objeto=movimiento,
-        )
-        movimiento.delete()
-        messages.success(request, "Movimiento eliminado correctamente.")
-        return redirect("movimientoequipo_list")
-    return render(request, "movimientoequipo/confirm_delete.html", {"object": movimiento})
+    messages.warning(
+        request,
+        "Los movimientos son solo auditoria y no se pueden eliminar.",
+    )
+    return redirect("movimientoequipo_detail", pk=pk)
 
 # ============  AsignacionEquipo views ==============
 # Formulario de asignacion de equipo
@@ -1520,6 +2405,10 @@ class AsignacionEquipoForm(forms.ModelForm):
         }
         help_texts = {
             "observaciones": "Observaciones o notas a tomar encuenta.",
+            "estado_asignacion": (
+                "Activa pone el equipo en Asignado. Devuelta/Extraviada lo libera "
+                "(si no hay otra activa)."
+            ),
         }
         widgets = {
             "fecha_asignacion": forms.DateTimeInput(attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M"),
@@ -1536,6 +2425,38 @@ class AsignacionEquipoForm(forms.ModelForm):
                 format="%Y-%m-%dT%H:%M",
             )
             fecha_devolucion.input_formats = ["%Y-%m-%dT%H:%M"]
+        equipo_field = self.fields.get("equipo")
+        if equipo_field:
+            if self.instance and self.instance.pk:
+                equipo_field.queryset = Equipo.objects.order_by("codigo_inventario")
+            else:
+                equipo_field.queryset = (
+                    Equipo.objects.exclude(
+                        estado_equipo__in=[EstadoEquipo.BAJA, EstadoEquipo.EN_MANTENIMIENTO]
+                    )
+                    .filter(activo=True)
+                    .order_by("codigo_inventario")
+                )
+
+    def clean(self):
+        cleaned = super().clean()
+        equipo = cleaned.get("equipo")
+        estado = cleaned.get("estado_asignacion") or EstadoAsignacion.ACTIVA
+        if equipo and estado == EstadoAsignacion.ACTIVA:
+            if equipo.estado_equipo == EstadoEquipo.BAJA:
+                raise ValidationError("No se puede asignar un equipo en Baja.")
+            if equipo.estado_equipo == EstadoEquipo.EN_MANTENIMIENTO:
+                raise ValidationError(
+                    "No se puede asignar un equipo En Mantenimiento. "
+                    "Cierra o cancela el mantenimiento primero."
+                )
+            if not equipo.activo:
+                raise ValidationError("No se puede asignar un equipo inactivo.")
+        if estado in {EstadoAsignacion.DEVUELTA, EstadoAsignacion.EXTRAVIADA}:
+            if not cleaned.get("fecha_devolucion"):
+                cleaned["fecha_devolucion"] = timezone.now()
+        return cleaned
+
 
 def asignacionequipo_list(request):
     items = AsignacionEquipo.objects.select_related("equipo", "personal").all()
@@ -1595,18 +2516,31 @@ def asignacionequipo_list(request):
 
 
 def asignacionequipo_create(request):
+    initial = {}
+    equipo_id = request.GET.get("equipo")
+    if equipo_id:
+        initial["equipo"] = equipo_id
+
     if request.method == "POST":
         form = AsignacionEquipoForm(request.POST)
         if form.is_valid():
             equipo = form.cleaned_data.get("equipo")
             personal = form.cleaned_data.get("personal")
+            estado = form.cleaned_data.get("estado_asignacion")
             existente_activo = False
-            if equipo:
+            if equipo and estado == EstadoAsignacion.ACTIVA:
                 existente_activo = AsignacionEquipo.objects.filter(
                     equipo=equipo,
                     estado_asignacion=EstadoAsignacion.ACTIVA,
                 ).exists()
+                if existente_activo:
+                    _cerrar_asignaciones_activas(
+                        equipo,
+                        observaciones="Cerrada automaticamente por reasignacion.",
+                    )
             asignacion = form.save()
+            if equipo:
+                _reconciliar_estado_equipo(equipo)
             historial.registrar_historial(
                 request=request,
                 modulo=ModuloHistorial.ASIGNACION,
@@ -1614,9 +2548,10 @@ def asignacionequipo_create(request):
                 titulo=f"Asignacion de {equipo} a {personal}",
                 objeto=asignacion,
                 entidad_relacionada=equipo,
-                enlace_nombre="asignacionequipo_update",
+                enlace_nombre="equipo_detail",
+                enlace_pk=equipo.pk if equipo else None,
             )
-            if equipo:
+            if equipo and estado == EstadoAsignacion.ACTIVA:
                 tipo_movimiento = (
                     TipoMovimiento.CAMBIO_ASIGNACION
                     if existente_activo
@@ -1631,9 +2566,11 @@ def asignacionequipo_create(request):
                     request=request,
                 )
             messages.success(request, "Asignacion creada correctamente.")
+            if equipo:
+                return redirect("equipo_detail", pk=equipo.pk)
             return redirect("asignacionequipo_list")
     else:
-        form = AsignacionEquipoForm()
+        form = AsignacionEquipoForm(initial=initial)
     return render(request, "asignacionequipo/form.html", {"form": form})
 
 
@@ -1641,10 +2578,29 @@ def asignacionequipo_update(request, pk):
     asignacion = get_object_or_404(AsignacionEquipo, pk=pk)
     equipo_anterior_id = asignacion.equipo_id
     personal_anterior_id = asignacion.personal_id
+    estado_anterior = asignacion.estado_asignacion
     if request.method == "POST":
         form = AsignacionEquipoForm(request.POST, instance=asignacion)
         if form.is_valid():
+            estado = form.cleaned_data.get("estado_asignacion")
+            equipo = form.cleaned_data.get("equipo")
+            if (
+                equipo
+                and estado == EstadoAsignacion.ACTIVA
+                and estado_anterior != EstadoAsignacion.ACTIVA
+            ):
+                _cerrar_asignaciones_activas(
+                    equipo,
+                    exclude_pk=asignacion.pk,
+                    observaciones="Cerrada automaticamente por reasignacion.",
+                )
             asignacion = form.save()
+            equipos_a_sync = {asignacion.equipo_id, equipo_anterior_id}
+            for eq_id in equipos_a_sync:
+                if eq_id:
+                    eq = Equipo.objects.filter(pk=eq_id).first()
+                    if eq:
+                        _reconciliar_estado_equipo(eq)
             historial.registrar_actualizacion(
                 request,
                 modulo=ModuloHistorial.ASIGNACION,
@@ -1652,11 +2608,16 @@ def asignacionequipo_update(request, pk):
                 objeto=asignacion,
                 form=form,
                 entidad_relacionada=asignacion.equipo,
-                enlace_nombre="asignacionequipo_update",
+                enlace_nombre="equipo_detail",
+                enlace_pk=asignacion.equipo_id,
             )
             if (
                 asignacion.equipo_id != equipo_anterior_id
                 or asignacion.personal_id != personal_anterior_id
+                or (
+                    estado == EstadoAsignacion.ACTIVA
+                    and estado_anterior != EstadoAsignacion.ACTIVA
+                )
             ):
                 _crear_movimiento(
                     asignacion.equipo,
@@ -1667,7 +2628,7 @@ def asignacionequipo_update(request, pk):
                     request=request,
                 )
             messages.success(request, "Asignacion actualizada correctamente.")
-            return redirect("asignacionequipo_list")
+            return redirect("equipo_detail", pk=asignacion.equipo_id)
     else:
         form = AsignacionEquipoForm(instance=asignacion)
     return render(request, "asignacionequipo/form.html", {"form": form, "object": asignacion})
@@ -1675,15 +2636,21 @@ def asignacionequipo_update(request, pk):
 
 def asignacionequipo_delete(request, pk):
     asignacion = get_object_or_404(AsignacionEquipo, pk=pk)
+    equipo = asignacion.equipo
     if request.method == "POST":
         historial.registrar_eliminacion(
             request,
             modulo=ModuloHistorial.ASIGNACION,
             titulo=f"Asignacion eliminada: {asignacion.equipo} / {asignacion.personal}",
             objeto=asignacion,
+            entidad_relacionada=equipo,
         )
         asignacion.delete()
+        if equipo:
+            _reconciliar_estado_equipo(equipo)
         messages.success(request, "Asignacion eliminada correctamente.")
+        if equipo:
+            return redirect("equipo_detail", pk=equipo.pk)
         return redirect("asignacionequipo_list")
     return render(request, "asignacionequipo/confirm_delete.html", {"object": asignacion})
 
@@ -1706,7 +2673,6 @@ class MantenimientoForm(forms.ModelForm):
         fields = [
             "equipo",
             "tipo_mantenimiento",
-            "estado_mantenimiento",
             "fecha_programada",
             "tecnico_responsable",
             "costo_mantenimiento",
@@ -1715,7 +2681,6 @@ class MantenimientoForm(forms.ModelForm):
         labels = {
             "equipo": "Equipo",
             "tipo_mantenimiento": "Tipo de mantenimiento",
-            "estado_mantenimiento": "Estado del mantenimiento",
             "fecha_programada": "Fecha programada",
             "tecnico_responsable": "Técnico responsable",
             "proveedor_responsable": "Proveedor responsable",
@@ -1724,7 +2689,7 @@ class MantenimientoForm(forms.ModelForm):
         }
         help_texts = {
             "descripcion_falla": "Describe la falla o razón del mantenimiento.",
-            "costo_mantenimiento": "Costo estimado o real del mantenimiento (si aplica es que aplica).",
+            "costo_mantenimiento": "Costo estimado o real del mantenimiento.",
         }
         widgets = {
             "fecha_programada": forms.DateInput(attrs={"type": "date"}),
@@ -1785,7 +2750,6 @@ class MantenimientoForm(forms.ModelForm):
         self.order_fields([
             "equipo",
             "tipo_mantenimiento",
-            "estado_mantenimiento",
             "fecha_programada",
             "tecnico_responsable",
             "proveedor_responsable",
@@ -1808,9 +2772,444 @@ class MantenimientoForm(forms.ModelForm):
             cleaned["proveedor_responsable"] = None
         return cleaned
 
+
+def _estado_equipo_tras_mantenimiento(equipo):
+    if not equipo or equipo.estado_equipo == EstadoEquipo.BAJA:
+        return EstadoEquipo.BAJA if equipo else None
+    if AsignacionEquipo.objects.filter(
+        equipo=equipo,
+        estado_asignacion=EstadoAsignacion.ACTIVA,
+    ).exists():
+        return EstadoEquipo.ASIGNADO
+    return EstadoEquipo.DISPONIBLE
+
+
+def _sync_equipo_inicio_mantenimiento(mantenimiento, request=None):
+    equipo = mantenimiento.equipo
+    if not equipo or equipo.estado_equipo == EstadoEquipo.BAJA:
+        raise ValidationError("No se puede iniciar mantenimiento sobre un equipo en Baja.")
+    if equipo.estado_equipo == EstadoEquipo.EN_MANTENIMIENTO:
+        return equipo
+    equipo.estado_equipo = EstadoEquipo.EN_MANTENIMIENTO
+    equipo.save(update_fields=["estado_equipo"])
+    _crear_movimiento(
+        equipo,
+        TipoMovimiento.MANTENIMIENTO,
+        origen=equipo.ubicacion,
+        destino=equipo.ubicacion,
+        responsable=_get_equipo_responsable(equipo),
+        observaciones=f"Inicio mantenimiento {mantenimiento.folio_mantenimiento()}",
+        request=request,
+    )
+    return equipo
+
+
+def _sync_equipo_fin_mantenimiento(mantenimiento, request=None):
+    equipo = mantenimiento.equipo
+    if not equipo or equipo.estado_equipo != EstadoEquipo.EN_MANTENIMIENTO:
+        return equipo
+    # Si otro mantenimiento sigue En Proceso sobre el mismo equipo, no restaurar.
+    otros_activos = (
+        Mantenimiento.objects.filter(
+            equipo=equipo,
+            estado_mantenimiento=EstadoMantenimiento.EN_PROCESO,
+        )
+        .exclude(pk=mantenimiento.pk)
+        .exists()
+    )
+    if otros_activos:
+        return equipo
+    nuevo_estado = _estado_equipo_tras_mantenimiento(equipo)
+    if nuevo_estado and nuevo_estado != equipo.estado_equipo:
+        equipo.estado_equipo = nuevo_estado
+        equipo.save(update_fields=["estado_equipo"])
+        _crear_movimiento(
+            equipo,
+            TipoMovimiento.MANTENIMIENTO,
+            origen=equipo.ubicacion,
+            destino=equipo.ubicacion,
+            responsable=_get_equipo_responsable(equipo),
+            observaciones=(
+                f"Fin mantenimiento {mantenimiento.folio_mantenimiento()} "
+                f"→ {nuevo_estado}"
+            ),
+            request=request,
+        )
+    return equipo
+
+
+MANTENIMIENTO_ALERTA_DIAS = 7
+MANTENIMIENTO_PROXIMOS_DIAS = 30
+MANTENIMIENTO_LIST_PAGE_SIZE = 20
+
+
+def _mantenimiento_queryset():
+    return Mantenimiento.objects.select_related("equipo", "equipo__categoria", "cierre")
+
+
+def _mantenimientos_activos_qs():
+    return _mantenimiento_queryset().filter(
+        estado_mantenimiento__in=[
+            EstadoMantenimiento.PROGRAMADO,
+            EstadoMantenimiento.EN_PROCESO,
+        ]
+    )
+
+
+def _equipos_con_mantenimiento_activo_ids():
+    return (
+        Mantenimiento.objects.filter(
+            estado_mantenimiento__in=[
+                EstadoMantenimiento.PROGRAMADO,
+                EstadoMantenimiento.EN_PROCESO,
+            ]
+        )
+        .values_list("equipo_id", flat=True)
+        .distinct()
+    )
+
+
+def _proximos_ciclos_mantenimiento_qs(today=None, horizon_days=MANTENIMIENTO_ALERTA_DIAS):
+    """Cierres con proxima_fecha pendiente y sin mantenimiento abierto del mismo equipo."""
+    today = today or timezone.localdate()
+    return (
+        AgendaMantenimiento.objects.select_related(
+            "mantenimiento",
+            "mantenimiento__equipo",
+        )
+        .filter(
+            proxima_fecha_mantenimiento__isnull=False,
+            mantenimiento__estado_mantenimiento=EstadoMantenimiento.COMPLETADO,
+            proxima_fecha_mantenimiento__lte=today + timedelta(days=horizon_days),
+        )
+        .exclude(mantenimiento__equipo_id__in=_equipos_con_mantenimiento_activo_ids())
+        .order_by("proxima_fecha_mantenimiento", "pk")
+    )
+
+
+def _mantenimientos_alerta_context(
+    today=None,
+    horizon_days=MANTENIMIENTO_ALERTA_DIAS,
+    proximos_days=MANTENIMIENTO_PROXIMOS_DIAS,
+):
+    today = today or timezone.localdate()
+    activos = _mantenimientos_activos_qs()
+    vencidos_qs = activos.filter(fecha_programada__lt=today).order_by(
+        "fecha_programada", "pk"
+    )
+    por_vencer_qs = activos.filter(
+        fecha_programada__gte=today,
+        fecha_programada__lte=today + timedelta(days=horizon_days),
+    ).order_by("fecha_programada", "pk")
+    proximos_30_qs = activos.filter(
+        fecha_programada__gte=today,
+        fecha_programada__lte=today + timedelta(days=proximos_days),
+    ).order_by("fecha_programada", "pk")
+    ciclos_qs = _proximos_ciclos_mantenimiento_qs(today=today, horizon_days=horizon_days)
+    ciclos_vencidos_qs = ciclos_qs.filter(proxima_fecha_mantenimiento__lt=today)
+    ciclos_por_vencer_qs = ciclos_qs.filter(proxima_fecha_mantenimiento__gte=today)
+    return {
+        "mantenimientos_vencidos": list(vencidos_qs[:8]),
+        "mantenimientos_por_vencer": list(por_vencer_qs[:8]),
+        "mantenimientos_proximos_lista": list(proximos_30_qs[:6]),
+        "mantenimientos_ciclos": list(ciclos_qs[:8]),
+        "mantenimientos_vencidos_count": vencidos_qs.count(),
+        "mantenimientos_por_vencer_count": por_vencer_qs.count(),
+        "mantenimientos_proximos_count": proximos_30_qs.count(),
+        "mantenimientos_ciclos_count": ciclos_qs.count(),
+        "mantenimientos_ciclos_vencidos_count": ciclos_vencidos_qs.count(),
+        "mantenimientos_ciclos_por_vencer_count": ciclos_por_vencer_qs.count(),
+        "mantenimientos_alerta_dias": horizon_days,
+        "mantenimientos_proximos_dias": proximos_days,
+    }
+
+
+def _parse_date_param(value):
+    value = (value or "").strip()
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        return None
+
+
+def _crear_proximo_mantenimiento_desde_cierre(agenda, crear=True):
+    """
+    Si el cierre trae proxima_fecha y crear=True, programa el siguiente ciclo
+    (Programado) salvo que el equipo ya tenga uno abierto.
+    """
+    if not crear:
+        return None, "omitido"
+    proxima = agenda.proxima_fecha_mantenimiento
+    if not proxima:
+        return None, "sin_fecha"
+
+    origen = agenda.mantenimiento
+    equipo = origen.equipo
+    abiertos = Mantenimiento.objects.filter(
+        equipo=equipo,
+        estado_mantenimiento__in=[
+            EstadoMantenimiento.PROGRAMADO,
+            EstadoMantenimiento.EN_PROCESO,
+        ],
+    )
+    if abiertos.exists():
+        return abiertos.order_by("fecha_programada").first(), "ya_abierto"
+
+    existente = Mantenimiento.objects.filter(
+        equipo=equipo,
+        fecha_programada=proxima,
+        estado_mantenimiento=EstadoMantenimiento.PROGRAMADO,
+    ).first()
+    if existente:
+        return existente, "ya_programado"
+
+    tipo = origen.tipo_mantenimiento or TipoMantenimiento.PREVENTIVO
+    if tipo == TipoMantenimiento.CORRECTIVO:
+        tipo = TipoMantenimiento.PREVENTIVO
+
+    nuevo = Mantenimiento.objects.create(
+        equipo=equipo,
+        tipo_mantenimiento=tipo,
+        estado_mantenimiento=EstadoMantenimiento.PROGRAMADO,
+        fecha_programada=proxima,
+        tecnico_responsable=origen.tecnico_responsable,
+        costo_mantenimiento=0,
+        descripcion_falla=(
+            f"Ciclo automatico tras {origen.folio_mantenimiento()}."
+        ),
+    )
+    return nuevo, "creado"
+
+
+def _mantenimiento_dashboard_context(today=None):
+    today = today or timezone.localdate()
+    alerta = _mantenimientos_alerta_context(today=today)
+    qs = _mantenimiento_queryset()
+    activos = _mantenimientos_activos_qs()
+
+    por_estado = []
+    for value, label in EstadoMantenimiento.choices:
+        por_estado.append(
+            {
+                "value": value,
+                "label": label,
+                "count": qs.filter(estado_mantenimiento=value).count(),
+            }
+        )
+
+    por_tipo = []
+    for value, label in TipoMantenimiento.choices:
+        por_tipo.append(
+            {
+                "value": value,
+                "label": label,
+                "count": activos.filter(tipo_mantenimiento=value).count(),
+                "total": qs.filter(tipo_mantenimiento=value).count(),
+            }
+        )
+
+    costo_completados = (
+        qs.filter(estado_mantenimiento=EstadoMantenimiento.COMPLETADO).aggregate(
+            total=Sum("costo_mantenimiento")
+        )["total"]
+        or 0
+    )
+    costo_activos = activos.aggregate(total=Sum("costo_mantenimiento"))["total"] or 0
+
+    por_equipo = list(
+        qs.values(
+            "equipo_id",
+            "equipo__codigo_inventario",
+        )
+        .annotate(total=Count("id"))
+        .order_by("-total", "equipo__codigo_inventario")[:8]
+    )
+
+    return {
+        "mantenimiento_dashboard": {
+            "total": qs.count(),
+            "activos": activos.count(),
+            "completados": qs.filter(
+                estado_mantenimiento=EstadoMantenimiento.COMPLETADO
+            ).count(),
+            "cancelados": qs.filter(
+                estado_mantenimiento=EstadoMantenimiento.CANCELADO
+            ).count(),
+            "vencidos": alerta["mantenimientos_vencidos_count"],
+            "por_vencer": alerta["mantenimientos_por_vencer_count"],
+            "proximos_30": alerta["mantenimientos_proximos_count"],
+            "ciclos": alerta["mantenimientos_ciclos_count"],
+            "costo_completados": costo_completados,
+            "costo_activos": costo_activos,
+            "por_estado": por_estado,
+            "por_tipo": por_tipo,
+            "por_equipo": por_equipo,
+            "lista_vencidos": alerta["mantenimientos_vencidos"],
+            "lista_por_vencer": alerta["mantenimientos_por_vencer"],
+            "lista_ciclos": alerta["mantenimientos_ciclos"],
+            "alerta_dias": alerta["mantenimientos_alerta_dias"],
+            "proximos_dias": alerta["mantenimientos_proximos_dias"],
+        }
+    }
+
+
+def mantenimiento_dashboard(request):
+    return render(
+        request,
+        "mantenimiento/dashboard.html",
+        {
+            "today": timezone.localdate(),
+            **_mantenimiento_dashboard_context(),
+        },
+    )
+
+
 def mantenimiento_list(request):
-    items = Mantenimiento.objects.select_related("equipo", "cierre").all()
-    return render(request, "mantenimiento/list.html", {"items": items})
+    items = _mantenimiento_queryset()
+    search_query = (request.GET.get("q") or "").strip()
+    selected_alerta = (request.GET.get("alerta") or "").strip()
+    selected_estado = (request.GET.get("estado") or "").strip()
+    selected_tipo = (request.GET.get("tipo") or "").strip()
+    selected_equipo = (request.GET.get("equipo") or "").strip()
+    selected_tecnico = (request.GET.get("tecnico") or "").strip()
+    selected_orden = (request.GET.get("orden") or "programada").strip()
+    fecha_desde = _parse_date_param(request.GET.get("fecha_desde"))
+    fecha_hasta = _parse_date_param(request.GET.get("fecha_hasta"))
+    today = timezone.localdate()
+    horizon = today + timedelta(days=MANTENIMIENTO_ALERTA_DIAS)
+
+    if search_query:
+        folio_q = Q(
+            equipo__codigo_inventario__icontains=search_query
+        ) | Q(
+            equipo__numero_serie__icontains=search_query
+        ) | Q(
+            equipo__marca__icontains=search_query
+        ) | Q(
+            equipo__modelo__icontains=search_query
+        ) | Q(
+            tecnico_responsable__icontains=search_query
+        ) | Q(
+            descripcion_falla__icontains=search_query
+        ) | Q(
+            tipo_mantenimiento__icontains=search_query
+        )
+        digits = "".join(ch for ch in search_query if ch.isdigit())
+        if digits.isdigit():
+            folio_q |= Q(pk=int(digits))
+        items = items.filter(folio_q)
+
+    if selected_estado:
+        items = items.filter(estado_mantenimiento=selected_estado)
+    if selected_tipo:
+        items = items.filter(tipo_mantenimiento=selected_tipo)
+    if selected_equipo.isdigit():
+        items = items.filter(equipo_id=int(selected_equipo))
+    if selected_tecnico:
+        items = items.filter(tecnico_responsable=selected_tecnico)
+    if fecha_desde:
+        items = items.filter(fecha_programada__gte=fecha_desde)
+    if fecha_hasta:
+        items = items.filter(fecha_programada__lte=fecha_hasta)
+
+    if selected_alerta == "vencidos":
+        items = items.filter(
+            estado_mantenimiento__in=[
+                EstadoMantenimiento.PROGRAMADO,
+                EstadoMantenimiento.EN_PROCESO,
+            ],
+            fecha_programada__lt=today,
+        )
+    elif selected_alerta == "proximos":
+        items = items.filter(
+            estado_mantenimiento__in=[
+                EstadoMantenimiento.PROGRAMADO,
+                EstadoMantenimiento.EN_PROCESO,
+            ],
+            fecha_programada__gte=today,
+            fecha_programada__lte=horizon,
+        )
+    elif selected_alerta == "atencion":
+        items = items.filter(
+            estado_mantenimiento__in=[
+                EstadoMantenimiento.PROGRAMADO,
+                EstadoMantenimiento.EN_PROCESO,
+            ],
+            fecha_programada__lte=horizon,
+        )
+    elif selected_alerta == "ciclo":
+        ciclos = _proximos_ciclos_mantenimiento_qs(today=today)
+        items = items.filter(pk__in=ciclos.values_list("mantenimiento_id", flat=True))
+
+    order_map = {
+        "programada": ("fecha_programada", "pk"),
+        "programada_desc": ("-fecha_programada", "-pk"),
+        "reciente": ("-pk",),
+        "estado": ("estado_mantenimiento", "fecha_programada", "pk"),
+        "equipo": ("equipo__codigo_inventario", "fecha_programada", "pk"),
+    }
+    if selected_alerta in {"vencidos", "proximos", "atencion"}:
+        items = items.order_by("fecha_programada", "pk")
+    elif selected_alerta == "ciclo":
+        items = items.order_by("cierre__proxima_fecha_mantenimiento", "pk")
+    else:
+        items = items.order_by(*order_map.get(selected_orden, order_map["programada"]))
+
+    paginator = Paginator(items, MANTENIMIENTO_LIST_PAGE_SIZE)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    tecnicos = (
+        Mantenimiento.objects.exclude(tecnico_responsable__isnull=True)
+        .exclude(tecnico_responsable="")
+        .values_list("tecnico_responsable", flat=True)
+        .distinct()
+        .order_by("tecnico_responsable")
+    )
+    equipos = (
+        Equipo.objects.filter(mantenimientos__isnull=False)
+        .distinct()
+        .order_by("codigo_inventario")
+    )
+
+    return render(
+        request,
+        "mantenimiento/list.html",
+        {
+            "items": page_obj,
+            "page_obj": page_obj,
+            "search_query": search_query,
+            "selected_alerta": selected_alerta,
+            "selected_estado": selected_estado,
+            "selected_tipo": selected_tipo,
+            "selected_equipo": selected_equipo,
+            "selected_tecnico": selected_tecnico,
+            "selected_orden": selected_orden,
+            "fecha_desde": fecha_desde.isoformat() if fecha_desde else "",
+            "fecha_hasta": fecha_hasta.isoformat() if fecha_hasta else "",
+            "estado_choices": EstadoMantenimiento.choices,
+            "tipo_choices": TipoMantenimiento.choices,
+            "equipo_choices": equipos,
+            "tecnico_choices": tecnicos,
+            "mantenimientos_alerta_dias": MANTENIMIENTO_ALERTA_DIAS,
+            "today": today,
+            "alerta_hasta": horizon,
+        },
+    )
+
+
+def mantenimiento_detail(request, pk):
+    mantenimiento = get_object_or_404(_mantenimiento_queryset(), pk=pk)
+    cierre = getattr(mantenimiento, "cierre", None)
+    return render(
+        request,
+        "mantenimiento/detail.html",
+        {
+            "object": mantenimiento,
+            "cierre": cierre,
+        },
+    )
 
 
 def mantenimiento_create(request):
@@ -1824,17 +3223,25 @@ def mantenimiento_create(request):
                 titulo=f"Mantenimiento programado: {mantenimiento.folio_mantenimiento()}",
                 objeto=mantenimiento,
                 entidad_relacionada=mantenimiento.equipo,
-                enlace_nombre="mantenimiento_update",
+                enlace_nombre="mantenimiento_detail",
+                enlace_pk=mantenimiento.pk,
             )
             messages.success(request, "Mantenimiento creado correctamente.")
-            return redirect("mantenimiento_list")
+            return redirect("mantenimiento_detail", pk=mantenimiento.pk)
     else:
-        form = MantenimientoForm()
+        initial = {}
+        equipo_id = request.GET.get("equipo")
+        fecha = request.GET.get("fecha")
+        if equipo_id:
+            initial["equipo"] = equipo_id
+        if fecha:
+            initial["fecha_programada"] = fecha
+        form = MantenimientoForm(initial=initial)
     return render(request, "mantenimiento/form.html", {"form": form})
 
 
 def mantenimiento_update(request, pk):
-    mantenimiento = get_object_or_404(Mantenimiento, pk=pk)
+    mantenimiento = get_object_or_404(_mantenimiento_queryset(), pk=pk)
     if request.method == "POST":
         form = MantenimientoForm(request.POST, instance=mantenimiento)
         if form.is_valid():
@@ -1846,18 +3253,28 @@ def mantenimiento_update(request, pk):
                 objeto=mantenimiento,
                 form=form,
                 entidad_relacionada=mantenimiento.equipo,
-                enlace_nombre="mantenimiento_update",
+                enlace_nombre="mantenimiento_detail",
+                enlace_pk=mantenimiento.pk,
             )
             messages.success(request, "Mantenimiento actualizado correctamente.")
-            return redirect("mantenimiento_list")
+            return redirect("mantenimiento_detail", pk=mantenimiento.pk)
     else:
         form = MantenimientoForm(instance=mantenimiento)
-    return render(request, "mantenimiento/form.html", {"form": form, "object": mantenimiento})
+    return render(
+        request,
+        "mantenimiento/form.html",
+        {"form": form, "object": mantenimiento},
+    )
 
 
 def mantenimiento_delete(request, pk):
-    mantenimiento = get_object_or_404(Mantenimiento, pk=pk)
+    mantenimiento = get_object_or_404(_mantenimiento_queryset(), pk=pk)
     if request.method == "POST":
+        if mantenimiento.estado_mantenimiento == EstadoMantenimiento.EN_PROCESO:
+            try:
+                _sync_equipo_fin_mantenimiento(mantenimiento, request=request)
+            except ValidationError:
+                pass
         historial.registrar_eliminacion(
             request,
             modulo=ModuloHistorial.MANTENIMIENTO,
@@ -1868,6 +3285,93 @@ def mantenimiento_delete(request, pk):
         messages.success(request, "Mantenimiento eliminado correctamente.")
         return redirect("mantenimiento_list")
     return render(request, "mantenimiento/confirm_delete.html", {"object": mantenimiento})
+
+
+def mantenimiento_iniciar(request, pk):
+    mantenimiento = get_object_or_404(Mantenimiento, pk=pk)
+    if request.method != "POST":
+        return redirect("mantenimiento_detail", pk=pk)
+    try:
+        mantenimiento.iniciar()
+        _sync_equipo_inicio_mantenimiento(mantenimiento, request=request)
+    except ValidationError as exc:
+        messages.error(request, " ".join(exc.messages) if hasattr(exc, "messages") else str(exc))
+        return redirect("mantenimiento_detail", pk=pk)
+
+    historial.registrar_historial(
+        request=request,
+        modulo=ModuloHistorial.MANTENIMIENTO,
+        accion=AccionHistorial.CAMBIO_ESTADO,
+        titulo=f"Mantenimiento iniciado: {mantenimiento.folio_mantenimiento()}",
+        objeto=mantenimiento,
+        entidad_relacionada=mantenimiento.equipo,
+        enlace_nombre="mantenimiento_detail",
+        metadata={"estado": mantenimiento.estado_mantenimiento},
+    )
+    messages.success(request, f"{mantenimiento.folio_mantenimiento()} en proceso.")
+    return redirect("mantenimiento_detail", pk=pk)
+
+
+def mantenimiento_cancelar(request, pk):
+    mantenimiento = get_object_or_404(Mantenimiento, pk=pk)
+    if request.method != "POST":
+        return redirect("mantenimiento_detail", pk=pk)
+    try:
+        estaba_en_proceso = (
+            mantenimiento.estado_mantenimiento == EstadoMantenimiento.EN_PROCESO
+        )
+        mantenimiento.cancelar()
+        if estaba_en_proceso:
+            _sync_equipo_fin_mantenimiento(mantenimiento, request=request)
+    except ValidationError as exc:
+        messages.error(request, " ".join(exc.messages) if hasattr(exc, "messages") else str(exc))
+        return redirect("mantenimiento_detail", pk=pk)
+
+    historial.registrar_historial(
+        request=request,
+        modulo=ModuloHistorial.MANTENIMIENTO,
+        accion=AccionHistorial.CAMBIO_ESTADO,
+        titulo=f"Mantenimiento cancelado: {mantenimiento.folio_mantenimiento()}",
+        objeto=mantenimiento,
+        entidad_relacionada=mantenimiento.equipo,
+        enlace_nombre="mantenimiento_detail",
+        metadata={"estado": mantenimiento.estado_mantenimiento},
+    )
+    messages.success(request, f"{mantenimiento.folio_mantenimiento()} cancelado.")
+    return redirect("mantenimiento_detail", pk=pk)
+
+
+def mantenimiento_reabrir(request, pk):
+    mantenimiento = get_object_or_404(Mantenimiento, pk=pk)
+    if request.method != "POST":
+        return redirect("mantenimiento_detail", pk=pk)
+    try:
+        estado_anterior = mantenimiento.estado_mantenimiento
+        mantenimiento.reabrir()
+        if mantenimiento.estado_mantenimiento == EstadoMantenimiento.EN_PROCESO:
+            _sync_equipo_inicio_mantenimiento(mantenimiento, request=request)
+    except ValidationError as exc:
+        messages.error(request, " ".join(exc.messages) if hasattr(exc, "messages") else str(exc))
+        return redirect("mantenimiento_detail", pk=pk)
+
+    historial.registrar_historial(
+        request=request,
+        modulo=ModuloHistorial.MANTENIMIENTO,
+        accion=AccionHistorial.CAMBIO_ESTADO,
+        titulo=f"Mantenimiento reabierto: {mantenimiento.folio_mantenimiento()}",
+        objeto=mantenimiento,
+        entidad_relacionada=mantenimiento.equipo,
+        enlace_nombre="mantenimiento_detail",
+        metadata={
+            "estado_anterior": estado_anterior,
+            "estado": mantenimiento.estado_mantenimiento,
+        },
+    )
+    messages.success(
+        request,
+        f"{mantenimiento.folio_mantenimiento()} reabierto ({mantenimiento.estado_mantenimiento}).",
+    )
+    return redirect("mantenimiento_detail", pk=pk)
 
 
 # ============ AgendaMantenimiento views ==============
@@ -1889,6 +3393,15 @@ class AgendaMantenimientoForm(forms.ModelForm):
         input_formats=["%Y-%m-%dT%H:%M"],
         label="Fecha fin",
     )
+    crear_proximo_ciclo = forms.BooleanField(
+        required=False,
+        initial=True,
+        label="Crear proximo mantenimiento automaticamente",
+        help_text=(
+            "Si indicas proxima fecha, programa un mantenimiento Preventivo "
+            "en esa fecha (salvo que el equipo ya tenga uno abierto)."
+        ),
+    )
 
     class Meta:
         model = AgendaMantenimiento
@@ -1909,9 +3422,10 @@ class AgendaMantenimientoForm(forms.ModelForm):
             "proxima_fecha_mantenimiento": "Próxima fecha de mantenimiento",
         }
         help_texts = {
-            "mantenimiento": "Seleccione el mantenimiento.",
+            "mantenimiento": "Seleccione el mantenimiento a cerrar.",
             "acciones_realizadas": "Describa las acciones realizadas durante el mantenimiento.",
             "observaciones": "Opcional. Puede agregar observaciones adicionales.",
+            "proxima_fecha_mantenimiento": "Opcional. Genera aviso de proximo ciclo en el panel (sin email).",
         }
         widgets = {
             "fecha_inicio": forms.DateTimeInput(attrs={"type": "datetime-local"}),
@@ -1921,66 +3435,209 @@ class AgendaMantenimientoForm(forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
+        fixed_mantenimiento = kwargs.pop("mantenimiento", None)
         super().__init__(*args, **kwargs)
         self.fields["acciones_realizadas"].required = True
         self.fields["fecha_fin"].required = True
-        qs = Mantenimiento.objects.select_related("equipo").order_by("fecha_programada")
+        qs = Mantenimiento.objects.select_related("equipo").filter(
+            estado_mantenimiento__in=[
+                EstadoMantenimiento.PROGRAMADO,
+                EstadoMantenimiento.EN_PROCESO,
+            ],
+            cierre__isnull=True,
+        ).order_by("fecha_programada")
         if self.instance and self.instance.pk:
-            qs = Mantenimiento.objects.filter(pk=self.instance.mantenimiento_id) | qs.filter(
-                cierre__isnull=True
-            )
+            qs = Mantenimiento.objects.filter(pk=self.instance.mantenimiento_id) | qs
             self.fields["mantenimiento"].disabled = True
-        else:
-            qs = qs.filter(cierre__isnull=True)
+            self.fields["crear_proximo_ciclo"].initial = False
+        elif fixed_mantenimiento is not None:
+            qs = Mantenimiento.objects.filter(pk=fixed_mantenimiento.pk)
+            self.fields["mantenimiento"].initial = fixed_mantenimiento
+            self.fields["mantenimiento"].disabled = True
         self.fields["mantenimiento"].queryset = qs.distinct()
+        self.fixed_mantenimiento = fixed_mantenimiento
+
+    def clean(self):
+        cleaned = super().clean()
+        if getattr(self, "fixed_mantenimiento", None) is not None:
+            cleaned["mantenimiento"] = self.fixed_mantenimiento
+        return cleaned
 
     def save(self, commit=True):
         instance = super().save(commit=False)
+        if getattr(self, "fixed_mantenimiento", None) is not None:
+            instance.mantenimiento = self.fixed_mantenimiento
         if commit:
             instance.save()
             self.save_m2m()
             mantenimiento = instance.mantenimiento
-            if mantenimiento.estado_mantenimiento != EstadoMantenimiento.COMPLETADO:
-                mantenimiento.estado_mantenimiento = EstadoMantenimiento.COMPLETADO
-                mantenimiento.save(update_fields=["estado_mantenimiento"])
+            mantenimiento.marcar_completado()
         return instance
 
+
+def _mensaje_proximo_ciclo(request, resultado, motivo):
+    if motivo == "creado" and resultado is not None:
+        messages.success(
+            request,
+            f"Proximo ciclo programado: {resultado.folio_mantenimiento()} "
+            f"({resultado.fecha_programada}).",
+        )
+        historial.registrar_creacion(
+            request,
+            modulo=ModuloHistorial.MANTENIMIENTO,
+            titulo=f"Proximo ciclo programado: {resultado.folio_mantenimiento()}",
+            objeto=resultado,
+            entidad_relacionada=resultado.equipo,
+            enlace_nombre="mantenimiento_detail",
+            enlace_pk=resultado.pk,
+        )
+    elif motivo == "ya_abierto" and resultado is not None:
+        messages.info(
+            request,
+            f"No se creo otro ciclo: el equipo ya tiene "
+            f"{resultado.folio_mantenimiento()} abierto.",
+        )
+    elif motivo == "ya_programado" and resultado is not None:
+        messages.info(
+            request,
+            f"Ya existia el ciclo {resultado.folio_mantenimiento()} "
+            f"para esa fecha.",
+        )
+
+
 def agendamantenimiento_list(request):
-    items = AgendaMantenimiento.objects.select_related("mantenimiento").all()
-    return render(request, "agendamantenimiento/list.html", {"items": items})
+    items = AgendaMantenimiento.objects.select_related(
+        "mantenimiento", "mantenimiento__equipo"
+    )
+    search_query = (request.GET.get("q") or "").strip()
+    if search_query:
+        q = (
+            Q(mantenimiento__equipo__codigo_inventario__icontains=search_query)
+            | Q(mantenimiento__equipo__marca__icontains=search_query)
+            | Q(mantenimiento__equipo__modelo__icontains=search_query)
+            | Q(acciones_realizadas__icontains=search_query)
+            | Q(observaciones__icontains=search_query)
+            | Q(mantenimiento__tecnico_responsable__icontains=search_query)
+        )
+        digits = "".join(ch for ch in search_query if ch.isdigit())
+        if digits.isdigit():
+            q |= Q(mantenimiento_id=int(digits)) | Q(pk=int(digits))
+        items = items.filter(q)
+
+    items = items.order_by("-fecha_fin", "-pk")
+    paginator = Paginator(items, MANTENIMIENTO_LIST_PAGE_SIZE)
+    page_obj = paginator.get_page(request.GET.get("page"))
+    return render(
+        request,
+        "agendamantenimiento/list.html",
+        {
+            "items": page_obj,
+            "page_obj": page_obj,
+            "search_query": search_query,
+        },
+    )
 
 
 def agendamantenimiento_create(request):
+    mantenimiento_id = request.GET.get("mantenimiento")
+    fixed = None
+    if mantenimiento_id:
+        fixed = get_object_or_404(Mantenimiento, pk=mantenimiento_id)
+        if not fixed.puede_completar:
+            messages.error(request, "Ese mantenimiento no se puede cerrar en su estado actual.")
+            return redirect("mantenimiento_detail", pk=fixed.pk)
+
     if request.method == "POST":
-        form = AgendaMantenimientoForm(request.POST)
+        form = AgendaMantenimientoForm(request.POST, mantenimiento=fixed)
         if form.is_valid():
-            form.save()
-            messages.success(request, "Agenda creada correctamente.")
-            return redirect("agendamantenimiento_list")
+            agenda = form.save()
+            _sync_equipo_fin_mantenimiento(agenda.mantenimiento, request=request)
+            historial.registrar_creacion(
+                request,
+                modulo=ModuloHistorial.MANTENIMIENTO,
+                titulo=f"Cierre de {agenda.mantenimiento.folio_mantenimiento()}",
+                objeto=agenda,
+                entidad_relacionada=agenda.mantenimiento,
+                enlace_nombre="mantenimiento_detail",
+                enlace_pk=agenda.mantenimiento_id,
+            )
+            proximo, motivo = _crear_proximo_mantenimiento_desde_cierre(
+                agenda,
+                crear=form.cleaned_data.get("crear_proximo_ciclo", False),
+            )
+            messages.success(request, "Mantenimiento cerrado correctamente.")
+            _mensaje_proximo_ciclo(request, proximo, motivo)
+            if motivo == "creado" and proximo is not None:
+                return redirect("mantenimiento_detail", pk=proximo.pk)
+            return redirect("mantenimiento_detail", pk=agenda.mantenimiento_id)
     else:
-        form = AgendaMantenimientoForm()
-    return render(request, "agendamantenimiento/form.html", {"form": form})
+        form = AgendaMantenimientoForm(mantenimiento=fixed)
+    return render(
+        request,
+        "agendamantenimiento/form.html",
+        {"form": form, "mantenimiento": fixed},
+    )
 
 
 def agendamantenimiento_update(request, pk):
-    agenda = get_object_or_404(AgendaMantenimiento, pk=pk)
+    agenda = get_object_or_404(
+        AgendaMantenimiento.objects.select_related("mantenimiento", "mantenimiento__equipo"),
+        pk=pk,
+    )
     if request.method == "POST":
         form = AgendaMantenimientoForm(request.POST, instance=agenda)
         if form.is_valid():
-            form.save()
-            messages.success(request, "Agenda actualizada correctamente.")
-            return redirect("agendamantenimiento_list")
+            agenda = form.save()
+            _sync_equipo_fin_mantenimiento(agenda.mantenimiento, request=request)
+            historial.registrar_actualizacion(
+                request,
+                modulo=ModuloHistorial.MANTENIMIENTO,
+                titulo=f"Cierre actualizado: {agenda.mantenimiento.folio_mantenimiento()}",
+                objeto=agenda,
+                form=form,
+                entidad_relacionada=agenda.mantenimiento,
+                enlace_nombre="mantenimiento_detail",
+                enlace_pk=agenda.mantenimiento_id,
+            )
+            proximo, motivo = _crear_proximo_mantenimiento_desde_cierre(
+                agenda,
+                crear=form.cleaned_data.get("crear_proximo_ciclo", False),
+            )
+            messages.success(request, "Cierre actualizado correctamente.")
+            _mensaje_proximo_ciclo(request, proximo, motivo)
+            if motivo == "creado" and proximo is not None:
+                return redirect("mantenimiento_detail", pk=proximo.pk)
+            return redirect("mantenimiento_detail", pk=agenda.mantenimiento_id)
     else:
         form = AgendaMantenimientoForm(instance=agenda)
-    return render(request, "agendamantenimiento/form.html", {"form": form, "object": agenda})
+    return render(
+        request,
+        "agendamantenimiento/form.html",
+        {"form": form, "object": agenda, "mantenimiento": agenda.mantenimiento},
+    )
 
 
 def agendamantenimiento_delete(request, pk):
     agenda = get_object_or_404(AgendaMantenimiento, pk=pk)
+    mantenimiento = agenda.mantenimiento
     if request.method == "POST":
+        historial.registrar_eliminacion(
+            request,
+            modulo=ModuloHistorial.MANTENIMIENTO,
+            titulo=f"Cierre eliminado: {mantenimiento.folio_mantenimiento()}",
+            objeto=agenda,
+            entidad_relacionada=mantenimiento,
+        )
         agenda.delete()
-        messages.success(request, "Agenda eliminada correctamente.")
-        return redirect("agendamantenimiento_list")
+        if mantenimiento.estado_mantenimiento == EstadoMantenimiento.COMPLETADO:
+            mantenimiento.estado_mantenimiento = EstadoMantenimiento.EN_PROCESO
+            mantenimiento.save(update_fields=["estado_mantenimiento"])
+            try:
+                _sync_equipo_inicio_mantenimiento(mantenimiento, request=request)
+            except ValidationError:
+                pass
+        messages.success(request, "Cierre eliminado correctamente.")
+        return redirect("mantenimiento_detail", pk=mantenimiento.pk)
     return render(request, "agendamantenimiento/confirm_delete.html", {"object": agenda})
 
 
@@ -2002,12 +3659,19 @@ def _ticketit_queryset():
 
 
 def ticketit_list(request):
-    items = _ticketit_queryset().order_by("-fecha_support", "-pk")
+    is_staff_user = is_admin_user(request.user)
+    items = _tickets_for_user(request.user, _ticketit_queryset()).annotate(
+        seguimientos_count=Count("seguimientos")
+    ).order_by("-fecha_support", "-pk")
     search_query = (request.GET.get("q") or "").strip()
     selected_tipo = request.GET.get("tipo_ticket", "")
     selected_prioridad = request.GET.get("prioridad", "")
     selected_status = request.GET.get("status", "")
     selected_scope = request.GET.get("scope", "")
+    selected_alerta = request.GET.get("alerta", "")
+    selected_sin_seguimiento = request.GET.get("sin_seguimiento", "")
+    selected_equipo = (request.GET.get("equipo") or "").strip()
+    now = timezone.now()
 
     if search_query:
         items = items.filter(
@@ -2025,13 +3689,35 @@ def ticketit_list(request):
         items = items.filter(prioridad=selected_prioridad)
     if selected_status:
         items = items.filter(status=selected_status)
-    if selected_scope == "mios":
-        items = items.filter(solicitado_por=request.user)
-    elif selected_scope == "asignados":
-        items = items.filter(asignado_a=request.user)
+    elif selected_alerta in {"sla", "sla_por_vencer", "operacion"} or selected_sin_seguimiento == "1":
+        items = items.exclude(status=EstadoSupport.CERRADO)
+
+    if selected_equipo.isdigit():
+        items = items.filter(equipo_id=int(selected_equipo))
+
+    if is_staff_user:
+        if selected_scope == "mios":
+            items = items.filter(solicitado_por=request.user)
+        elif selected_scope == "asignados":
+            items = items.filter(asignado_a=request.user)
+
+    if selected_alerta == "sla":
+        items = items.filter(_tickets_sla_vencidos_q(now)).order_by("fecha_support", "pk")
+    elif selected_alerta == "sla_por_vencer":
+        items = items.filter(_tickets_sla_por_vencer_q(now)).order_by("fecha_support", "pk")
+    elif selected_alerta == "operacion":
+        items = items.filter(
+            _tickets_sla_vencidos_q(now) | Q(seguimientos_count=0)
+        ).order_by("fecha_support", "pk")
+
+    if selected_sin_seguimiento == "1":
+        items = items.filter(seguimientos_count=0)
 
     paginator = Paginator(items, TICKET_LIST_PAGE_SIZE)
     page_obj = paginator.get_page(request.GET.get("page"))
+    for item in page_obj.object_list:
+        item.perm_can_edit = user_can_edit_ticket(request.user, item)
+        item.perm_can_delete = user_can_delete_ticket(request.user, item)
 
     context = {
         "items": page_obj,
@@ -2044,9 +3730,22 @@ def ticketit_list(request):
         "selected_prioridad": selected_prioridad,
         "selected_status": selected_status,
         "selected_scope": selected_scope,
-        "can_manage_flow": is_admin_user(request.user),
+        "selected_alerta": selected_alerta,
+        "selected_sin_seguimiento": selected_sin_seguimiento,
+        "selected_equipo": selected_equipo,
+        "can_manage_flow": user_can_manage_ticket_flow(request.user),
+        "is_staff_user": is_staff_user,
+        "sla_horas": SLA_HORAS_POR_PRIORIDAD,
     }
     return render(request, "ticketit/list.html", context)
+
+
+def ticketit_dashboard(request):
+    context = {
+        "is_staff_user": is_admin_user(request.user),
+        **_ticket_dashboard_context(request.user),
+    }
+    return render(request, "ticketit/dashboard.html", context)
 
 
 def ticketit_detail(request, pk):
@@ -2054,7 +3753,12 @@ def ticketit_detail(request, pk):
         _ticketit_queryset().prefetch_related("seguimientos__usuario"),
         pk=pk,
     )
-    can_manage_flow = is_admin_user(request.user)
+    if not user_can_view_ticket(request.user, ticket):
+        return _deny_ticket_access(request)
+
+    can_manage_flow = user_can_manage_ticket_flow(request.user)
+    can_edit = user_can_edit_ticket(request.user, ticket)
+    can_delete = user_can_delete_ticket(request.user, ticket)
     can_add_seguimiento = can_manage_flow and ticket.status != EstadoSupport.CERRADO
     seguimiento_form = None
 
@@ -2101,6 +3805,8 @@ def ticketit_detail(request, pk):
             "seguimiento_form": seguimiento_form,
             "can_manage_flow": can_manage_flow,
             "can_add_seguimiento": can_add_seguimiento,
+            "can_edit": can_edit,
+            "can_delete": can_delete,
         },
     )
 
@@ -2125,12 +3831,25 @@ def ticketit_create(request):
     return render(
         request,
         "ticketit/form.html",
-        {"form": form, "can_manage_flow": is_admin_user(request.user)},
+        {
+            "form": form,
+            "can_manage_flow": user_can_manage_ticket_flow(request.user),
+            "can_edit": True,
+        },
     )
 
 
 def ticketit_update(request, pk):
     ticket = get_object_or_404(_ticketit_queryset(), pk=pk)
+    if not user_can_view_ticket(request.user, ticket):
+        return _deny_ticket_access(request)
+    if not user_can_edit_ticket(request.user, ticket):
+        messages.error(
+            request,
+            "No puedes editar este ticket. Solo staff, o el solicitante mientras este Abierto y sin seguimientos.",
+        )
+        return redirect("ticketit_detail", pk=ticket.pk)
+
     if request.method == "POST":
         form = TicketITForm(
             request.POST,
@@ -2158,13 +3877,27 @@ def ticketit_update(request, pk):
         {
             "form": form,
             "object": ticket,
-            "can_manage_flow": is_admin_user(request.user),
+            "can_manage_flow": user_can_manage_ticket_flow(request.user),
+            "can_edit": True,
+            "can_delete": user_can_delete_ticket(request.user, ticket),
         },
     )
 
 
 def ticketit_delete(request, pk):
-    ticket = get_object_or_404(TicketIT, pk=pk)
+    ticket = get_object_or_404(_ticketit_queryset(), pk=pk)
+    if not user_can_view_ticket(request.user, ticket):
+        return _deny_ticket_access(request)
+    if not user_can_delete_ticket(request.user, ticket):
+        if not is_admin_user(request.user):
+            messages.error(request, "Solo el personal de soporte puede eliminar tickets.")
+        else:
+            messages.error(
+                request,
+                "No se puede eliminar un ticket con seguimientos. Elimina los checks primero.",
+            )
+        return redirect("ticketit_detail", pk=ticket.pk)
+
     if request.method == "POST":
         historial.registrar_eliminacion(
             request,
@@ -2176,13 +3909,19 @@ def ticketit_delete(request, pk):
         ticket.delete()
         messages.success(request, "Support eliminado correctamente.")
         return redirect("ticketit_list")
-    return render(request, "ticketit/confirm_delete.html", {"object": ticket})
+    return render(
+        request,
+        "ticketit/confirm_delete.html",
+        {"object": ticket, "can_delete": True},
+    )
 
 
 def ticketit_marcar_revision(request, pk):
     ticket = get_object_or_404(TicketIT, pk=pk)
     if request.method != "POST":
         return redirect("ticketit_detail", pk=pk)
+    if not user_can_manage_ticket_flow(request.user):
+        return _deny_ticket_access(request, "Solo staff puede cambiar el estado del ticket.")
 
     try:
         ticket.marcar_en_revision()
@@ -2211,6 +3950,8 @@ def ticketit_reabrir(request, pk):
     ticket = get_object_or_404(TicketIT, pk=pk)
     if request.method != "POST":
         return redirect("ticketit_detail", pk=pk)
+    if not user_can_manage_ticket_flow(request.user):
+        return _deny_ticket_access(request, "Solo staff puede reabrir tickets.")
 
     motivo = (request.POST.get("motivo") or "").strip()
     try:
@@ -2240,13 +3981,116 @@ def ticketit_subtipo_choices(request):
 
 # ============ SeguimientoTicket views ==============
 
+SEGUIMIENTO_LIST_PAGE_SIZE = 20
+SEGUIMIENTO_ALERTA_DIAS = 7
+
+
+def _seguimientos_base_qs():
+    return SeguimientoTicket.objects.select_related(
+        "ticket",
+        "ticket__asignado_a",
+        "usuario",
+    )
+
+
+def _seguimientos_pendientes_qs():
+    return (
+        _seguimientos_base_qs()
+        .filter(
+            ya_terminado=False,
+            fecha_proximo_seguimiento__isnull=False,
+        )
+        .exclude(ticket__status=EstadoSupport.CERRADO)
+    )
+
+
+def _seguimientos_alerta_context(today=None, horizon_days=SEGUIMIENTO_ALERTA_DIAS):
+    today = today or timezone.localdate()
+    pendientes = _seguimientos_pendientes_qs()
+    vencidos_qs = pendientes.filter(
+        fecha_proximo_seguimiento__lt=today
+    ).order_by("fecha_proximo_seguimiento", "pk")
+    por_vencer_qs = pendientes.filter(
+        fecha_proximo_seguimiento__gte=today,
+        fecha_proximo_seguimiento__lte=today + timedelta(days=horizon_days),
+    ).order_by("fecha_proximo_seguimiento", "pk")
+    return {
+        "seguimientos_vencidos": list(vencidos_qs[:8]),
+        "seguimientos_por_vencer": list(por_vencer_qs[:8]),
+        "seguimientos_vencidos_count": vencidos_qs.count(),
+        "seguimientos_por_vencer_count": por_vencer_qs.count(),
+        "seguimientos_alerta_dias": horizon_days,
+    }
 
 
 def seguimientoticket_list(request):
-    items = SeguimientoTicket.objects.select_related(
-        "ticket", "usuario"
-    ).order_by("-fecha_check", "-pk")
-    return render(request, "seguimientoticket/list.html", {"items": items})
+    items = _seguimientos_base_qs().order_by("-fecha_check", "-pk")
+    search_query = (request.GET.get("q") or "").strip()
+    selected_status = request.GET.get("status", "")
+    selected_terminado = request.GET.get("terminado", "")
+    selected_alerta = request.GET.get("alerta", "")
+    selected_scope = request.GET.get("scope", "")
+    today = timezone.localdate()
+
+    if search_query:
+        items = items.filter(
+            Q(folio_check__icontains=search_query)
+            | Q(ticket__folio_ticket__icontains=search_query)
+            | Q(avance_realizado__icontains=search_query)
+            | Q(pendiente__icontains=search_query)
+            | Q(proximo_paso__icontains=search_query)
+            | Q(solucion__icontains=search_query)
+            | Q(usuario__username__icontains=search_query)
+        )
+    if selected_status:
+        items = items.filter(ticket__status=selected_status)
+    if selected_terminado == "si":
+        items = items.filter(ya_terminado=True)
+    elif selected_terminado == "no":
+        items = items.filter(ya_terminado=False)
+
+    if selected_alerta == "vencidos":
+        items = items.filter(
+            ya_terminado=False,
+            fecha_proximo_seguimiento__lt=today,
+        ).exclude(ticket__status=EstadoSupport.CERRADO).order_by(
+            "fecha_proximo_seguimiento", "pk"
+        )
+    elif selected_alerta == "proximos":
+        items = items.filter(
+            ya_terminado=False,
+            fecha_proximo_seguimiento__gte=today,
+            fecha_proximo_seguimiento__lte=today + timedelta(days=SEGUIMIENTO_ALERTA_DIAS),
+        ).exclude(ticket__status=EstadoSupport.CERRADO).order_by(
+            "fecha_proximo_seguimiento", "pk"
+        )
+    elif selected_alerta == "atencion":
+        items = items.filter(
+            ya_terminado=False,
+            fecha_proximo_seguimiento__isnull=False,
+            fecha_proximo_seguimiento__lte=today + timedelta(days=SEGUIMIENTO_ALERTA_DIAS),
+        ).exclude(ticket__status=EstadoSupport.CERRADO).order_by(
+            "fecha_proximo_seguimiento", "pk"
+        )
+
+    if selected_scope == "mios":
+        items = items.filter(usuario=request.user)
+
+    paginator = Paginator(items, SEGUIMIENTO_LIST_PAGE_SIZE)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    context = {
+        "items": page_obj,
+        "page_obj": page_obj,
+        "search_query": search_query,
+        "status_choices": EstadoSupport.choices,
+        "selected_status": selected_status,
+        "selected_terminado": selected_terminado,
+        "selected_alerta": selected_alerta,
+        "selected_scope": selected_scope,
+        "today": today,
+    }
+    return render(request, "seguimientoticket/list.html", context)
 
 
 def seguimientoticket_create(request):
@@ -2260,18 +4104,27 @@ def seguimientoticket_create(request):
                 titulo=f"Seguimiento en {seguimiento.folio_check or seguimiento.ticket}",
                 objeto=seguimiento,
                 entidad_relacionada=seguimiento.ticket,
-                enlace_nombre="seguimientoticket_update",
+                enlace_nombre="ticketit_detail",
+                enlace_pk=seguimiento.ticket_id,
                 metadata={"ticket_id": seguimiento.ticket_id},
             )
             messages.success(request, "Check creado correctamente.")
+            if seguimiento.ticket_id:
+                return redirect("ticketit_detail", pk=seguimiento.ticket_id)
             return redirect("seguimientoticket_list")
     else:
+        initial_ticket = request.GET.get("ticket")
         form = SeguimientoTicketForm(request_user=request.user)
+        if initial_ticket:
+            form.fields["ticket"].initial = initial_ticket
     return render(request, "seguimientoticket/form.html", {"form": form})
 
 
 def seguimientoticket_update(request, pk):
-    seguimiento = get_object_or_404(SeguimientoTicket, pk=pk)
+    seguimiento = get_object_or_404(
+        _seguimientos_base_qs(),
+        pk=pk,
+    )
     if request.method == "POST":
         form = SeguimientoTicketForm(
             request.POST,
@@ -2287,13 +4140,20 @@ def seguimientoticket_update(request, pk):
                 objeto=seguimiento,
                 form=form,
                 entidad_relacionada=seguimiento.ticket,
-                enlace_nombre="seguimientoticket_update",
+                enlace_nombre="ticketit_detail",
+                enlace_pk=seguimiento.ticket_id,
             )
             messages.success(request, "Check actualizado correctamente.")
+            if seguimiento.ticket_id:
+                return redirect("ticketit_detail", pk=seguimiento.ticket_id)
             return redirect("seguimientoticket_list")
     else:
         form = SeguimientoTicketForm(instance=seguimiento, request_user=request.user)
-    return render(request, "seguimientoticket/form.html", {"form": form, "object": seguimiento})
+    return render(
+        request,
+        "seguimientoticket/form.html",
+        {"form": form, "object": seguimiento},
+    )
 
 
 def seguimientoticket_delete(request, pk):
@@ -2983,7 +4843,13 @@ def _calendar_event(
     action_text,
     end=None,
     all_day=True,
+    urgency="ok",
+    urgency_label=None,
 ):
+    class_names = [f"cal-type-{case_type}"]
+    if urgency and urgency != "ok":
+        class_names.append(f"cal-urgency-{urgency}")
+
     event = {
         "title": title,
         "start": start.isoformat(),
@@ -2991,6 +4857,7 @@ def _calendar_event(
         "backgroundColor": color,
         "borderColor": color,
         "textColor": "#ffffff",
+        "classNames": class_names,
         "extendedProps": {
             "details": details,
             "caseType": case_type,
@@ -2998,6 +4865,8 @@ def _calendar_event(
             "caseLabel": case_label,
             "actionUrl": action_url,
             "actionText": action_text,
+            "urgency": urgency or "ok",
+            "urgencyLabel": urgency_label,
         },
     }
     if end is not None:
@@ -3014,42 +4883,136 @@ def _calendar_day(value):
         return timezone.localdate()
     if timezone.is_aware(value):
         return timezone.localtime(value).date()
-    return value.date()
+    if hasattr(value, "date") and not isinstance(value, date):
+        return value.date()
+    return value
 
 
-def _build_home_calendar_events():
-    today = timezone.localdate()
+CALENDAR_PAST_DAYS = 30
+CALENDAR_FUTURE_DAYS = 90
+CALENDAR_COLOR_VENCIDO = "#dc2626"
+CALENDAR_COLOR_POR_VENCER = "#f59e0b"
+
+
+def _calendar_window(today=None):
+    today = today or timezone.localdate()
+    return (
+        today - timedelta(days=CALENDAR_PAST_DAYS),
+        today + timedelta(days=CALENDAR_FUTURE_DAYS),
+        today,
+    )
+
+
+def _calendar_urgency_from_date(event_date, today=None, alerta_dias=7, active=True):
+    if not active or not event_date:
+        return "ok", None
+    today = today or timezone.localdate()
+    if isinstance(event_date, datetime):
+        event_date = _calendar_day(event_date)
+    if event_date < today:
+        return "vencido", "Vencido"
+    if event_date <= today + timedelta(days=alerta_dias):
+        return "por_vencer", "Por vencer"
+    return "ok", None
+
+
+def _ticket_calendar_urgency(ticket, now=None):
+    if ticket.status == EstadoSupport.CERRADO:
+        return "ok", None
+    now = now or timezone.now()
+    horas = SLA_HORAS_POR_PRIORIDAD.get(ticket.prioridad)
+    if not horas or not ticket.fecha_support:
+        return "ok", None
+    deadline = ticket.fecha_support + timedelta(hours=horas)
+    if timezone.is_naive(deadline) and timezone.is_aware(now):
+        deadline = timezone.make_aware(deadline, timezone.get_current_timezone())
+    elif timezone.is_aware(deadline) and timezone.is_naive(now):
+        now = timezone.make_aware(now, timezone.get_current_timezone())
+    if now >= deadline:
+        return "vencido", "SLA vencido"
+    umbral = min(timedelta(hours=4), timedelta(hours=horas) * 0.25)
+    if now >= deadline - umbral:
+        return "por_vencer", "SLA por vencer"
+    return "ok", None
+
+
+def _calendar_apply_urgency_color(base_color, urgency):
+    if urgency == "vencido":
+        return CALENDAR_COLOR_VENCIDO
+    if urgency == "por_vencer":
+        return CALENDAR_COLOR_POR_VENCER
+    return base_color
+
+
+def _build_home_calendar_events(user=None):
+    window_start, window_end, today = _calendar_window()
+    now = timezone.now()
     events = []
+    staff_user = is_admin_user(user)
 
-    for ticket in TicketIT.objects.select_related("area", "puesto", "solicitado_por").order_by("-fecha_support")[:80]:
+    tickets_qs = (
+        TicketIT.objects.select_related("area", "puesto", "solicitado_por")
+        .filter(
+            fecha_support__date__gte=window_start,
+            fecha_support__date__lte=window_end,
+        )
+        .order_by("-fecha_support")
+    )
+    if user is not None and not staff_user:
+        tickets_qs = tickets_qs.filter(solicitado_por=user)
+
+    for ticket in tickets_qs:
         ticket_date = _calendar_day(ticket.fecha_support)
+        urgency, urgency_label = _ticket_calendar_urgency(ticket, now=now)
+        base_color = {
+            EstadoSupport.CERRADO: "#0f766e",
+            EstadoSupport.EN_PROCESO: "#1d4ed8",
+            EstadoSupport.EN_REVISION: "#7c3aed",
+            EstadoSupport.ABIERTO: "#f59e0b",
+        }.get(ticket.status, "#475569")
+        color = _calendar_apply_urgency_color(base_color, urgency)
+        details = [
+            {"label": "Estado", "value": _calendar_label(ticket.status)},
+            {"label": "Prioridad", "value": _calendar_label(ticket.prioridad)},
+            {"label": "Area", "value": _calendar_label(getattr(ticket.area, "nombre_area", None))},
+            {"label": "Puesto", "value": _calendar_label(getattr(ticket.puesto, "nombre_puesto", None))},
+            {
+                "label": "Solicitado por",
+                "value": _calendar_label(getattr(ticket.solicitado_por, "username", None)),
+            },
+            {"label": "Requerimiento", "value": _calendar_label(ticket.requerimiento)},
+        ]
+        if urgency_label:
+            details.insert(0, {"label": "Aviso", "value": urgency_label})
         events.append(
             _calendar_event(
                 f"Ticket {ticket.folio_ticket}",
                 ticket_date,
-                color={
-                    EstadoSupport.CERRADO: "#0f766e",
-                    EstadoSupport.EN_PROCESO: "#1d4ed8",
-                    EstadoSupport.EN_REVISION: "#7c3aed",
-                    EstadoSupport.ABIERTO: "#f59e0b",
-                }.get(ticket.status, "#475569"),
-                details=[
-                    {"label": "Estado", "value": _calendar_label(ticket.status)},
-                    {"label": "Prioridad", "value": _calendar_label(ticket.prioridad)},
-                    {"label": "Area", "value": _calendar_label(getattr(ticket.area, 'nombre_area', None))},
-                    {"label": "Puesto", "value": _calendar_label(getattr(ticket.puesto, 'nombre_puesto', None))},
-                    {"label": "Solicitado por", "value": _calendar_label(getattr(ticket.solicitado_por, 'username', None))},
-                    {"label": "Requerimiento", "value": _calendar_label(ticket.requerimiento)},
-                ],
+                color=color,
+                details=details,
                 case_type="ticket",
                 case_type_label="Ticket de soporte",
                 case_label=ticket.folio_ticket,
                 action_url=reverse("ticketit_detail", args=[ticket.pk]),
                 action_text="Abrir ticket",
+                urgency=urgency,
+                urgency_label=urgency_label,
             )
         )
 
-    for movimiento in MovimientoEquipo.objects.select_related("equipo", "responsable").order_by("-fecha_movimiento")[:80]:
+    if not staff_user:
+        events.sort(key=lambda event: event["start"])
+        return events
+
+    movimientos_qs = (
+        MovimientoEquipo.objects.select_related("equipo", "responsable")
+        .filter(
+            fecha_movimiento__date__gte=window_start,
+            fecha_movimiento__date__lte=window_end,
+        )
+        .order_by("-fecha_movimiento")
+    )
+    for movimiento in movimientos_qs:
         color = {
             TipoMovimiento.DADA_DE_ALTA: "#16a34a",
             TipoMovimiento.DADA_DE_BAJA: "#b42318",
@@ -3058,7 +5021,6 @@ def _build_home_calendar_events():
             TipoMovimiento.MANTENIMIENTO: "#f59e0b",
             TipoMovimiento.CAMBIO_UBICACION: "#0f766e",
         }.get(movimiento.tipo_movimiento, "#475569")
-
         events.append(
             _calendar_event(
                 f"Movimiento {movimiento.equipo.codigo_inventario if getattr(movimiento, 'equipo', None) else 'de equipo'}",
@@ -3066,100 +5028,219 @@ def _build_home_calendar_events():
                 color=color,
                 details=[
                     {"label": "Tipo", "value": _calendar_label(movimiento.tipo_movimiento)},
-                    {"label": "Equipo", "value": _calendar_label(getattr(movimiento.equipo, 'codigo_inventario', None))},
+                    {
+                        "label": "Equipo",
+                        "value": _calendar_label(
+                            getattr(movimiento.equipo, "codigo_inventario", None)
+                        ),
+                    },
                     {"label": "Origen", "value": _calendar_label(movimiento.origen)},
                     {"label": "Destino", "value": _calendar_label(movimiento.destino)},
-                    {"label": "Responsable", "value": _calendar_label(str(movimiento.responsable) if movimiento.responsable else None)},
-                    {"label": "Observaciones", "value": _calendar_label(movimiento.observaciones)},
+                    {
+                        "label": "Responsable",
+                        "value": _calendar_label(
+                            str(movimiento.responsable) if movimiento.responsable else None
+                        ),
+                    },
+                    {
+                        "label": "Observaciones",
+                        "value": _calendar_label(movimiento.observaciones),
+                    },
                 ],
                 case_type="movimiento",
                 case_type_label="Movimiento de equipo",
                 case_label=_calendar_label(movimiento.tipo_movimiento),
-                action_url=reverse("movimientoequipo_update", args=[movimiento.pk]),
-                action_text="Abrir movimiento",
+                action_url=reverse("movimientoequipo_detail", args=[movimiento.pk]),
+                action_text="Ver movimiento",
+                urgency="ok",
             )
         )
 
-    for mantenimiento in Mantenimiento.objects.select_related("equipo").order_by("-fecha_programada")[:80]:
-        color = "#1d4ed8"
+    mantenimientos_qs = (
+        Mantenimiento.objects.select_related("equipo", "cierre")
+        .filter(
+            fecha_programada__gte=window_start,
+            fecha_programada__lte=window_end,
+        )
+        .order_by("-fecha_programada")
+    )
+    for mantenimiento in mantenimientos_qs:
+        base_color = "#1d4ed8"
         if mantenimiento.estado_mantenimiento == EstadoMantenimiento.COMPLETADO:
-            color = "#0f766e"
+            base_color = "#0f766e"
         elif mantenimiento.estado_mantenimiento == EstadoMantenimiento.CANCELADO:
-            color = "#b42318"
-        elif mantenimiento.fecha_programada < today:
-            color = "#dc2626"
+            base_color = "#b42318"
 
+        activo = mantenimiento.estado_mantenimiento in {
+            EstadoMantenimiento.PROGRAMADO,
+            EstadoMantenimiento.EN_PROCESO,
+        }
+        urgency, urgency_label = _calendar_urgency_from_date(
+            mantenimiento.fecha_programada,
+            today=today,
+            alerta_dias=MANTENIMIENTO_ALERTA_DIAS,
+            active=activo,
+        )
+        color = _calendar_apply_urgency_color(base_color, urgency)
+        details = [
+            {"label": "Estado", "value": _calendar_label(mantenimiento.estado_mantenimiento)},
+            {"label": "Tipo", "value": _calendar_label(mantenimiento.tipo_mantenimiento)},
+            {
+                "label": "Equipo",
+                "value": _calendar_label(
+                    getattr(mantenimiento.equipo, "codigo_inventario", None)
+                ),
+            },
+            {"label": "Responsable", "value": _calendar_label(mantenimiento.tecnico_responsable)},
+            {"label": "Costo", "value": _calendar_label(mantenimiento.costo_mantenimiento)},
+        ]
+        if urgency_label:
+            details.insert(0, {"label": "Aviso", "value": urgency_label})
         events.append(
             _calendar_event(
                 f"Mantenimiento {mantenimiento.folio_mantenimiento()}",
                 mantenimiento.fecha_programada,
                 color=color,
-                details=[
-                    {"label": "Estado", "value": _calendar_label(mantenimiento.estado_mantenimiento)},
-                    {"label": "Tipo", "value": _calendar_label(mantenimiento.tipo_mantenimiento)},
-                    {"label": "Equipo", "value": _calendar_label(getattr(mantenimiento.equipo, 'codigo_inventario', None))},
-                    {"label": "Responsable", "value": _calendar_label(mantenimiento.tecnico_responsable)},
-                    {"label": "Costo", "value": _calendar_label(mantenimiento.costo_mantenimiento)},
-                    *(
-                        [{"label": "Proximo mantenimiento", "value": mantenimiento.cierre.proxima_fecha_mantenimiento.strftime('%Y-%m-%d')}]
-                        if getattr(mantenimiento, "cierre", None) and mantenimiento.cierre.proxima_fecha_mantenimiento
-                        else []
-                    ),
-                ],
+                details=details,
                 case_type="mantenimiento",
                 case_type_label="Mantenimiento",
                 case_label=mantenimiento.folio_mantenimiento(),
-                action_url=reverse("mantenimiento_update", args=[mantenimiento.pk]),
+                action_url=reverse("mantenimiento_detail", args=[mantenimiento.pk]),
                 action_text="Abrir mantenimiento",
+                urgency=urgency,
+                urgency_label=urgency_label,
             )
         )
 
-    for agenda in AgendaMantenimiento.objects.select_related("mantenimiento", "mantenimiento__equipo").order_by("-proxima_fecha_mantenimiento")[:80]:
-        if not agenda.proxima_fecha_mantenimiento:
-            continue
+    ciclos_qs = (
+        AgendaMantenimiento.objects.select_related("mantenimiento", "mantenimiento__equipo")
+        .filter(
+            proxima_fecha_mantenimiento__isnull=False,
+            proxima_fecha_mantenimiento__gte=window_start,
+            proxima_fecha_mantenimiento__lte=window_end,
+        )
+        .order_by("-proxima_fecha_mantenimiento")
+    )
+    for agenda in ciclos_qs:
+        urgency, urgency_label = _calendar_urgency_from_date(
+            agenda.proxima_fecha_mantenimiento,
+            today=today,
+            alerta_dias=MANTENIMIENTO_ALERTA_DIAS,
+            active=True,
+        )
+        color = _calendar_apply_urgency_color("#7c3aed", urgency)
+        details = [
+            {"label": "Mantenimiento", "value": agenda.mantenimiento.folio_mantenimiento()},
+            {
+                "label": "Equipo",
+                "value": _calendar_label(
+                    getattr(agenda.mantenimiento.equipo, "codigo_inventario", None)
+                ),
+            },
+            {
+                "label": "Inicio",
+                "value": agenda.fecha_inicio.strftime("%Y-%m-%d %H:%M")
+                if agenda.fecha_inicio
+                else "Sin inicio",
+            },
+            {
+                "label": "Fin",
+                "value": agenda.fecha_fin.strftime("%Y-%m-%d %H:%M")
+                if agenda.fecha_fin
+                else "Sin fin",
+            },
+            {"label": "Acciones", "value": _calendar_label(agenda.acciones_realizadas)},
+            {"label": "Observaciones", "value": _calendar_label(agenda.observaciones)},
+            {
+                "label": "Proximo mantenimiento",
+                "value": agenda.proxima_fecha_mantenimiento.strftime("%Y-%m-%d"),
+            },
+        ]
+        if urgency_label:
+            details.insert(0, {"label": "Aviso", "value": urgency_label})
         events.append(
             _calendar_event(
-                f"Seguimiento {agenda.mantenimiento.folio_mantenimiento()}",
+                f"Ciclo {agenda.mantenimiento.folio_mantenimiento()}",
                 agenda.proxima_fecha_mantenimiento,
-                color="#7c3aed",
-                details=[
-                    {"label": "Mantenimiento", "value": agenda.mantenimiento.folio_mantenimiento()},
-                    {"label": "Equipo", "value": _calendar_label(getattr(agenda.mantenimiento.equipo, 'codigo_inventario', None))},
-                    {"label": "Inicio", "value": agenda.fecha_inicio.strftime('%Y-%m-%d %H:%M') if agenda.fecha_inicio else 'Sin inicio'},
-                    {"label": "Fin", "value": agenda.fecha_fin.strftime('%Y-%m-%d %H:%M') if agenda.fecha_fin else 'Sin fin'},
-                    {"label": "Acciones", "value": _calendar_label(agenda.acciones_realizadas)},
-                    {"label": "Observaciones", "value": _calendar_label(agenda.observaciones)},
-                    {"label": "Proximo mantenimiento", "value": agenda.proxima_fecha_mantenimiento.strftime('%Y-%m-%d')},
-                ],
-                case_type="seguimiento",
-                case_type_label="Seguimiento",
+                color=color,
+                details=details,
+                case_type="ciclo",
+                case_type_label="Proximo ciclo",
                 case_label=agenda.mantenimiento.folio_mantenimiento(),
-                action_url=reverse("agendamantenimiento_update", args=[agenda.pk]),
-                action_text="Abrir seguimiento",
+                action_url=reverse("mantenimiento_detail", args=[agenda.mantenimiento_id]),
+                action_text="Abrir mantenimiento",
+                urgency=urgency,
+                urgency_label=urgency_label,
             )
         )
 
-    for seguimiento in SeguimientoTicket.objects.select_related("ticket", "usuario").order_by("-fecha_check")[:80]:
-        event_date = seguimiento.fecha_proximo_seguimiento or _calendar_day(seguimiento.fecha_check)
+    checks_qs = (
+        SeguimientoTicket.objects.select_related("ticket", "usuario")
+        .filter(
+            Q(
+                fecha_proximo_seguimiento__gte=window_start,
+                fecha_proximo_seguimiento__lte=window_end,
+            )
+            | Q(
+                fecha_proximo_seguimiento__isnull=True,
+                fecha_check__date__gte=window_start,
+                fecha_check__date__lte=window_end,
+            )
+        )
+        .order_by("-fecha_check")
+    )
+    for seguimiento in checks_qs:
+        event_date = seguimiento.fecha_proximo_seguimiento or _calendar_day(
+            seguimiento.fecha_check
+        )
+        activo = (
+            not seguimiento.ya_terminado
+            and seguimiento.fecha_proximo_seguimiento is not None
+            and getattr(seguimiento.ticket, "status", None) != EstadoSupport.CERRADO
+        )
+        urgency, urgency_label = _calendar_urgency_from_date(
+            seguimiento.fecha_proximo_seguimiento,
+            today=today,
+            alerta_dias=SEGUIMIENTO_ALERTA_DIAS,
+            active=activo,
+        )
+        base_color = "#0f766e" if seguimiento.ya_terminado else "#7c3aed"
+        color = _calendar_apply_urgency_color(base_color, urgency)
+        details = [
+            {
+                "label": "Ticket",
+                "value": _calendar_label(getattr(seguimiento.ticket, "folio_ticket", None)),
+            },
+            {
+                "label": "Estado",
+                "value": "Terminado" if seguimiento.ya_terminado else "Pendiente",
+            },
+            {"label": "Avance", "value": _calendar_label(seguimiento.avance_realizado)},
+            {"label": "Pendiente", "value": _calendar_label(seguimiento.pendiente)},
+            {"label": "Proximo paso", "value": _calendar_label(seguimiento.proximo_paso)},
+            {
+                "label": "Usuario",
+                "value": _calendar_label(
+                    str(seguimiento.usuario) if seguimiento.usuario else None
+                ),
+            },
+            {"label": "Observacion", "value": _calendar_label(seguimiento.observacion)},
+        ]
+        if urgency_label:
+            details.insert(0, {"label": "Aviso", "value": urgency_label})
         events.append(
             _calendar_event(
                 f"Check {seguimiento.folio_check or seguimiento.ticket.folio_ticket}",
                 event_date,
-                color="#7c3aed" if not seguimiento.ya_terminado else "#0f766e",
-                details=[
-                    {"label": "Ticket", "value": _calendar_label(getattr(seguimiento.ticket, 'folio_ticket', None))},
-                    {"label": "Estado", "value": "Terminado" if seguimiento.ya_terminado else "Pendiente"},
-                    {"label": "Avance", "value": _calendar_label(seguimiento.avance_realizado)},
-                    {"label": "Pendiente", "value": _calendar_label(seguimiento.pendiente)},
-                    {"label": "Proximo paso", "value": _calendar_label(seguimiento.proximo_paso)},
-                    {"label": "Usuario", "value": _calendar_label(str(seguimiento.usuario) if seguimiento.usuario else None)},
-                    {"label": "Observacion", "value": _calendar_label(seguimiento.observacion)},
-                ],
+                color=color,
+                details=details,
                 case_type="seguimiento_ticket",
                 case_type_label="Check",
                 case_label=seguimiento.folio_check or seguimiento.ticket.folio_ticket,
-                action_url=reverse("seguimientoticket_update", args=[seguimiento.pk]),
-                action_text="Abrir check",
+                action_url=reverse("ticketit_detail", args=[seguimiento.ticket_id]),
+                action_text="Abrir ticket",
+                urgency=urgency,
+                urgency_label=urgency_label,
             )
         )
 
@@ -3169,52 +5250,112 @@ def _build_home_calendar_events():
 
 def home(request):
     today = timezone.localdate()
-    tickets_abiertos_qs = TicketIT.objects.exclude(status=EstadoSupport.CERRADO)
-    mantenimientos_proximos_qs = Mantenimiento.objects.select_related("equipo").filter(
-        fecha_programada__gte=today,
-        fecha_programada__lte=today + timedelta(days=30),
-    ).order_by("fecha_programada")
+    is_staff_user = is_admin_user(request.user)
+    tickets_abiertos_qs = _tickets_abiertos_qs(request.user)
+
+    alerta_seguimientos = {}
+    alerta_mantenimientos = {}
+    alerta_equipos = {}
+    if is_staff_user:
+        alerta_seguimientos = _seguimientos_alerta_context(today=today)
+        alerta_mantenimientos = _mantenimientos_alerta_context(today=today)
+        alerta_equipos = _equipos_alerta_context(today=today)
+
+    ticket_ops = _ticket_dashboard_context(request.user)["ticket_dashboard"]
 
     quick_links = [
         {"label": "Tickets", "url_name": "ticketit_list", "hint": "Soporte activo"},
+        {"label": "Dashboard", "url_name": "ticketit_dashboard", "hint": "SLA y operacion"},
         {"label": "Ordenes", "url_name": "ordencompra_list", "hint": "Compras"},
         {"label": "Calendario", "url_name": "home", "hint": "Agenda", "anchor": "#calendario"},
     ]
-    if is_admin_user(request.user):
+    if is_staff_user:
         quick_links = [
             {"label": "Tickets", "url_name": "ticketit_list", "hint": "Soporte activo"},
-            {"label": "Equipos", "url_name": "equipo_list", "hint": "Inventario"},
-            {"label": "Historial", "url_name": "movimientoequipo_list", "hint": "Actividad"},
-            {"label": "Mantenimientos", "url_name": "mantenimiento_list", "hint": "Proximos"},
+            {"label": "Inventario", "url_name": "equipo_dashboard", "hint": "Equipos y avisos"},
+            {"label": "Seguimientos", "url_name": "seguimientoticket_list", "hint": "Checks y avisos"},
+            {"label": "Mantenimientos", "url_name": "mantenimiento_dashboard", "hint": "Dashboard y avisos"},
         ]
 
+    seguimientos_atencion = (
+        alerta_seguimientos.get("seguimientos_vencidos_count", 0)
+        + alerta_seguimientos.get("seguimientos_por_vencer_count", 0)
+    )
+    mantenimientos_atencion = (
+        alerta_mantenimientos.get("mantenimientos_vencidos_count", 0)
+        + alerta_mantenimientos.get("mantenimientos_por_vencer_count", 0)
+    )
+    equipos_atencion = (
+        alerta_equipos.get("equipos_sin_ubicacion_count", 0)
+        + alerta_equipos.get("equipos_mant_largo_count", 0)
+        + alerta_equipos.get("asignaciones_antiguas_count", 0)
+    )
+
+    calendar_events = _build_home_calendar_events(user=request.user)
+    calendar_counts = {
+        "ticket": 0,
+        "mantenimiento": 0,
+        "seguimiento_ticket": 0,
+        "ciclo": 0,
+        "movimiento": 0,
+        "vencido": 0,
+        "por_vencer": 0,
+    }
+    for event in calendar_events:
+        props = event.get("extendedProps") or {}
+        case_type = props.get("caseType")
+        if case_type in calendar_counts:
+            calendar_counts[case_type] += 1
+        urgency = props.get("urgency")
+        if urgency in {"vencido", "por_vencer"}:
+            calendar_counts[urgency] += 1
+
     context = {
-        "calendar_events": _build_home_calendar_events(),
+        "calendar_events": calendar_events,
+        "calendar_counts": calendar_counts,
+        "calendar_past_days": CALENDAR_PAST_DAYS,
+        "calendar_future_days": CALENDAR_FUTURE_DAYS,
         "dashboard_counts": {
-            "tickets": TicketIT.objects.count(),
+            "tickets": _tickets_for_user(request.user).count(),
             "tickets_abiertos": tickets_abiertos_qs.count(),
-            "equipos_activos": Equipo.objects.filter(activo=True).count() if is_admin_user(request.user) else None,
-            "mantenimientos_proximos": mantenimientos_proximos_qs.count(),
-            "agendas_proximas": AgendaMantenimiento.objects.filter(
-                proxima_fecha_mantenimiento__gte=today,
-                proxima_fecha_mantenimiento__lte=today + timedelta(days=30),
-            ).count(),
+            "tickets_sla_vencidos": ticket_ops["sla_vencidos"],
+            "tickets_sin_seguimiento": ticket_ops["sin_seguimiento"],
+            "equipos_activos": Equipo.objects.filter(activo=True).exclude(
+                estado_equipo=EstadoEquipo.BAJA
+            ).count() if is_staff_user else None,
+            "equipos_atencion": equipos_atencion,
+            "equipos_sin_ubicacion": alerta_equipos.get("equipos_sin_ubicacion_count", 0),
+            "equipos_mant_largo": alerta_equipos.get("equipos_mant_largo_count", 0),
+            "asignaciones_antiguas": alerta_equipos.get("asignaciones_antiguas_count", 0),
+            "mantenimientos_proximos": alerta_mantenimientos.get("mantenimientos_proximos_count", 0),
+            "mantenimientos_atencion": mantenimientos_atencion,
+            "mantenimientos_vencidos": alerta_mantenimientos.get("mantenimientos_vencidos_count", 0),
+            "mantenimientos_por_vencer": alerta_mantenimientos.get("mantenimientos_por_vencer_count", 0),
+            "mantenimientos_ciclos": alerta_mantenimientos.get("mantenimientos_ciclos_count", 0),
+            "seguimientos_atencion": seguimientos_atencion,
+            "seguimientos_vencidos": alerta_seguimientos.get("seguimientos_vencidos_count", 0),
+            "seguimientos_por_vencer": alerta_seguimientos.get("seguimientos_por_vencer_count", 0),
             "historial_hoy": HistorialActividad.objects.filter(
                 fecha__date=today,
                 archivado=False,
-            ).count() if is_admin_user(request.user) else None,
+            ).count() if is_staff_user else None,
         },
         "quick_links": quick_links,
         "recent_tickets": tickets_abiertos_qs.select_related(
             "area", "solicitado_por", "tipo_equipo"
         ).order_by("-fecha_support")[:6],
-        "upcoming_mantenimientos": list(mantenimientos_proximos_qs[:6]),
+        "upcoming_mantenimientos": alerta_mantenimientos.get("mantenimientos_proximos_lista", []),
         "recent_historial": list(
             HistorialActividad.objects.select_related("usuario")
             .filter(archivado=False)
             .order_by("-fecha")[:8]
-        ) if is_admin_user(request.user) else [],
-        "is_admin_dashboard": is_admin_user(request.user),
+        ) if is_staff_user else [],
+        "is_admin_dashboard": is_staff_user,
+        "ticket_dashboard": ticket_ops,
+        "today": today,
+        **alerta_seguimientos,
+        **alerta_mantenimientos,
+        **alerta_equipos,
     }
     return render(request, "home.html", context)
 

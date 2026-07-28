@@ -12,7 +12,12 @@
 	</div>
 	<div class="d-flex flex-wrap gap-2">
 		<a class="btn btn-outline-secondary" href="{% url 'ticketit_list' %}">Volver</a>
+		{% if can_edit %}
 		<a class="btn btn-outline-primary" href="{% url 'ticketit_update' object.pk %}">Editar</a>
+		{% endif %}
+		{% if can_delete %}
+		<a class="btn btn-outline-danger" href="{% url 'ticketit_delete' object.pk %}">Eliminar</a>
+		{% endif %}
 		{% if can_manage_flow and object.puede_marcar_en_revision %}
 		<form method="post" action="{% url 'ticketit_marcar_revision' object.pk %}">
 			{% csrf_token %}
@@ -29,6 +34,13 @@
 	</div>
 </div>
 
+{% if not can_edit and not can_manage_flow %}
+<p class="text-muted small mb-3">Solo puedes consultar este ticket. La edicion queda bloqueada cuando ya esta en atencion.</p>
+{% endif %}
+{% if can_manage_flow and object.tiene_seguimientos and not can_delete %}
+<p class="text-muted small mb-3">Este ticket tiene seguimientos; no se puede eliminar hasta quitar los checks.</p>
+{% endif %}
+
 <div class="ticket-detail-layout">
 	<section class="ticket-panel">
 		<div class="ticket-panel__header">
@@ -40,6 +52,23 @@
 			<div>
 				<span class="ticket-meta__label">Prioridad</span>
 				<span class="status-badge status-badge--prio-{{ object.prioridad|slugify }}">{{ object.prioridad }}</span>
+			</div>
+			<div>
+				<span class="ticket-meta__label">SLA</span>
+				{% if object.sla_estado == "vencido" %}
+					<span class="status-badge status-badge--prio-urgente">Vencido</span>
+				{% elif object.sla_estado == "por_vencer" %}
+					<span class="status-badge status-badge--advertencia">Por vencer</span>
+				{% elif object.sla_estado == "ok" %}
+					<span class="status-badge status-badge--asignado">En tiempo</span>
+				{% else %}
+					<span class="text-muted">Cerrado</span>
+				{% endif %}
+			</div>
+			<div>
+				<span class="ticket-meta__label">Limite SLA</span>
+				<strong>{% if object.sla_fecha_limite %}{{ object.sla_fecha_limite }}{% else %}-{% endif %}</strong>
+				<small class="d-block text-muted">{{ object.sla_horas_objetivo }} h objetivo</small>
 			</div>
 			<div>
 				<span class="ticket-meta__label">Tipo</span>
@@ -71,7 +100,13 @@
 			</div>
 			<div>
 				<span class="ticket-meta__label">Equipo</span>
-				<strong>{{ object.equipo|default:"-" }}</strong>
+				<strong>
+					{% if object.equipo_id %}
+					<a href="{% url 'equipo_detail' object.equipo_id %}">{{ object.equipo }}</a>
+					{% else %}
+					-
+					{% endif %}
+				</strong>
 			</div>
 			<div>
 				<span class="ticket-meta__label">Tipo de equipo</span>

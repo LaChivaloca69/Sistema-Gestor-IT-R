@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard mantenimientos{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+	<div>
+		<p class="eyebrow mb-2">Operaciones</p>
+		<h1 class="h3 mb-1">Dashboard de mantenimientos</h1>
+		<p class="text-muted mb-0">Estado, avisos, costos y focos de atencion (panel, sin email).</p>
+	</div>
+	<div class="d-flex flex-wrap gap-2">
+		<a class="btn btn-outline-secondary" href="{% url 'mantenimiento_list' %}">Lista</a>
+		<a class="btn btn-outline-secondary" href="{% url 'agendamantenimiento_list' %}">Cierres</a>
+		<a class="btn btn-primary" href="{% url 'mantenimiento_create' %}">Programar</a>
+	</div>
+</div>
+
+<section class="kpi-grid kpi-grid--ops mb-4">
+	<a class="kpi-card" href="{% url 'mantenimiento_list' %}?estado=Programado">
+		<span class="kpi-card__label">Activos</span>
+		<strong class="kpi-card__value">{{ mantenimiento_dashboard.activos }}</strong>
+		<small>Programado / En Proceso</small>
+	</a>
+	<a class="kpi-card" href="{% url 'mantenimiento_list' %}?alerta=vencidos">
+		<span class="kpi-card__label">Vencidos</span>
+		<strong class="kpi-card__value">{{ mantenimiento_dashboard.vencidos }}</strong>
+		<small>Fecha programada pasada</small>
+	</a>
+	<a class="kpi-card" href="{% url 'mantenimiento_list' %}?alerta=proximos">
+		<span class="kpi-card__label">Por vencer</span>
+		<strong class="kpi-card__value">{{ mantenimiento_dashboard.por_vencer }}</strong>
+		<small>Proximos {{ mantenimiento_dashboard.alerta_dias }} dias</small>
+	</a>
+	<a class="kpi-card" href="{% url 'mantenimiento_list' %}?alerta=ciclo">
+		<span class="kpi-card__label">Proximos ciclos</span>
+		<strong class="kpi-card__value">{{ mantenimiento_dashboard.ciclos }}</strong>
+		<small>Sin ticket abierto</small>
+	</a>
+</section>
+
+<section class="kpi-grid mb-4">
+	<a class="kpi-card" href="{% url 'mantenimiento_list' %}">
+		<span class="kpi-card__label">Total registros</span>
+		<strong class="kpi-card__value">{{ mantenimiento_dashboard.total }}</strong>
+		<small>{{ mantenimiento_dashboard.completados }} completados · {{ mantenimiento_dashboard.cancelados }} cancelados</small>
+	</a>
+	<a class="kpi-card" href="{% url 'mantenimiento_list' %}?alerta=proximos">
+		<span class="kpi-card__label">Proximos {{ mantenimiento_dashboard.proximos_dias }}d</span>
+		<strong class="kpi-card__value">{{ mantenimiento_dashboard.proximos_30 }}</strong>
+		<small>Solo activos</small>
+	</a>
+	<div class="kpi-card">
+		<span class="kpi-card__label">Costo completados</span>
+		<strong class="kpi-card__value">{{ mantenimiento_dashboard.costo_completados }}</strong>
+		<small>Activos: {{ mantenimiento_dashboard.costo_activos }}</small>
+	</div>
+</section>
+
+<section class="dash-panels mb-4">
+	<div class="section-block dash-panel">
+		<div class="section-block__header">
+			<div>
+				<h2>Por estado</h2>
+				<p>Distribucion de todos los mantenimientos.</p>
+			</div>
+		</div>
+		<div class="ops-stat-list">
+			{% for item in mantenimiento_dashboard.por_estado %}
+			<a class="ops-stat-row" href="{% url 'mantenimiento_list' %}?estado={{ item.value }}">
+				<span class="status-badge status-badge--{{ item.value|slugify }}">{{ item.label }}</span>
+				<strong>{{ item.count }}</strong>
+			</a>
+			{% endfor %}
+		</div>
+	</div>
+
+	<div class="section-block dash-panel">
+		<div class="section-block__header">
+			<div>
+				<h2>Por tipo (activos)</h2>
+				<p>Preventivo, correctivo y predictivo abiertos.</p>
+			</div>
+		</div>
+		<div class="ops-stat-list">
+			{% for item in mantenimiento_dashboard.por_tipo %}
+			<a class="ops-stat-row" href="{% url 'mantenimiento_list' %}?tipo={{ item.value }}&estado=Programado">
+				<span>{{ item.label }}</span>
+				<strong>{{ item.count }} <small class="text-muted">/ {{ item.total }}</small></strong>
+			</a>
+			{% empty %}
+			<p class="text-muted mb-0">Sin datos.</p>
+			{% endfor %}
+		</div>
+	</div>
+</section>
+
+<section class="section-block mb-4">
+	<div class="section-block__header">
+		<div>
+			<h2>Equipos con mas mantenimientos</h2>
+			<p>Historico acumulado.</p>
+		</div>
+	</div>
+	<div class="table-responsive">
+		<table class="table table-sm align-middle mb-0">
+			<thead>
+				<tr>
+					<th>Equipo</th>
+					<th>Total</th>
+					<th></th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for item in mantenimiento_dashboard.por_equipo %}
+				<tr>
+					<td><strong>{{ item.equipo__codigo_inventario }}</strong></td>
+					<td>{{ item.total }}</td>
+					<td class="text-end">
+						<a class="btn btn-outline-secondary btn-sm" href="{% url 'mantenimiento_list' %}?equipo={{ item.equipo_id }}">Ver</a>
+					</td>
+				</tr>
+				{% empty %}
+				<tr><td colspan="3" class="text-muted text-center py-3">Sin datos.</td></tr>
+				{% endfor %}
+			</tbody>
+		</table>
+	</div>
+</section>
+
+<section class="dash-panels mb-4">
+	<div class="section-block dash-panel">
+		<div class="section-block__header">
+			<div>
+				<h2>Vencidos</h2>
+				<p>Requieren iniciar o cerrar.</p>
+			</div>
+			<a class="btn btn-outline-secondary btn-sm" href="{% url 'mantenimiento_list' %}?alerta=vencidos">Ver todos</a>
+		</div>
+		<div class="table-responsive">
+			<table class="table table-sm align-middle mb-0">
+				<thead>
+					<tr>
+						<th>Fecha</th>
+						<th>Equipo</th>
+						<th></th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for item in mantenimiento_dashboard.lista_vencidos %}
+					<tr class="table-row-click" data-href="{% url 'mantenimiento_detail' item.pk %}">
+						<td>{{ item.fecha_programada }}</td>
+						<td>{{ item.equipo }} · {{ item.folio_mantenimiento }}</td>
+						<td class="text-end"><a class="btn btn-primary btn-sm" href="{% url 'mantenimiento_detail' item.pk %}">Abrir</a></td>
+					</tr>
+					{% empty %}
+					<tr><td colspan="3" class="text-muted text-center py-3">Sin vencidos.</td></tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		</div>
+	</div>
+
+	<div class="section-block dash-panel">
+		<div class="section-block__header">
+			<div>
+				<h2>Proximos ciclos</h2>
+				<p>Cierres con proxima fecha pendiente.</p>
+			</div>
+			<a class="btn btn-outline-secondary btn-sm" href="{% url 'mantenimiento_list' %}?alerta=ciclo">Ver todos</a>
+		</div>
+		<div class="table-responsive">
+			<table class="table table-sm align-middle mb-0">
+				<thead>
+					<tr>
+						<th>Fecha</th>
+						<th>Equipo</th>
+						<th></th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for item in mantenimiento_dashboard.lista_ciclos %}
+					<tr>
+						<td>{{ item.proxima_fecha_mantenimiento }}</td>
+						<td>{{ item.mantenimiento.equipo }}</td>
+						<td class="text-end">
+							<a class="btn btn-primary btn-sm" href="{% url 'mantenimiento_create' %}?equipo={{ item.mantenimiento.equipo_id }}&fecha={{ item.proxima_fecha_mantenimiento|date:'Y-m-d' }}">Programar</a>
+						</td>
+					</tr>
+					{% empty %}
+					<tr><td colspan="3" class="text-muted text-center py-3">Sin ciclos pendientes.</td></tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		</div>
+	</div>
+</section>
+{% endblock %}

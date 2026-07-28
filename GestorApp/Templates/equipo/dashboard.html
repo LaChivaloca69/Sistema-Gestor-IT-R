@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard inventario{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+	<div>
+		<p class="eyebrow mb-2">Inventario</p>
+		<h1 class="h3 mb-1">Dashboard de equipos</h1>
+		<p class="text-muted mb-0">Estados, ubicaciones y focos de atencion (panel, sin email).</p>
+	</div>
+	<div class="d-flex flex-wrap gap-2">
+		<a class="btn btn-outline-secondary" href="{% url 'equipo_list' %}">Lista</a>
+		<a class="btn btn-primary" href="{% url 'equipo_create' %}">Nuevo equipo</a>
+	</div>
+</div>
+
+<section class="kpi-grid kpi-grid--ops mb-4">
+	<a class="kpi-card" href="{% url 'equipo_list' %}?estado_equipo=Disponible">
+		<span class="kpi-card__label">Disponibles</span>
+		<strong class="kpi-card__value">{{ equipo_dashboard.disponibles }}</strong>
+		<small>{{ equipo_dashboard.activos }} activos</small>
+	</a>
+	<a class="kpi-card" href="{% url 'equipo_list' %}?estado_equipo=Asignado">
+		<span class="kpi-card__label">Asignados</span>
+		<strong class="kpi-card__value">{{ equipo_dashboard.asignados }}</strong>
+		<small>En uso</small>
+	</a>
+	<a class="kpi-card" href="{% url 'equipo_list' %}?estado_equipo=En+Mantenimiento">
+		<span class="kpi-card__label">En mantenimiento</span>
+		<strong class="kpi-card__value">{{ equipo_dashboard.en_mantenimiento }}</strong>
+		<small>{{ equipo_dashboard.mant_largo }} prolongados</small>
+	</a>
+	<a class="kpi-card" href="{% url 'equipo_list' %}?alerta=baja">
+		<span class="kpi-card__label">Baja</span>
+		<strong class="kpi-card__value">{{ equipo_dashboard.baja }}</strong>
+		<small>Fuera de servicio</small>
+	</a>
+</section>
+
+<section class="kpi-grid mb-4">
+	<a class="kpi-card" href="{% url 'equipo_list' %}?alerta=sin_ubicacion">
+		<span class="kpi-card__label">Sin ubicacion</span>
+		<strong class="kpi-card__value">{{ equipo_dashboard.sin_ubicacion }}</strong>
+		<small>Activos sin lugar fisico</small>
+	</a>
+	<a class="kpi-card" href="{% url 'equipo_list' %}?alerta=mant_largo">
+		<span class="kpi-card__label">Mant. prolongado</span>
+		<strong class="kpi-card__value">{{ equipo_dashboard.mant_largo }}</strong>
+		<small>Mas de {{ equipo_dashboard.mant_largo_dias }} dias</small>
+	</a>
+	<a class="kpi-card" href="{% url 'equipo_list' %}?alerta=asignacion_antigua">
+		<span class="kpi-card__label">Asignaciones antiguas</span>
+		<strong class="kpi-card__value">{{ equipo_dashboard.asignaciones_antiguas }}</strong>
+		<small>Mas de {{ equipo_dashboard.asignacion_alerta_dias }} dias</small>
+	</a>
+	<a class="kpi-card" href="{% url 'equipo_list' %}">
+		<span class="kpi-card__label">Total registros</span>
+		<strong class="kpi-card__value">{{ equipo_dashboard.total }}</strong>
+		<small>Incluye bajas</small>
+	</a>
+</section>
+
+<section class="dash-panels mb-4">
+	<div class="section-block dash-panel">
+		<div class="section-block__header">
+			<div>
+				<h2>Por estado</h2>
+				<p>Distribucion del inventario.</p>
+			</div>
+		</div>
+		<div class="ops-stat-list">
+			{% for item in equipo_dashboard.por_estado %}
+			<a class="ops-stat-row" href="{% url 'equipo_list' %}?estado_equipo={{ item.value }}">
+				<span class="status-badge status-badge--{{ item.value|slugify }}">{{ item.label }}</span>
+				<strong>{{ item.count }}</strong>
+			</a>
+			{% endfor %}
+		</div>
+	</div>
+
+	<div class="section-block dash-panel">
+		<div class="section-block__header">
+			<div>
+				<h2>Por categoria</h2>
+				<p>Top categorias.</p>
+			</div>
+		</div>
+		<div class="ops-stat-list">
+			{% for item in equipo_dashboard.por_categoria %}
+			<a class="ops-stat-row" href="{% url 'equipo_list' %}?categoria={{ item.categoria_id }}">
+				<span>{{ item.categoria__nombre_categoria }}</span>
+				<strong>{{ item.total }}</strong>
+			</a>
+			{% empty %}
+			<p class="text-muted mb-0">Sin datos.</p>
+			{% endfor %}
+		</div>
+	</div>
+</section>
+
+<section class="section-block mb-4">
+	<div class="section-block__header">
+		<div>
+			<h2>Por ubicacion</h2>
+			<p>Concentracion fisica de equipos.</p>
+		</div>
+	</div>
+	<div class="table-responsive">
+		<table class="table table-sm align-middle mb-0">
+			<thead>
+				<tr>
+					<th>Ubicacion</th>
+					<th>Total</th>
+					<th></th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for item in equipo_dashboard.por_ubicacion %}
+				<tr>
+					<td>
+						{{ item.ubicacion__edificio__nombre_edificio }} /
+						{{ item.ubicacion__zona__nombre_zona }}
+						{% if item.ubicacion__referencia %} / {{ item.ubicacion__referencia }}{% endif %}
+					</td>
+					<td>{{ item.total }}</td>
+					<td class="text-end">
+						<a class="btn btn-outline-secondary btn-sm" href="{% url 'equipo_list' %}?ubicacion={{ item.ubicacion_id }}">Ver</a>
+					</td>
+				</tr>
+				{% empty %}
+				<tr><td colspan="3" class="text-muted text-center py-3">Sin ubicaciones con equipos.</td></tr>
+				{% endfor %}
+			</tbody>
+		</table>
+	</div>
+</section>
+
+<section class="dash-panels mb-4">
+	<div class="section-block dash-panel">
+		<div class="section-block__header">
+			<div>
+				<h2>Sin ubicacion</h2>
+				<p>Activos que requieren lugar fisico.</p>
+			</div>
+			<a class="btn btn-outline-secondary btn-sm" href="{% url 'equipo_list' %}?alerta=sin_ubicacion">Ver todos</a>
+		</div>
+		<div class="table-responsive">
+			<table class="table table-sm align-middle mb-0">
+				<thead>
+					<tr>
+						<th>Codigo</th>
+						<th>Estado</th>
+						<th></th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for item in equipo_dashboard.lista_sin_ubicacion %}
+					<tr class="table-row-click" data-href="{% url 'equipo_detail' item.pk %}">
+						<td><strong>{{ item.codigo_inventario }}</strong></td>
+						<td><span class="status-badge status-badge--{{ item.estado_equipo|slugify }}">{{ item.estado_equipo }}</span></td>
+						<td class="text-end"><a class="btn btn-primary btn-sm" href="{% url 'equipo_cambiar_ubicacion' item.pk %}">Ubicacion</a></td>
+					</tr>
+					{% empty %}
+					<tr><td colspan="3" class="text-muted text-center py-3">Todos tienen ubicacion.</td></tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		</div>
+	</div>
+
+	<div class="section-block dash-panel">
+		<div class="section-block__header">
+			<div>
+				<h2>Mant. prolongado</h2>
+				<p>Mas de {{ equipo_dashboard.mant_largo_dias }} dias en mantenimiento.</p>
+			</div>
+			<a class="btn btn-outline-secondary btn-sm" href="{% url 'equipo_list' %}?alerta=mant_largo">Ver todos</a>
+		</div>
+		<div class="table-responsive">
+			<table class="table table-sm align-middle mb-0">
+				<thead>
+					<tr>
+						<th>Codigo</th>
+						<th>Desde</th>
+						<th></th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for item in equipo_dashboard.lista_mant_largo %}
+					<tr class="table-row-click" data-href="{% url 'equipo_detail' item.pk %}">
+						<td><strong>{{ item.codigo_inventario }}</strong></td>
+						<td>{% if item.ultimo_inicio_mant %}{{ item.ultimo_inicio_mant|date:"Y-m-d" }}{% else %}Sin movimiento{% endif %}</td>
+						<td class="text-end"><a class="btn btn-primary btn-sm" href="{% url 'equipo_detail' item.pk %}">Abrir</a></td>
+					</tr>
+					{% empty %}
+					<tr><td colspan="3" class="text-muted text-center py-3">Sin mantenimientos prolongados.</td></tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		</div>
+	</div>
+</section>
+
+<section class="section-block mb-4">
+	<div class="section-block__header">
+		<div>
+			<h2>Asignaciones antiguas</h2>
+			<p>Activas mas de {{ equipo_dashboard.asignacion_alerta_dias }} dias.</p>
+		</div>
+		<a class="btn btn-outline-secondary btn-sm" href="{% url 'equipo_list' %}?alerta=asignacion_antigua">Ver todos</a>
+	</div>
+	<div class="table-responsive">
+		<table class="table table-sm align-middle mb-0">
+			<thead>
+				<tr>
+					<th>Equipo</th>
+					<th>Personal</th>
+					<th>Desde</th>
+					<th></th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for item in equipo_dashboard.lista_asignaciones_antiguas %}
+				<tr class="table-row-click" data-href="{% url 'equipo_detail' item.equipo_id %}">
+					<td><strong>{{ item.equipo.codigo_inventario }}</strong></td>
+					<td>{{ item.personal }}</td>
+					<td>{{ item.fecha_asignacion|date:"Y-m-d" }}</td>
+					<td class="text-end"><a class="btn btn-primary btn-sm" href="{% url 'equipo_detail' item.equipo_id %}">Abrir</a></td>
+				</tr>
+				{% empty %}
+				<tr><td colspan="4" class="text-muted text-center py-3">Sin asignaciones antiguas.</td></tr>
+				{% endfor %}
+			</tbody>
+		</table>
+	</div>
+</section>
+{% endblock %}

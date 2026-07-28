@@ -101,22 +101,34 @@ urlpatterns = [
 
     # ------------ Equipo views --------------
     path('Equipos/', views.admin_required(views.equipo_list), name='equipo_list'),
+    path('Equipos/dashboard/', views.admin_required(views.equipo_dashboard), name='equipo_dashboard'),
     path('Equipos/create/', views.admin_required(views.equipo_create), name='equipo_create'),
+    path('Equipos/<int:pk>/', views.admin_required(views.equipo_detail), name='equipo_detail'),
     path('Equipos/update/<int:pk>/', views.admin_required(views.equipo_update), name='equipo_update'),
     path('Equipos/delete/<int:pk>/', views.admin_required(views.equipo_delete), name='equipo_delete'),
+    path('Equipos/<int:pk>/baja/', views.admin_required(views.equipo_dar_baja), name='equipo_dar_baja'),
+    path('Equipos/<int:pk>/reactivar/', views.admin_required(views.equipo_reactivar), name='equipo_reactivar'),
+    path('Equipos/<int:pk>/asignar/', views.admin_required(views.equipo_asignar), name='equipo_asignar'),
+    path('Equipos/<int:pk>/devolver/', views.admin_required(views.equipo_devolver), name='equipo_devolver'),
+    path(
+        'Equipos/<int:pk>/ubicacion/',
+        views.admin_required(views.equipo_cambiar_ubicacion),
+        name='equipo_cambiar_ubicacion',
+    ),
 
 
     # ------------- Movimiento de equipos Urls -------------
     path('MovimientoEquipos/', views.admin_required(views.movimientoequipo_list), name='movimientoequipo_list'),
     path('MovimientoEquipos/registros/', views.admin_required(views.movimientoequipo_registros), name='movimientoequipo_registros'),
     path('MovimientoEquipos/create/', views.admin_required(views.movimientoequipo_create), name='movimientoequipo_create'),
-    path('MovimientoEquipos/update/<int:pk>/', views.admin_required(views.movimientoequipo_update), name='movimientoequipo_update'),
-    path('MovimientoEquipos/delete/<int:pk>/', views.admin_required(views.movimientoequipo_delete), name='movimientoequipo_delete'),
     path(
         'MovimientoEquipos/equipo-info/',
         views.admin_required(views.movimientoequipo_equipo_info),
         name='movimientoequipo_equipo_info',
     ),
+    path('MovimientoEquipos/<int:pk>/', views.admin_required(views.movimientoequipo_detail), name='movimientoequipo_detail'),
+    path('MovimientoEquipos/update/<int:pk>/', views.admin_required(views.movimientoequipo_update), name='movimientoequipo_update'),
+    path('MovimientoEquipos/delete/<int:pk>/', views.admin_required(views.movimientoequipo_delete), name='movimientoequipo_delete'),
 
 
     # ------------- Asignacion de equipos Urls -------------
@@ -128,9 +140,26 @@ urlpatterns = [
 
     # -------------- Mantenimiento de equipos Urls -------------
     path('MantenimientoEquipos/', views.admin_required(views.mantenimiento_list), name='mantenimiento_list'),
+    path('MantenimientoEquipos/dashboard/', views.admin_required(views.mantenimiento_dashboard), name='mantenimiento_dashboard'),
     path('MantenimientoEquipos/create/', views.admin_required(views.mantenimiento_create), name='mantenimiento_create'),
+    path('MantenimientoEquipos/<int:pk>/', views.admin_required(views.mantenimiento_detail), name='mantenimiento_detail'),
     path('MantenimientoEquipos/update/<int:pk>/', views.admin_required(views.mantenimiento_update), name='mantenimiento_update'),
     path('MantenimientoEquipos/delete/<int:pk>/', views.admin_required(views.mantenimiento_delete), name='mantenimiento_delete'),
+    path(
+        'MantenimientoEquipos/<int:pk>/iniciar/',
+        views.admin_required(views.mantenimiento_iniciar),
+        name='mantenimiento_iniciar',
+    ),
+    path(
+        'MantenimientoEquipos/<int:pk>/cancelar/',
+        views.admin_required(views.mantenimiento_cancelar),
+        name='mantenimiento_cancelar',
+    ),
+    path(
+        'MantenimientoEquipos/<int:pk>/reabrir/',
+        views.admin_required(views.mantenimiento_reabrir),
+        name='mantenimiento_reabrir',
+    ),
 
 
     # -------------- Agenda de mantenimiento Urls -------------
@@ -142,6 +171,7 @@ urlpatterns = [
 
     # -------------- Ticket de soporte Urls -------------
     path('Ticketit/', login_required(views.ticketit_list), name='ticketit_list'),
+    path('Ticketit/dashboard/', login_required(views.ticketit_dashboard), name='ticketit_dashboard'),
     path('Ticketit/create/', login_required(views.ticketit_create), name='ticketit_create'),
     path('Ticketit/<int:pk>/', login_required(views.ticketit_detail), name='ticketit_detail'),
     path('Ticketit/update/<int:pk>/', login_required(views.ticketit_update), name='ticketit_update'),

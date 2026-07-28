@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}Movimiento {{ object.pk }}{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+	<div>
+		<p class="eyebrow mb-2">Inventario · Auditoria</p>
+		<h1 class="h3 mb-1">Movimiento de equipo</h1>
+		<p class="text-muted mb-0">Registro de solo lectura. No se edita ni elimina.</p>
+	</div>
+	<div class="d-flex flex-wrap gap-2">
+		{% if object.equipo_id %}
+		<a class="btn btn-outline-secondary" href="{% url 'equipo_detail' object.equipo_id %}">Ver equipo</a>
+		{% endif %}
+		<a class="btn btn-outline-secondary" href="{% url 'movimientoequipo_registros' %}">Movimientos</a>
+	</div>
+</div>
+
+<div class="dash-alerts mb-3">
+	<div class="dash-alert dash-alert--warn">
+		<div>
+			<strong>Bitacora de auditoria</strong>
+			<p class="mb-0">Los movimientos se generan desde acciones del equipo (alta, baja, asignacion, ubicacion, mantenimiento). Preferible no registrar a mano salvo excepciones.</p>
+		</div>
+	</div>
+</div>
+
+<section class="ticket-panel">
+	<div class="ticket-panel__header">
+		<h2 class="h5 mb-0">{{ object.tipo_movimiento }}</h2>
+		<span class="text-muted">{{ object.fecha_movimiento|date:"Y-m-d H:i" }}</span>
+	</div>
+	<div class="ticket-meta">
+		<div>
+			<span class="ticket-meta__label">Equipo</span>
+			{% if object.equipo_id %}
+			<strong><a href="{% url 'equipo_detail' object.equipo_id %}">{{ object.equipo }}</a></strong>
+			{% else %}
+			<strong>—</strong>
+			{% endif %}
+		</div>
+		<div>
+			<span class="ticket-meta__label">Tipo</span>
+			<strong>{{ object.tipo_movimiento }}</strong>
+		</div>
+		<div>
+			<span class="ticket-meta__label">Origen</span>
+			<strong>{{ object.origen|default:"—" }}</strong>
+		</div>
+		<div>
+			<span class="ticket-meta__label">Destino</span>
+			<strong>{{ object.destino|default:"—" }}</strong>
+		</div>
+		<div>
+			<span class="ticket-meta__label">Responsable</span>
+			<strong>{{ object.responsable|default:"—" }}</strong>
+		</div>
+		<div>
+			<span class="ticket-meta__label">Observaciones</span>
+			<strong>{{ object.observaciones|default:"—" }}</strong>
+		</div>
+	</div>
+</section>
+
+{% if object.equipo_id %}
+<section class="section-block mt-4">
+	<div class="section-block__header">
+		<div>
+			<h2>Acciones del equipo</h2>
+			<p>Operaciones guiadas (generan nuevos movimientos).</p>
+		</div>
+	</div>
+	<div class="d-flex flex-wrap gap-2">
+		<a class="btn btn-outline-secondary btn-sm" href="{% url 'equipo_detail' object.equipo_id %}">Ficha equipo</a>
+		{% if object.equipo.puede_cambiar_ubicacion %}
+		<a class="btn btn-outline-secondary btn-sm" href="{% url 'equipo_cambiar_ubicacion' object.equipo_id %}">Cambiar ubicacion</a>
+		{% endif %}
+		{% if object.equipo.puede_asignarse %}
+		<a class="btn btn-outline-secondary btn-sm" href="{% url 'equipo_asignar' object.equipo_id %}">Asignar</a>
+		{% endif %}
+		<a class="btn btn-outline-secondary btn-sm" href="{% url 'mantenimiento_list' %}?equipo={{ object.equipo_id }}">Mantenimientos</a>
+		<a class="btn btn-outline-secondary btn-sm" href="{% url 'ticketit_list' %}?equipo={{ object.equipo_id }}">Tickets</a>
+	</div>
+</section>
+{% endif %}
+{% endblock %}

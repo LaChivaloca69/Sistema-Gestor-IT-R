@@ -26,34 +26,152 @@
 </section>
 
 <section class="kpi-grid">
-	<a class="kpi-card" href="{% url 'ticketit_list' %}?status=Abierto">
+	<a class="kpi-card" href="{% url 'ticketit_dashboard' %}">
 		<span class="kpi-card__label">Tickets activos</span>
 		<strong class="kpi-card__value">{{ dashboard_counts.tickets_abiertos }}</strong>
 		<small>{{ dashboard_counts.tickets }} en total</small>
 	</a>
-	<a class="kpi-card" href="{% url 'mantenimiento_list' %}">
-		<span class="kpi-card__label">Mantenimientos (30d)</span>
-		<strong class="kpi-card__value">{{ dashboard_counts.mantenimientos_proximos }}</strong>
-		<small>Programados proximos</small>
-	</a>
-	<a class="kpi-card" href="#calendario">
-		<span class="kpi-card__label">Seguimientos (30d)</span>
-		<strong class="kpi-card__value">{{ dashboard_counts.agendas_proximas }}</strong>
-		<small>Revisiones programadas</small>
+	<a class="kpi-card" href="{% url 'ticketit_list' %}?alerta=sla">
+		<span class="kpi-card__label">SLA vencidos</span>
+		<strong class="kpi-card__value">{{ dashboard_counts.tickets_sla_vencidos }}</strong>
+		<small>{{ dashboard_counts.tickets_sin_seguimiento }} sin seguimiento</small>
 	</a>
 	{% if is_admin_dashboard %}
-	<a class="kpi-card" href="{% url 'equipo_list' %}">
-		<span class="kpi-card__label">Equipos activos</span>
-		<strong class="kpi-card__value">{{ dashboard_counts.equipos_activos }}</strong>
-		<small>{{ dashboard_counts.historial_hoy }} eventos hoy</small>
+	<a class="kpi-card" href="{% url 'equipo_dashboard' %}">
+		<span class="kpi-card__label">Inventario por atender</span>
+		<strong class="kpi-card__value">{{ dashboard_counts.equipos_atencion }}</strong>
+		<small>{{ dashboard_counts.equipos_sin_ubicacion }} sin ubic. · {{ dashboard_counts.asignaciones_antiguas }} asig. viejas</small>
+	</a>
+	<a class="kpi-card" href="{% url 'mantenimiento_list' %}?alerta=atencion">
+		<span class="kpi-card__label">Mantenimientos por atender</span>
+		<strong class="kpi-card__value">{{ dashboard_counts.mantenimientos_atencion }}</strong>
+		<small>{{ dashboard_counts.mantenimientos_vencidos }} vencidos · {{ dashboard_counts.mantenimientos_por_vencer }} proximos</small>
 	</a>
 	{% else %}
+	<a class="kpi-card" href="{% url 'ticketit_list' %}?sin_seguimiento=1">
+		<span class="kpi-card__label">Sin seguimiento</span>
+		<strong class="kpi-card__value">{{ dashboard_counts.tickets_sin_seguimiento }}</strong>
+		<small>Tus tickets sin check</small>
+	</a>
 	<a class="kpi-card" href="{% url 'ordencompra_list' %}">
 		<span class="kpi-card__label">Ordenes</span>
 		<strong class="kpi-card__value">Ir</strong>
 		<small>Compras y documentos</small>
 	</a>
 	{% endif %}
+</section>
+
+{% if dashboard_counts.tickets_sla_vencidos or dashboard_counts.tickets_sin_seguimiento or dashboard_counts.seguimientos_atencion or dashboard_counts.mantenimientos_atencion or dashboard_counts.mantenimientos_ciclos or dashboard_counts.equipos_atencion %}
+<section class="dash-alerts" aria-label="Avisos operativos">
+	{% if dashboard_counts.tickets_sla_vencidos %}
+	<div class="dash-alert dash-alert--danger">
+		<div>
+			<strong>{{ dashboard_counts.tickets_sla_vencidos }} ticket{{ dashboard_counts.tickets_sla_vencidos|pluralize:"s" }} fuera de SLA</strong>
+			<p class="mb-0">Prioridad Urgente 4h · Alta 24h · Media 72h · Baja 168h (aviso en panel, sin email).</p>
+		</div>
+		<a class="btn btn-sm btn-outline-danger" href="{% url 'ticketit_list' %}?alerta=sla">Ver SLA</a>
+	</div>
+	{% endif %}
+	{% if dashboard_counts.tickets_sin_seguimiento %}
+	<div class="dash-alert dash-alert--warn">
+		<div>
+			<strong>{{ dashboard_counts.tickets_sin_seguimiento }} ticket{{ dashboard_counts.tickets_sin_seguimiento|pluralize:"s" }} sin seguimiento</strong>
+			<p class="mb-0">Activos sin ningun check registrado.</p>
+		</div>
+		<a class="btn btn-sm btn-outline-secondary" href="{% url 'ticketit_list' %}?sin_seguimiento=1">Ver sin check</a>
+	</div>
+	{% endif %}
+	{% if is_admin_dashboard and equipos_sin_ubicacion_count %}
+	<div class="dash-alert dash-alert--warn">
+		<div>
+			<strong>{{ equipos_sin_ubicacion_count }} equipo{{ equipos_sin_ubicacion_count|pluralize:"s" }} sin ubicacion</strong>
+			<p class="mb-0">Activos sin lugar fisico asignado.</p>
+		</div>
+		<a class="btn btn-sm btn-outline-secondary" href="{% url 'equipo_list' %}?alerta=sin_ubicacion">Ver equipos</a>
+	</div>
+	{% endif %}
+	{% if is_admin_dashboard and equipos_mant_largo_count %}
+	<div class="dash-alert dash-alert--warn">
+		<div>
+			<strong>{{ equipos_mant_largo_count }} equipo{{ equipos_mant_largo_count|pluralize:"s" }} en mantenimiento prolongado</strong>
+			<p class="mb-0">Mas de {{ equipos_mant_largo_dias }} dias (aviso en panel, sin email).</p>
+		</div>
+		<a class="btn btn-sm btn-outline-secondary" href="{% url 'equipo_list' %}?alerta=mant_largo">Ver prolongados</a>
+	</div>
+	{% endif %}
+	{% if is_admin_dashboard and asignaciones_antiguas_count %}
+	<div class="dash-alert dash-alert--warn">
+		<div>
+			<strong>{{ asignaciones_antiguas_count }} asignacion{{ asignaciones_antiguas_count|pluralize:"es" }} antigua{{ asignaciones_antiguas_count|pluralize:"s" }}</strong>
+			<p class="mb-0">Activas desde hace mas de {{ equipos_asignacion_alerta_dias }} dias.</p>
+		</div>
+		<a class="btn btn-sm btn-outline-secondary" href="{% url 'equipo_list' %}?alerta=asignacion_antigua">Ver asignaciones</a>
+	</div>
+	{% endif %}
+	{% if is_admin_dashboard and mantenimientos_vencidos_count %}
+	<div class="dash-alert dash-alert--danger">
+		<div>
+			<strong>{{ mantenimientos_vencidos_count }} mantenimiento{{ mantenimientos_vencidos_count|pluralize:"s" }} vencido{{ mantenimientos_vencidos_count|pluralize:"s" }}</strong>
+			<p class="mb-0">Fecha programada anterior a hoy y aun abiertos (Programado / En Proceso).</p>
+		</div>
+		<a class="btn btn-sm btn-outline-danger" href="{% url 'mantenimiento_list' %}?alerta=vencidos">Ver vencidos</a>
+	</div>
+	{% endif %}
+	{% if is_admin_dashboard and mantenimientos_por_vencer_count %}
+	<div class="dash-alert dash-alert--warn">
+		<div>
+			<strong>{{ mantenimientos_por_vencer_count }} mantenimiento{{ mantenimientos_por_vencer_count|pluralize:"s" }} por vencer</strong>
+			<p class="mb-0">Proximos {{ mantenimientos_alerta_dias }} dias (aviso en panel, sin email).</p>
+		</div>
+		<a class="btn btn-sm btn-outline-secondary" href="{% url 'mantenimiento_list' %}?alerta=proximos">Ver proximos</a>
+	</div>
+	{% endif %}
+	{% if is_admin_dashboard and mantenimientos_ciclos_count %}
+	<div class="dash-alert dash-alert--warn">
+		<div>
+			<strong>{{ mantenimientos_ciclos_count }} proximo{{ mantenimientos_ciclos_count|pluralize:"s" }} ciclo{{ mantenimientos_ciclos_count|pluralize:"s" }} pendiente{{ mantenimientos_ciclos_count|pluralize:"s" }}</strong>
+			<p class="mb-0">Fecha de siguiente mantenimiento del cierre, sin ticket abierto del equipo.</p>
+		</div>
+		<a class="btn btn-sm btn-outline-secondary" href="{% url 'mantenimiento_list' %}?alerta=ciclo">Ver ciclos</a>
+	</div>
+	{% endif %}
+	{% if is_admin_dashboard and seguimientos_vencidos_count %}
+	<div class="dash-alert dash-alert--danger">
+		<div>
+			<strong>{{ seguimientos_vencidos_count }} seguimiento{{ seguimientos_vencidos_count|pluralize:"s" }} vencido{{ seguimientos_vencidos_count|pluralize:"s" }}</strong>
+			<p class="mb-0">La fecha de proximo seguimiento ya paso.</p>
+		</div>
+		<a class="btn btn-sm btn-outline-danger" href="{% url 'seguimientoticket_list' %}?alerta=vencidos">Ver vencidos</a>
+	</div>
+	{% endif %}
+	{% if is_admin_dashboard and seguimientos_por_vencer_count %}
+	<div class="dash-alert dash-alert--warn">
+		<div>
+			<strong>{{ seguimientos_por_vencer_count }} seguimiento{{ seguimientos_por_vencer_count|pluralize:"s" }} por vencer</strong>
+			<p class="mb-0">Proximos {{ seguimientos_alerta_dias }} dias.</p>
+		</div>
+		<a class="btn btn-sm btn-outline-secondary" href="{% url 'seguimientoticket_list' %}?alerta=proximos">Ver proximos</a>
+	</div>
+	{% endif %}
+</section>
+{% endif %}
+
+<section class="section-block">
+	<div class="section-block__header">
+		<div>
+			<h2>Operacion de tickets</h2>
+			<p>Resumen por prioridad y focos de atencion.</p>
+		</div>
+		<a class="btn btn-outline-secondary btn-sm" href="{% url 'ticketit_dashboard' %}">Abrir dashboard</a>
+	</div>
+	<div class="ops-stat-list ops-stat-list--grid mb-3">
+		{% for item in ticket_dashboard.por_prioridad %}
+		<a class="ops-stat-row" href="{% url 'ticketit_list' %}?prioridad={{ item.value }}">
+			<span class="status-badge status-badge--prio-{{ item.value|slugify }}">{{ item.label }}</span>
+			<strong>{{ item.count }}</strong>
+		</a>
+		{% endfor %}
+	</div>
 </section>
 
 <section class="section-block">
@@ -109,6 +227,51 @@
 		</div>
 	</div>
 
+	{% if is_admin_dashboard %}
+	<div class="section-block dash-panel">
+		<div class="section-block__header">
+			<div>
+				<h2>Seguimientos por atender</h2>
+				<p>Vencidos y proximos {{ seguimientos_alerta_dias }} dias.</p>
+			</div>
+			<a class="btn btn-outline-secondary btn-sm" href="{% url 'seguimientoticket_list' %}?alerta=atencion">Ver todos</a>
+		</div>
+		<div class="table-responsive">
+			<table class="table table-sm align-middle mb-0">
+				<thead>
+					<tr>
+						<th>Proximo</th>
+						<th>Ticket</th>
+						<th>Aviso</th>
+						<th></th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for item in seguimientos_vencidos %}
+					<tr class="table-row-click" data-href="{% url 'ticketit_detail' item.ticket_id %}">
+						<td class="text-nowrap">{{ item.fecha_proximo_seguimiento }}</td>
+						<td><strong>{{ item.ticket.folio_ticket }}</strong></td>
+						<td><span class="status-badge status-badge--prio-urgente">Vencido</span></td>
+						<td class="text-end"><a class="btn btn-primary btn-sm" href="{% url 'ticketit_detail' item.ticket_id %}">Abrir</a></td>
+					</tr>
+					{% endfor %}
+					{% for item in seguimientos_por_vencer %}
+					<tr class="table-row-click" data-href="{% url 'ticketit_detail' item.ticket_id %}">
+						<td class="text-nowrap">{{ item.fecha_proximo_seguimiento }}</td>
+						<td><strong>{{ item.ticket.folio_ticket }}</strong></td>
+						<td><span class="status-badge status-badge--advertencia">Por vencer</span></td>
+						<td class="text-end"><a class="btn btn-primary btn-sm" href="{% url 'ticketit_detail' item.ticket_id %}">Abrir</a></td>
+					</tr>
+					{% empty %}
+						{% if not seguimientos_vencidos %}
+						<tr><td colspan="4" class="text-muted text-center py-3">Sin seguimientos por atender.</td></tr>
+						{% endif %}
+					{% endfor %}
+				</tbody>
+			</table>
+		</div>
+	</div>
+	{% else %}
 	<div class="section-block dash-panel">
 		<div class="section-block__header">
 			<div>
@@ -129,11 +292,11 @@
 				</thead>
 				<tbody>
 					{% for item in upcoming_mantenimientos %}
-					<tr class="table-row-click" data-href="{% url 'mantenimiento_update' item.pk %}">
+					<tr class="table-row-click" data-href="{% url 'mantenimiento_detail' item.pk %}">
 						<td>{{ item.fecha_programada }}</td>
 						<td>{{ item.equipo }}</td>
 						<td><span class="status-badge status-badge--{{ item.estado_mantenimiento|slugify }}">{{ item.estado_mantenimiento }}</span></td>
-						<td class="text-end"><a class="btn btn-primary btn-sm" href="{% url 'mantenimiento_update' item.pk %}">Abrir</a></td>
+						<td class="text-end"><a class="btn btn-primary btn-sm" href="{% url 'mantenimiento_detail' item.pk %}">Abrir</a></td>
 					</tr>
 					{% empty %}
 					<tr><td colspan="4" class="text-muted text-center py-3">Sin mantenimientos proximos.</td></tr>
@@ -142,7 +305,156 @@
 			</table>
 		</div>
 	</div>
+	{% endif %}
 </section>
+
+{% if is_admin_dashboard %}
+<section class="section-block">
+	<div class="section-block__header">
+		<div>
+			<h2>Inventario por atender</h2>
+			<p>Sin ubicacion, mantenimiento prolongado y asignaciones antiguas (panel, sin email).</p>
+		</div>
+		<a class="btn btn-outline-secondary btn-sm" href="{% url 'equipo_dashboard' %}">Dashboard</a>
+		<a class="btn btn-outline-secondary btn-sm" href="{% url 'equipo_list' %}">Ver lista</a>
+	</div>
+	<div class="table-responsive">
+		<table class="table table-sm align-middle mb-0">
+			<thead>
+				<tr>
+					<th>Equipo</th>
+					<th>Detalle</th>
+					<th>Aviso</th>
+					<th></th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for item in equipos_sin_ubicacion %}
+				<tr class="table-row-click" data-href="{% url 'equipo_detail' item.pk %}">
+					<td><strong>{{ item.codigo_inventario }}</strong></td>
+					<td>{{ item.marca }} {{ item.modelo }}</td>
+					<td><span class="status-badge status-badge--advertencia">Sin ubicacion</span></td>
+					<td class="text-end"><a class="btn btn-primary btn-sm" href="{% url 'equipo_cambiar_ubicacion' item.pk %}">Ubicacion</a></td>
+				</tr>
+				{% endfor %}
+				{% for item in equipos_mant_largo %}
+				<tr class="table-row-click" data-href="{% url 'equipo_detail' item.pk %}">
+					<td><strong>{{ item.codigo_inventario }}</strong></td>
+					<td>{{ item.marca }} {{ item.modelo }}</td>
+					<td><span class="status-badge status-badge--advertencia">Mant. &gt; {{ equipos_mant_largo_dias }}d</span></td>
+					<td class="text-end"><a class="btn btn-primary btn-sm" href="{% url 'equipo_detail' item.pk %}">Abrir</a></td>
+				</tr>
+				{% endfor %}
+				{% for item in asignaciones_antiguas %}
+				<tr class="table-row-click" data-href="{% url 'equipo_detail' item.equipo_id %}">
+					<td><strong>{{ item.equipo.codigo_inventario }}</strong></td>
+					<td>{{ item.personal }} · desde {{ item.fecha_asignacion|date:"Y-m-d" }}</td>
+					<td><span class="status-badge status-badge--advertencia">Asig. &gt; {{ equipos_asignacion_alerta_dias }}d</span></td>
+					<td class="text-end"><a class="btn btn-primary btn-sm" href="{% url 'equipo_detail' item.equipo_id %}">Abrir</a></td>
+				</tr>
+				{% empty %}
+					{% if not equipos_sin_ubicacion and not equipos_mant_largo %}
+					<tr><td colspan="4" class="text-muted text-center py-3">Sin avisos de inventario.</td></tr>
+					{% endif %}
+				{% endfor %}
+			</tbody>
+		</table>
+	</div>
+</section>
+
+<section class="section-block">
+	<div class="section-block__header">
+		<div>
+			<h2>Mantenimientos por atender</h2>
+			<p>Vencidos, proximos {{ mantenimientos_alerta_dias }} dias y ciclos pendientes.</p>
+		</div>
+		<a class="btn btn-outline-secondary btn-sm" href="{% url 'mantenimiento_dashboard' %}">Dashboard</a>
+		<a class="btn btn-outline-secondary btn-sm" href="{% url 'mantenimiento_list' %}?alerta=atencion">Ver todos</a>
+	</div>
+	<div class="table-responsive">
+		<table class="table table-sm align-middle mb-0">
+			<thead>
+				<tr>
+					<th>Fecha</th>
+					<th>Equipo</th>
+					<th>Aviso</th>
+					<th></th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for item in mantenimientos_vencidos %}
+				<tr class="table-row-click" data-href="{% url 'mantenimiento_detail' item.pk %}">
+					<td class="text-nowrap">{{ item.fecha_programada }}</td>
+					<td><strong>{{ item.equipo }}</strong> · {{ item.folio_mantenimiento }}</td>
+					<td><span class="status-badge status-badge--prio-urgente">Vencido</span></td>
+					<td class="text-end"><a class="btn btn-primary btn-sm" href="{% url 'mantenimiento_detail' item.pk %}">Abrir</a></td>
+				</tr>
+				{% endfor %}
+				{% for item in mantenimientos_por_vencer %}
+				<tr class="table-row-click" data-href="{% url 'mantenimiento_detail' item.pk %}">
+					<td class="text-nowrap">{{ item.fecha_programada }}</td>
+					<td><strong>{{ item.equipo }}</strong> · {{ item.folio_mantenimiento }}</td>
+					<td><span class="status-badge status-badge--advertencia">Por vencer</span></td>
+					<td class="text-end"><a class="btn btn-primary btn-sm" href="{% url 'mantenimiento_detail' item.pk %}">Abrir</a></td>
+				</tr>
+				{% endfor %}
+				{% for item in mantenimientos_ciclos %}
+				<tr class="table-row-click" data-href="{% url 'mantenimiento_detail' item.mantenimiento_id %}">
+					<td class="text-nowrap">{{ item.proxima_fecha_mantenimiento }}</td>
+					<td><strong>{{ item.mantenimiento.equipo }}</strong> · ciclo</td>
+					<td>
+						{% if item.proxima_fecha_mantenimiento < today %}
+						<span class="status-badge status-badge--prio-urgente">Ciclo vencido</span>
+						{% else %}
+						<span class="status-badge status-badge--advertencia">Proximo ciclo</span>
+						{% endif %}
+					</td>
+					<td class="text-end"><a class="btn btn-primary btn-sm" href="{% url 'mantenimiento_create' %}?equipo={{ item.mantenimiento.equipo_id }}&fecha={{ item.proxima_fecha_mantenimiento|date:'Y-m-d' }}">Programar</a></td>
+				</tr>
+				{% empty %}
+					{% if not mantenimientos_vencidos and not mantenimientos_por_vencer %}
+					<tr><td colspan="4" class="text-muted text-center py-3">Sin mantenimientos por atender.</td></tr>
+					{% endif %}
+				{% endfor %}
+			</tbody>
+		</table>
+	</div>
+</section>
+
+<section class="section-block">
+	<div class="section-block__header">
+		<div>
+			<h2>Mantenimientos proximos ({{ mantenimientos_proximos_dias }}d)</h2>
+			<p>Solo Programado / En Proceso (sin completados ni cancelados).</p>
+		</div>
+		<a class="btn btn-outline-secondary btn-sm" href="{% url 'mantenimiento_list' %}">Ver lista</a>
+	</div>
+	<div class="table-responsive">
+		<table class="table table-sm align-middle mb-0">
+			<thead>
+				<tr>
+					<th>Fecha</th>
+					<th>Equipo</th>
+					<th>Estado</th>
+					<th></th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for item in upcoming_mantenimientos %}
+				<tr class="table-row-click" data-href="{% url 'mantenimiento_detail' item.pk %}">
+					<td>{{ item.fecha_programada }}</td>
+					<td>{{ item.equipo }}</td>
+					<td><span class="status-badge status-badge--{{ item.estado_mantenimiento|slugify }}">{{ item.estado_mantenimiento }}</span></td>
+					<td class="text-end"><a class="btn btn-primary btn-sm" href="{% url 'mantenimiento_detail' item.pk %}">Abrir</a></td>
+				</tr>
+				{% empty %}
+				<tr><td colspan="4" class="text-muted text-center py-3">Sin mantenimientos proximos.</td></tr>
+				{% endfor %}
+			</tbody>
+		</table>
+	</div>
+</section>
+{% endif %}
 
 {% if is_admin_dashboard %}
 <section class="section-block">
@@ -201,12 +513,16 @@
 	<div class="section-block__header">
 		<div>
 			<h2>Calendario operativo</h2>
-			<p>Tickets, mantenimientos y seguimientos.</p>
+			<p>Ventana de {{ calendar_past_days }} dias atras a {{ calendar_future_days }} adelante. Filtra por tipo.</p>
 		</div>
 		<div class="calendar-legend">
-			<button type="button" class="calendar-chip calendar-chip--tickets" data-calendar-filter="ticket" aria-pressed="false">Tickets</button>
-			<button type="button" class="calendar-chip calendar-chip--maintenance" data-calendar-filter="mantenimiento" aria-pressed="false">Mantenimientos</button>
-			<button type="button" class="calendar-chip calendar-chip--followup" data-calendar-filter="seguimiento" aria-pressed="false">Seguimientos</button>
+			<button type="button" class="calendar-chip calendar-chip--tickets" data-calendar-filter="ticket" aria-pressed="false">Tickets{% if calendar_counts.ticket %} ({{ calendar_counts.ticket }}){% endif %}</button>
+			<button type="button" class="calendar-chip calendar-chip--maintenance" data-calendar-filter="mantenimiento" aria-pressed="false">Mantenimientos{% if calendar_counts.mantenimiento %} ({{ calendar_counts.mantenimiento }}){% endif %}</button>
+			<button type="button" class="calendar-chip calendar-chip--checks" data-calendar-filter="seguimiento_ticket" aria-pressed="false">Checks{% if calendar_counts.seguimiento_ticket %} ({{ calendar_counts.seguimiento_ticket }}){% endif %}</button>
+			{% if is_admin_dashboard %}
+			<button type="button" class="calendar-chip calendar-chip--ciclo" data-calendar-filter="ciclo" aria-pressed="false">Proximos ciclos{% if calendar_counts.ciclo %} ({{ calendar_counts.ciclo }}){% endif %}</button>
+			<button type="button" class="calendar-chip calendar-chip--movimiento" data-calendar-filter="movimiento" aria-pressed="false">Movimientos{% if calendar_counts.movimiento %} ({{ calendar_counts.movimiento }}){% endif %}</button>
+			{% endif %}
 			<button type="button" class="calendar-chip calendar-chip--clear" data-calendar-filter-clear disabled>Limpiar</button>
 		</div>
 	</div>
@@ -217,15 +533,24 @@
 		</div>
 		<div class="calendar-sidebar">
 			<div class="notice-card notice-card--accent">
-				<p><strong>Interaccion</strong></p>
-				<p>Haz clic en un evento para ver los detalles completos.</p>
+				<p><strong>Filtros y urgencia</strong></p>
+				<p>Usa los chips para aislar un tipo. Rojo = vencido · Ambar = por vencer.</p>
+				<ul class="calendar-urgency-legend" aria-label="Leyenda de urgencia">
+					<li><span class="calendar-dot calendar-dot--vencido" aria-hidden="true"></span> Vencido{% if calendar_counts.vencido %} ({{ calendar_counts.vencido }}){% endif %}</li>
+					<li><span class="calendar-dot calendar-dot--por-vencer" aria-hidden="true"></span> Por vencer{% if calendar_counts.por_vencer %} ({{ calendar_counts.por_vencer }}){% endif %}</li>
+				</ul>
 			</div>
 			<div class="notice-card">
 				<p><strong>Resumen rapido</strong></p>
 				<ul class="calendar-summary">
 					<li>Tickets activos: {{ dashboard_counts.tickets_abiertos }}</li>
-					<li>Mantenimientos proximos: {{ dashboard_counts.mantenimientos_proximos }}</li>
-					<li>Seguimientos proximos: {{ dashboard_counts.agendas_proximas }}</li>
+					{% if is_admin_dashboard %}
+					<li>Mantenimientos por atender: {{ dashboard_counts.mantenimientos_atencion }}</li>
+					<li>Checks por atender: {{ dashboard_counts.seguimientos_atencion }}</li>
+					<li>Proximos ciclos: {{ dashboard_counts.mantenimientos_ciclos }}</li>
+					{% else %}
+					<li>Tus tickets en calendario: {{ calendar_counts.ticket }}</li>
+					{% endif %}
 				</ul>
 			</div>
 		</div>
@@ -235,6 +560,7 @@
 		<div class="calendar-modal__panel" role="dialog" aria-modal="true" aria-labelledby="calendar-event-title">
 			<button type="button" class="calendar-modal__close" aria-label="Cerrar detalle" data-calendar-modal-close>&times;</button>
 			<p class="calendar-modal__eyebrow" id="calendar-event-type"></p>
+			<p class="calendar-modal__urgency" id="calendar-event-urgency" hidden></p>
 			<h3 class="calendar-modal__title" id="calendar-event-title"></h3>
 			<p class="calendar-modal__subtitle" id="calendar-event-subtitle"></p>
 			<dl class="calendar-modal__details" id="calendar-event-details"></dl>
@@ -259,6 +585,7 @@
 	const dataElement = document.getElementById("home-calendar-events");
 	const modal = document.getElementById("calendar-event-modal");
 	const modalType = document.getElementById("calendar-event-type");
+	const modalUrgency = document.getElementById("calendar-event-urgency");
 	const modalTitle = document.getElementById("calendar-event-title");
 	const modalSubtitle = document.getElementById("calendar-event-subtitle");
 	const modalDetails = document.getElementById("calendar-event-details");
@@ -278,7 +605,9 @@
 	const calendarFilterGroups = {
 		ticket: ["ticket"],
 		mantenimiento: ["mantenimiento"],
-		seguimiento: ["seguimiento", "seguimiento_ticket"],
+		seguimiento_ticket: ["seguimiento_ticket"],
+		ciclo: ["ciclo"],
+		movimiento: ["movimiento"],
 	};
 
 	const getVisibleEvents = () => {
@@ -301,7 +630,7 @@
 	};
 
 	const applyFilter = (nextFilter) => {
-		activeFilter = nextFilter;
+		activeFilter = nextFilter === activeFilter ? null : nextFilter;
 		syncFilterState();
 		calendar.refetchEvents();
 	};
@@ -340,6 +669,16 @@
 		modalTitle.textContent = event.title || caseLabel;
 		modalSubtitle.textContent = `${caseLabel} · ${startLabel}`;
 		modal.style.setProperty("--calendar-accent", event.backgroundColor || "#1d4ed8");
+		if (modalUrgency) {
+			if (extendedProps.urgencyLabel) {
+				modalUrgency.hidden = false;
+				modalUrgency.textContent = extendedProps.urgencyLabel;
+				modalUrgency.className = "calendar-modal__urgency calendar-modal__urgency--" + (extendedProps.urgency || "ok");
+			} else {
+				modalUrgency.hidden = true;
+				modalUrgency.textContent = "";
+			}
+		}
 		renderDetails(details);
 		if (extendedProps.actionUrl) {
 			modalLink.hidden = false;
@@ -360,8 +699,9 @@
 		if (event.key === "Escape" && !modal.hidden) hideModal();
 	});
 
+	const prefersCompact = window.matchMedia("(max-width: 1100px)").matches;
 	const calendar = new FullCalendar.Calendar(calendarElement, {
-		initialView: "dayGridMonth",
+		initialView: prefersCompact ? "listWeek" : "dayGridMonth",
 		height: "auto",
 		locale: "es",
 		headerToolbar: {

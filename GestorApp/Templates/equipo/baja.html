@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% load django_bootstrap5 %}
+
+{% block title %}Dar de baja {{ object.codigo_inventario }}{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+	<div>
+		<p class="eyebrow mb-2">Inventario</p>
+		<h1 class="h3 mb-1">Dar de baja</h1>
+		<p class="text-muted mb-0">{{ object.codigo_inventario }} — baja logica (se conserva el historial).</p>
+	</div>
+	<a class="btn btn-outline-secondary" href="{% url 'equipo_detail' object.pk %}">Cancelar</a>
+</div>
+
+<div class="card shadow-sm border-0" style="max-width: 640px;">
+	<div class="card-body">
+		<p class="text-muted">
+			El equipo pasara a estado <strong>Baja</strong>, se marcara inactivo y se cerraran asignaciones activas.
+			No se borra el registro.
+		</p>
+		<form method="post" class="stack-form">
+			{% csrf_token %}
+			{% bootstrap_form form %}
+			<div class="d-flex justify-content-end gap-2 mt-3">
+				<a class="btn btn-outline-secondary" href="{% url 'equipo_detail' object.pk %}">Cancelar</a>
+				<button class="btn btn-danger" type="submit">Confirmar baja</button>
+			</div>
+		</form>
+	</div>
+</div>
+{% endblock %}

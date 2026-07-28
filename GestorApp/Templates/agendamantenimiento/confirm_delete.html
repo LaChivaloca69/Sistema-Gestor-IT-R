@@ -1,21 +1,20 @@
 {% extends "base.html" %}
 
-{% block title %}Eliminar Agenda de mantenimiento{% endblock %}
+{% block title %}Eliminar cierre de mantenimiento{% endblock %}
 
 {% block content %}
 <div class="card border-danger-subtle shadow-sm mx-auto" style="max-width: 640px;">
 	<div class="card-body p-4">
 		<p class="eyebrow mb-2">Confirmacion</p>
-		<h1 class="h3 mb-3">Eliminar agenda de mantenimiento</h1>
-		<p class="mb-4">Estas seguro que deseas eliminar <strong>"{{ object }}"</strong>?</p>
+		<h1 class="h3 mb-3">Eliminar cierre de mantenimiento</h1>
+		<p class="mb-4">Estas seguro que deseas eliminar el cierre de <strong>"{{ object }}"</strong>? El mantenimiento puede quedar sin registro de cierre.</p>
 		<div class="d-flex justify-content-end gap-2">
-			<a class="btn btn-outline-secondary" href="{% url 'agendamantenimiento_list' %}">Cancelar</a>
+			<a class="btn btn-outline-secondary" href="{% url 'mantenimiento_detail' object.mantenimiento_id %}">Cancelar</a>
 			<form method="post" class="d-inline">
 				{% csrf_token %}
-				<button class="btn btn-danger" type="submit">Eliminar</button>
+				<button class="btn btn-danger" type="submit">Eliminar cierre</button>
 			</form>
 		</div>
 	</div>
 </div>
 {% endblock %}
-

@@ -1,7 +1,8 @@
 """Registro centralizado de actividad del sistema y politica de retencion."""
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import date, datetime, timedelta
+from decimal import Decimal
 
 from django.conf import settings
 from django.db.models import Q
@@ -24,20 +25,40 @@ def _meta_objeto(objeto):
     return objeto._meta.label, objeto.pk, str(objeto)
 
 
+def _serialize_meta_value(valor):
+    if valor is None:
+        return None
+    if hasattr(valor, "pk"):
+        return valor.pk
+    if isinstance(valor, datetime):
+        return valor.isoformat()
+    if isinstance(valor, date):
+        return valor.isoformat()
+    if isinstance(valor, Decimal):
+        return str(valor)
+    if isinstance(valor, (list, tuple)):
+        return [_serialize_meta_value(item) for item in valor]
+    if isinstance(valor, dict):
+        return {str(key): _serialize_meta_value(item) for key, item in valor.items()}
+    return valor
+
+
 def metadata_desde_formulario(form):
     if not getattr(form, "changed_data", None):
         return None
+    model_fields = set(getattr(getattr(form, "_meta", None), "fields", []) or [])
     cambios = {}
     for nombre_campo in form.changed_data:
         if nombre_campo not in form.fields:
             continue
+        if model_fields and nombre_campo not in model_fields:
+            continue
         valor_nuevo = form.cleaned_data.get(nombre_campo)
         valor_anterior = form.initial.get(nombre_campo) if form.initial else None
-        if hasattr(valor_anterior, "pk"):
-            valor_anterior = valor_anterior.pk
-        if hasattr(valor_nuevo, "pk"):
-            valor_nuevo = valor_nuevo.pk
-        cambios[nombre_campo] = {"antes": valor_anterior, "despues": valor_nuevo}
+        cambios[nombre_campo] = {
+            "antes": _serialize_meta_value(valor_anterior),
+            "despues": _serialize_meta_value(valor_nuevo),
+        }
     return cambios or None
 
 

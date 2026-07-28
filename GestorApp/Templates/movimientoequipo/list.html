@@ -10,8 +10,7 @@
 		<p class="text-muted mb-0">Registro unificado de tickets, personal, equipos, asignaciones, compras y demas cambios del sistema.</p>
 	</div>
 	<div class="d-flex flex-wrap gap-2">
-		<a class="btn btn-outline-secondary" href="{% url 'movimientoequipo_registros' %}">Movimientos de equipo (detalle)</a>
-		<a class="btn btn-primary" href="{% url 'movimientoequipo_create' %}">Nuevo movimiento de equipo</a>
+		<a class="btn btn-outline-secondary" href="{% url 'movimientoequipo_registros' %}">Movimientos de equipo</a>
 	</div>
 </div>
 
@@ -134,5 +133,5 @@
 		</tbody>
 	</table>
 </div>
-<p class="text-muted small mb-0">Se muestran hasta los 500 eventos mas recientes. Por defecto solo se ven activos (no archivados).</p>
+<p class="text-muted small mb-0">Se muestran hasta los 500 eventos mas recientes. Por defecto solo se ven activos (no archivados). Los movimientos de equipo estan en <a href="{% url 'movimientoequipo_registros' %}">Movimientos</a>.</p>
 {% endblock %}

@@ -7,9 +7,16 @@
 	<div class="card-body p-4">
 		<p class="eyebrow mb-2">Confirmacion</p>
 		<h1 class="h3 mb-3">Eliminar equipo</h1>
-		<p class="mb-4">Estas seguro que deseas eliminar <strong>"{{ object }}"</strong>?</p>
+		<p class="mb-3">
+			Estas seguro que deseas <strong>eliminar permanentemente</strong>
+			<strong>"{{ object }}"</strong>?
+		</p>
+		<p class="text-muted mb-4">
+			Solo se permite si no tiene asignaciones, mantenimientos, tickets ni movimientos
+			(aparte del alta). Para conservar historial usa <strong>Dar de baja</strong>.
+		</p>
 		<div class="d-flex justify-content-end gap-2">
-			<a class="btn btn-outline-secondary" href="{% url 'equipo_list' %}">Cancelar</a>
+			<a class="btn btn-outline-secondary" href="{% url 'equipo_detail' object.pk %}">Cancelar</a>
 			<form method="post" class="d-inline">
 				{% csrf_token %}
 				<button class="btn btn-danger" type="submit">Eliminar</button>

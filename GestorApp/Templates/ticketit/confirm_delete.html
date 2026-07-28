@@ -14,12 +14,20 @@
 
 <div class="card shadow-sm border-0">
 	<div class="card-body">
+		{% if object.tiene_seguimientos %}
+		<p class="mb-4">
+			No se puede eliminar <strong>{{ object.folio_ticket }}</strong> porque tiene seguimientos.
+			Elimina los checks primero o contacta a un administrador.
+		</p>
+		<a class="btn btn-outline-secondary" href="{% url 'ticketit_detail' object.pk %}">Volver al ticket</a>
+		{% else %}
 		<p class="mb-4">Estas seguro que deseas eliminar <strong>{{ object.folio_ticket }}</strong>?</p>
 		<form method="post" class="d-flex flex-wrap gap-2">
 			{% csrf_token %}
 			<a class="btn btn-outline-secondary" href="{% url 'ticketit_detail' object.pk %}">Cancelar</a>
 			<button class="btn btn-danger" type="submit">Eliminar</button>
 		</form>
+		{% endif %}
 	</div>
 </div>
 {% endblock %}

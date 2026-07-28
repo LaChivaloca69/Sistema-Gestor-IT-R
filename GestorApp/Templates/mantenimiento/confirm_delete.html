@@ -9,7 +9,7 @@
 		<h1 class="h3 mb-3">Eliminar mantenimiento</h1>
 		<p class="mb-4">Estas seguro que deseas eliminar <strong>"{{ object }}"</strong>?</p>
 		<div class="d-flex justify-content-end gap-2">
-			<a class="btn btn-outline-secondary" href="{% url 'mantenimiento_list' %}">Cancelar</a>
+			<a class="btn btn-outline-secondary" href="{% url 'mantenimiento_detail' object.pk %}">Cancelar</a>
 			<form method="post" class="d-inline">
 				{% csrf_token %}
 				<button class="btn btn-danger" type="submit">Eliminar</button>

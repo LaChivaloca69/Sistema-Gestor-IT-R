@@ -8,10 +8,31 @@
 	<div>
 		<p class="eyebrow mb-2">Soporte</p>
 		<h1 class="h3 mb-1">{% if object %}Editar Check{% else %}Nuevo Check{% endif %}</h1>
-		<p class="text-muted mb-0">Captura la informacion principal del check.</p>
+		<p class="text-muted mb-0">
+			Captura el avance del ticket.
+			La fecha de proximo seguimiento genera aviso en home/dashboard (sin email).
+		</p>
 	</div>
-	<a class="btn btn-outline-secondary" href="{% url 'seguimientoticket_list' %}">Volver</a>
+	<div class="d-flex flex-wrap gap-2">
+		{% if object and object.ticket_id %}
+			<a class="btn btn-outline-primary" href="{% url 'ticketit_detail' object.ticket_id %}">Ver ticket</a>
+		{% endif %}
+		<a class="btn btn-outline-secondary" href="{% url 'seguimientoticket_list' %}">Volver</a>
+	</div>
 </div>
+
+{% if object %}
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+	<span class="text-muted">Ticket:</span>
+	<strong>{{ object.ticket.folio_ticket }}</strong>
+	<span class="status-badge status-badge--{{ object.ticket.status|slugify }}">{{ object.ticket.status }}</span>
+	{% if object.ya_terminado %}
+		<span class="status-badge status-badge--terminado">Concluido</span>
+	{% else %}
+		<span class="status-badge status-badge--en-proceso">En curso</span>
+	{% endif %}
+</div>
+{% endif %}
 
 <div class="card shadow-sm border-0">
 	<div class="card-body">
@@ -20,11 +41,14 @@
 			{{ form.non_field_errors }}
 			{% bootstrap_form form %}
 			<div class="d-flex justify-content-end gap-2 mt-3">
-				<a class="btn btn-outline-secondary" href="{% url 'seguimientoticket_list' %}">Cancelar</a>
+				{% if object and object.ticket_id %}
+					<a class="btn btn-outline-secondary" href="{% url 'ticketit_detail' object.ticket_id %}">Cancelar</a>
+				{% else %}
+					<a class="btn btn-outline-secondary" href="{% url 'seguimientoticket_list' %}">Cancelar</a>
+				{% endif %}
 				<button class="btn btn-primary" type="submit">Guardar</button>
 			</div>
 		</form>
 	</div>
 </div>
-
 {% endblock %}

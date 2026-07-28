@@ -124,9 +124,12 @@ A continuacion se mostrara un breve repaso de funciones segun los apartados del 
 - Models: MODELS.md
 - Views CRUD: DocViews.md
 - Templates: DocTemplates.md
+- Tickets y Seguimiento: TICKETS.md
+- Mantenimiento y Cierres: MANTENIMIENTO.md
+- Inventario de equipos: INVENTARIO.md
 
 ## Inventario (CRUD)
-Modulo para gestionar todo el apartado de IT consultas de equipos, bajas y altas, salidas y entradas de equipos, mantenimientos con sus respectivo seguimiento y calendarios
+Modulo para gestionar equipos, bajas/altas, asignaciones, movimientos (auditoria), mantenimientos y avisos operativos. Detalle del funcionamiento actual en **INVENTARIO.md**.
 
 ## Apoyo en formatos
 *Nota: Apartado sujeto a cambios *

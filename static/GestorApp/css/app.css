@@ -588,6 +588,37 @@ a { color: inherit; }
     margin-bottom: 1rem;
 }
 
+.kpi-grid--ops {
+    margin-bottom: 1.25rem;
+}
+
+.ops-stat-list {
+    display: grid;
+    gap: 0.55rem;
+}
+
+.ops-stat-list--grid {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.ops-stat-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.7rem 0.85rem;
+    border: 1px solid var(--app-border);
+    border-radius: 0.75rem;
+    background: var(--app-surface-alt);
+    text-decoration: none;
+    color: inherit;
+}
+
+.ops-stat-row:hover {
+    border-color: rgba(15, 118, 110, 0.35);
+    background: #edfdf9;
+}
+
 .kpi-card {
     display: block;
     padding: 1rem 1.1rem;
@@ -961,6 +992,9 @@ ul.model-grid li a { display: block; padding: 0.85rem; border: 1px solid var(--a
 
 .calendar-chip--tickets { background: #f59e0b; }
 .calendar-chip--maintenance { background: #1d4ed8; }
+.calendar-chip--checks { background: #7c3aed; }
+.calendar-chip--ciclo { background: #9333ea; }
+.calendar-chip--movimiento { background: #0f766e; }
 .calendar-chip--followup { background: #7c3aed; }
 .calendar-chip--clear { background: #e2e8f0; color: #0f172a; }
 
@@ -978,11 +1012,67 @@ ul.model-grid li a { display: block; padding: 0.85rem; border: 1px solid var(--a
     transform: none;
 }
 
+.calendar-urgency-legend {
+    list-style: none;
+    margin: 0.75rem 0 0;
+    padding: 0;
+    display: grid;
+    gap: 0.35rem;
+    color: var(--app-muted);
+    font-size: 0.9rem;
+}
+
+.calendar-urgency-legend li {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.calendar-dot {
+    width: 0.65rem;
+    height: 0.65rem;
+    border-radius: 999px;
+    flex: 0 0 auto;
+}
+
+.calendar-dot--vencido { background: #dc2626; }
+.calendar-dot--por-vencer { background: #f59e0b; }
+
 .calendar-summary {
     margin: 0.75rem 0 0;
     padding-left: 1rem;
     color: var(--app-muted);
     line-height: 1.65;
+}
+
+.home-calendar .fc-event.cal-urgency-vencido {
+    box-shadow: inset 0 0 0 2px rgba(127, 29, 29, 0.45);
+}
+
+.home-calendar .fc-event.cal-urgency-por_vencer {
+    box-shadow: inset 0 0 0 2px rgba(146, 64, 14, 0.35);
+}
+
+.calendar-modal__urgency {
+    display: inline-flex;
+    align-items: center;
+    margin: 0 0 0.35rem;
+    padding: 0.15rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.calendar-modal__urgency--vencido {
+    background: rgba(220, 38, 38, 0.12);
+    color: #b91c1c;
+}
+
+.calendar-modal__urgency--por_vencer {
+    background: rgba(245, 158, 11, 0.16);
+    color: #b45309;
 }
 
 body.calendar-modal-open {
@@ -1164,6 +1254,40 @@ body.calendar-modal-open {
     margin-top: 1rem;
     padding-top: 0.75rem;
     border-top: 1px solid var(--app-border);
+}
+
+.dash-alerts {
+    display: grid;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+}
+
+.dash-alert {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--app-border);
+    border-radius: 0.9rem;
+    background: var(--app-surface);
+    box-shadow: var(--app-shadow);
+}
+
+.dash-alert p {
+    color: var(--app-muted);
+    font-size: 0.92rem;
+}
+
+.dash-alert--danger {
+    border-color: #fecaca;
+    background: linear-gradient(135deg, #fff7f7, #ffffff);
+}
+
+.dash-alert--warn {
+    border-color: #fed7aa;
+    background: linear-gradient(135deg, #fffaf3, #ffffff);
 }
 
 .ticket-detail-layout {

@@ -6,49 +6,96 @@
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
 	<div>
 		<p class="eyebrow mb-2">Operaciones</p>
-		<h1 class="h3 mb-1">Agenda / cierres de mantenimiento</h1>
-		<p class="text-muted mb-0">Cierres y proximas fechas de mantenimiento.</p>
+		<h1 class="h3 mb-1">Cierres de mantenimiento</h1>
+		<p class="text-muted mb-0">Registro de acciones realizadas, fechas y proximo ciclo. No es una agenda de recordatorios.</p>
 	</div>
-	<a class="btn btn-primary" href="{% url 'agendamantenimiento_create' %}">Cerrar mantenimiento</a>
+	<div class="d-flex flex-wrap gap-2">
+		<a class="btn btn-outline-secondary" href="{% url 'mantenimiento_list' %}">Mantenimientos</a>
+		<a class="btn btn-primary" href="{% url 'agendamantenimiento_create' %}">Registrar cierre</a>
+	</div>
 </div>
+
+<form class="filters" method="get">
+	<div>
+		<label for="filter_search">Buscar</label>
+		<input
+			id="filter_search"
+			name="q"
+			type="search"
+			value="{{ search_query }}"
+			placeholder="Equipo, acciones, tecnico, folio"
+			data-chip-label="Busqueda"
+		/>
+	</div>
+	<div class="filters-actions">
+		<button class="btn btn-primary" type="submit">Filtrar</button>
+		<a class="btn btn-outline-secondary" href="{% url 'agendamantenimiento_list' %}">Limpiar</a>
+	</div>
+</form>
 
 <div class="table-responsive">
 	<table class="table table-striped table-hover align-middle">
 		<thead class="table-light">
 			<tr>
 				<th>Mantenimiento</th>
+				<th>Equipo</th>
 				<th>Fecha inicio</th>
 				<th>Fecha fin</th>
 				<th>Acciones realizadas</th>
-				<th>Observaciones</th>
 				<th>Proxima fecha</th>
 				<th class="text-nowrap">Acciones</th>
 			</tr>
 		</thead>
 		<tbody>
 			{% for item in items %}
-			<tr class="table-row-click" data-href="{% url 'agendamantenimiento_update' item.pk %}">
-				<td><strong>{{ item.mantenimiento }}</strong></td>
+			<tr class="table-row-click" data-href="{% url 'mantenimiento_detail' item.mantenimiento_id %}">
+				<td><strong>{{ item.mantenimiento.folio_mantenimiento }}</strong></td>
+				<td>{{ item.mantenimiento.equipo }}</td>
 				<td>{{ item.fecha_inicio|default:"-" }}</td>
 				<td>{{ item.fecha_fin|default:"-" }}</td>
-				<td>{{ item.acciones_realizadas|default:"-" }}</td>
-				<td>{{ item.observaciones|default:"-" }}</td>
+				<td>{{ item.acciones_realizadas|default:"-"|truncatechars:40 }}</td>
 				<td>{{ item.proxima_fecha_mantenimiento|default:"-" }}</td>
 				<td>
-					{% url 'agendamantenimiento_update' item.pk as update_url %}
-					{% url 'agendamantenimiento_delete' item.pk as delete_url %}
-					{% include "partials/row_actions.html" with update_url=update_url delete_url=delete_url %}
+					<div class="row-actions">
+						<a class="btn btn-primary btn-sm" href="{% url 'mantenimiento_detail' item.mantenimiento_id %}">Abrir</a>
+						<div class="dropdown">
+							<button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">⋯</button>
+							<ul class="dropdown-menu dropdown-menu-end">
+								<li><a class="dropdown-item" href="{% url 'mantenimiento_detail' item.mantenimiento_id %}">Ver mantenimiento</a></li>
+								<li><a class="dropdown-item" href="{% url 'agendamantenimiento_update' item.pk %}">Editar cierre</a></li>
+								<li><hr class="dropdown-divider"></li>
+								<li><a class="dropdown-item text-danger" href="{% url 'agendamantenimiento_delete' item.pk %}">Eliminar cierre</a></li>
+							</ul>
+						</div>
+					</div>
 				</td>
 			</tr>
 			{% empty %}
 			<tr>
 				<td colspan="7" class="text-center text-muted py-4">
-					No hay cierres registrados.
-					<a href="{% url 'agendamantenimiento_create' %}">Registrar el primero</a>
+					No hay cierres registrados{% if search_query %} con esta busqueda{% endif %}.
+					<a href="{% url 'mantenimiento_list' %}?alerta=atencion">Ir a mantenimientos por atender</a>
 				</td>
 			</tr>
 			{% endfor %}
 		</tbody>
 	</table>
 </div>
+
+{% if page_obj.paginator.num_pages > 1 %}
+<nav class="list-pagination" aria-label="Paginacion de cierres">
+	<span class="text-muted">
+		Pagina {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+		· {{ page_obj.paginator.count }} cierres
+	</span>
+	<div class="d-flex gap-2">
+		{% if page_obj.has_previous %}
+			<a class="btn btn-outline-secondary btn-sm" href="?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">Anterior</a>
+		{% endif %}
+		{% if page_obj.has_next %}
+			<a class="btn btn-outline-secondary btn-sm" href="?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">Siguiente</a>
+		{% endif %}
+	</div>
+</nav>
+{% endif %}
 {% endblock %}

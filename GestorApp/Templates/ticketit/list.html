@@ -9,8 +9,41 @@
 		<h1 class="h3 mb-1">Tickets</h1>
 		<p class="text-muted mb-0">Gestion de soporte y requerimientos.</p>
 	</div>
-	<a class="btn btn-primary" href="{% url 'ticketit_create' %}">Nuevo ticket</a>
+	<div>
+		<a class="btn btn-outline-secondary" href="{% url 'ticketit_dashboard' %}">Dashboard</a>
+		<a class="btn btn-primary" href="{% url 'ticketit_create' %}">Nuevo ticket</a>
+	</div>
 </div>
+
+{% if selected_alerta or selected_sin_seguimiento %}
+<div class="dash-alerts mb-3">
+	{% if selected_alerta == "sla" %}
+	<div class="dash-alert dash-alert--danger">
+		<div>
+			<strong>Filtro: SLA vencido</strong>
+			<p class="mb-0">Tickets activos fuera del tiempo objetivo por prioridad.</p>
+		</div>
+		<a class="btn btn-sm btn-outline-secondary" href="{% url 'ticketit_list' %}">Quitar filtro</a>
+	</div>
+	{% elif selected_alerta == "sla_por_vencer" %}
+	<div class="dash-alert dash-alert--warn">
+		<div>
+			<strong>Filtro: SLA por vencer</strong>
+			<p class="mb-0">Tickets cerca del limite de atencion.</p>
+		</div>
+		<a class="btn btn-sm btn-outline-secondary" href="{% url 'ticketit_list' %}">Quitar filtro</a>
+	</div>
+	{% elif selected_sin_seguimiento == "1" %}
+	<div class="dash-alert dash-alert--warn">
+		<div>
+			<strong>Filtro: sin seguimiento</strong>
+			<p class="mb-0">Tickets activos sin checks registrados.</p>
+		</div>
+		<a class="btn btn-sm btn-outline-secondary" href="{% url 'ticketit_list' %}">Quitar filtro</a>
+	</div>
+	{% endif %}
+</div>
+{% endif %}
 
 <form class="filters" method="get">
 	<div>
@@ -27,9 +60,29 @@
 	<div>
 		<label for="filter_scope">Vista</label>
 		<select id="filter_scope" name="scope" data-chip-label="Vista">
+			{% if is_staff_user %}
 			<option value="" {% if not selected_scope %}selected{% endif %}>Todos</option>
 			<option value="mios" {% if selected_scope == "mios" %}selected{% endif %}>Mis tickets</option>
 			<option value="asignados" {% if selected_scope == "asignados" %}selected{% endif %}>Asignados a mi</option>
+			{% else %}
+			<option value="" selected>Mis tickets</option>
+			{% endif %}
+		</select>
+	</div>
+	<div>
+		<label for="filter_alerta">Operacion</label>
+		<select id="filter_alerta" name="alerta" data-chip-label="Operacion">
+			<option value="" {% if not selected_alerta %}selected{% endif %}>Todas</option>
+			<option value="sla" {% if selected_alerta == "sla" %}selected{% endif %}>SLA vencido</option>
+			<option value="sla_por_vencer" {% if selected_alerta == "sla_por_vencer" %}selected{% endif %}>SLA por vencer</option>
+			<option value="operacion" {% if selected_alerta == "operacion" %}selected{% endif %}>SLA o sin check</option>
+		</select>
+	</div>
+	<div>
+		<label for="filter_sin_seguimiento">Seguimiento</label>
+		<select id="filter_sin_seguimiento" name="sin_seguimiento" data-chip-label="Seguimiento">
+			<option value="" {% if not selected_sin_seguimiento %}selected{% endif %}>Todos</option>
+			<option value="1" {% if selected_sin_seguimiento == "1" %}selected{% endif %}>Sin seguimiento</option>
 		</select>
 	</div>
 	<div>
@@ -77,6 +130,7 @@
 				<th>Asignado a</th>
 				<th>Tipo</th>
 				<th>Prioridad</th>
+				<th>SLA</th>
 				<th>Estatus</th>
 				<th class="text-nowrap">Acciones</th>
 			</tr>
@@ -92,6 +146,17 @@
 				<td>{{ item.asignado_a|default:"-" }}</td>
 				<td>{{ item.tipo_ticket }}</td>
 				<td><span class="status-badge status-badge--prio-{{ item.prioridad|slugify }}">{{ item.prioridad }}</span></td>
+				<td>
+					{% if item.sla_estado == "vencido" %}
+						<span class="status-badge status-badge--prio-urgente">Vencido</span>
+					{% elif item.sla_estado == "por_vencer" %}
+						<span class="status-badge status-badge--advertencia">Por vencer</span>
+					{% elif item.sla_estado == "ok" %}
+						<span class="status-badge status-badge--asignado">En tiempo</span>
+					{% else %}
+						<span class="text-muted">-</span>
+					{% endif %}
+				</td>
 				<td><span class="status-badge status-badge--{{ item.status|slugify }}">{{ item.status }}</span></td>
 				<td>
 					<div class="row-actions">
@@ -100,7 +165,9 @@
 							<button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">⋯</button>
 							<ul class="dropdown-menu dropdown-menu-end">
 								<li><a class="dropdown-item" href="{% url 'ticketit_detail' item.pk %}">Ver detalle</a></li>
+								{% if item.perm_can_edit %}
 								<li><a class="dropdown-item" href="{% url 'ticketit_update' item.pk %}">Editar</a></li>
+								{% endif %}
 								{% if can_manage_flow and item.puede_marcar_en_revision %}
 								<li>
 									<form method="post" action="{% url 'ticketit_marcar_revision' item.pk %}">
@@ -117,8 +184,13 @@
 									</form>
 								</li>
 								{% endif %}
+								{% if item.perm_can_delete %}
 								<li><hr class="dropdown-divider"></li>
 								<li><a class="dropdown-item text-danger" href="{% url 'ticketit_delete' item.pk %}">Eliminar</a></li>
+								{% elif is_staff_user and item.seguimientos_count %}
+								<li><hr class="dropdown-divider"></li>
+								<li><span class="dropdown-item disabled text-muted">No se puede eliminar (tiene seguimientos)</span></li>
+								{% endif %}
 							</ul>
 						</div>
 					</div>
@@ -126,7 +198,7 @@
 			</tr>
 			{% empty %}
 			<tr>
-				<td colspan="10" class="text-center text-muted py-4">
+				<td colspan="11" class="text-center text-muted py-4">
 					No hay tickets.
 					<a href="{% url 'ticketit_create' %}">Crear el primero</a>
 				</td>

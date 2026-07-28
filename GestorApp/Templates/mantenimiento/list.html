@@ -7,19 +7,145 @@
 	<div>
 		<p class="eyebrow mb-2">Operaciones</p>
 		<h1 class="h3 mb-1">Mantenimientos</h1>
-		<p class="text-muted mb-0">Gestiona los mantenimientos registrados en el sistema.</p>
+		<p class="text-muted mb-0">Programacion, ejecucion y cierre de mantenimientos.</p>
 	</div>
-	<a class="btn btn-primary" href="{% url 'mantenimiento_create' %}">Programar mantenimiento</a>
+	<div class="d-flex flex-wrap gap-2">
+		<a class="btn btn-outline-secondary" href="{% url 'mantenimiento_dashboard' %}">Dashboard</a>
+		<a class="btn btn-outline-secondary" href="{% url 'agendamantenimiento_list' %}">Cierres</a>
+		<a class="btn btn-primary" href="{% url 'mantenimiento_create' %}">Programar mantenimiento</a>
+	</div>
 </div>
+
+{% if selected_alerta %}
+<div class="dash-alerts mb-3">
+	{% if selected_alerta == "vencidos" %}
+	<div class="dash-alert dash-alert--danger">
+		<div>
+			<strong>Filtro: vencidos</strong>
+			<p class="mb-0">Programado / En Proceso con fecha programada anterior a hoy.</p>
+		</div>
+		<a class="btn btn-sm btn-outline-secondary" href="{% url 'mantenimiento_list' %}">Quitar filtro</a>
+	</div>
+	{% elif selected_alerta == "proximos" %}
+	<div class="dash-alert dash-alert--warn">
+		<div>
+			<strong>Filtro: proximos {{ mantenimientos_alerta_dias }} dias</strong>
+			<p class="mb-0">Activos con fecha programada en la ventana de aviso.</p>
+		</div>
+		<a class="btn btn-sm btn-outline-secondary" href="{% url 'mantenimiento_list' %}">Quitar filtro</a>
+	</div>
+	{% elif selected_alerta == "atencion" %}
+	<div class="dash-alert dash-alert--warn">
+		<div>
+			<strong>Filtro: por atender</strong>
+			<p class="mb-0">Vencidos y proximos {{ mantenimientos_alerta_dias }} dias.</p>
+		</div>
+		<a class="btn btn-sm btn-outline-secondary" href="{% url 'mantenimiento_list' %}">Quitar filtro</a>
+	</div>
+	{% elif selected_alerta == "ciclo" %}
+	<div class="dash-alert dash-alert--warn">
+		<div>
+			<strong>Filtro: proximo ciclo</strong>
+			<p class="mb-0">Cierres con proxima fecha pendiente y sin mantenimiento abierto del equipo.</p>
+		</div>
+		<a class="btn btn-sm btn-outline-secondary" href="{% url 'mantenimiento_list' %}">Quitar filtro</a>
+	</div>
+	{% endif %}
+</div>
+{% endif %}
+
+<form class="filters" method="get">
+	<div>
+		<label for="filter_search">Buscar</label>
+		<input
+			id="filter_search"
+			name="q"
+			type="search"
+			value="{{ search_query }}"
+			placeholder="Folio, equipo, tecnico, falla"
+			data-chip-label="Busqueda"
+		/>
+	</div>
+	<div>
+		<label for="filter_alerta">Aviso</label>
+		<select id="filter_alerta" name="alerta" data-chip-label="Aviso">
+			<option value="" {% if not selected_alerta %}selected{% endif %}>Todos</option>
+			<option value="atencion" {% if selected_alerta == "atencion" %}selected{% endif %}>Por atender</option>
+			<option value="vencidos" {% if selected_alerta == "vencidos" %}selected{% endif %}>Vencidos</option>
+			<option value="proximos" {% if selected_alerta == "proximos" %}selected{% endif %}>Proximos</option>
+			<option value="ciclo" {% if selected_alerta == "ciclo" %}selected{% endif %}>Proximo ciclo</option>
+		</select>
+	</div>
+	<div>
+		<label for="filter_estado">Estado</label>
+		<select id="filter_estado" name="estado" data-chip-label="Estado">
+			<option value="">Todos</option>
+			{% for value, label in estado_choices %}
+			<option value="{{ value }}" {% if value == selected_estado %}selected{% endif %}>{{ label }}</option>
+			{% endfor %}
+		</select>
+	</div>
+	<div>
+		<label for="filter_tipo">Tipo</label>
+		<select id="filter_tipo" name="tipo" data-chip-label="Tipo">
+			<option value="">Todos</option>
+			{% for value, label in tipo_choices %}
+			<option value="{{ value }}" {% if value == selected_tipo %}selected{% endif %}>{{ label }}</option>
+			{% endfor %}
+		</select>
+	</div>
+	<div>
+		<label for="filter_equipo">Equipo</label>
+		<select id="filter_equipo" name="equipo" data-chip-label="Equipo">
+			<option value="">Todos</option>
+			{% for eq in equipo_choices %}
+			<option value="{{ eq.pk }}" {% if selected_equipo == eq.pk|stringformat:"s" %}selected{% endif %}>{{ eq }}</option>
+			{% endfor %}
+		</select>
+	</div>
+	<div>
+		<label for="filter_tecnico">Tecnico</label>
+		<select id="filter_tecnico" name="tecnico" data-chip-label="Tecnico">
+			<option value="">Todos</option>
+			{% for tec in tecnico_choices %}
+			<option value="{{ tec }}" {% if tec == selected_tecnico %}selected{% endif %}>{{ tec }}</option>
+			{% endfor %}
+		</select>
+	</div>
+	<div>
+		<label for="filter_desde">Desde</label>
+		<input id="filter_desde" name="fecha_desde" type="date" value="{{ fecha_desde }}" data-chip-label="Desde" />
+	</div>
+	<div>
+		<label for="filter_hasta">Hasta</label>
+		<input id="filter_hasta" name="fecha_hasta" type="date" value="{{ fecha_hasta }}" data-chip-label="Hasta" />
+	</div>
+	<div>
+		<label for="filter_orden">Orden</label>
+		<select id="filter_orden" name="orden" data-chip-label="Orden">
+			<option value="programada" {% if selected_orden == "programada" %}selected{% endif %}>Fecha programada (asc)</option>
+			<option value="programada_desc" {% if selected_orden == "programada_desc" %}selected{% endif %}>Fecha programada (desc)</option>
+			<option value="reciente" {% if selected_orden == "reciente" %}selected{% endif %}>Mas recientes</option>
+			<option value="estado" {% if selected_orden == "estado" %}selected{% endif %}>Estado</option>
+			<option value="equipo" {% if selected_orden == "equipo" %}selected{% endif %}>Equipo</option>
+		</select>
+	</div>
+	<div class="filters-actions">
+		<button class="btn btn-primary" type="submit">Filtrar</button>
+		<a class="btn btn-outline-secondary" href="{% url 'mantenimiento_list' %}">Limpiar</a>
+	</div>
+</form>
 
 <div class="table-responsive">
 	<table class="table table-striped table-hover align-middle">
 		<thead class="table-light">
 			<tr>
+				<th>Folio</th>
 				<th>Equipo</th>
 				<th>Tipo</th>
 				<th>Estado</th>
 				<th>Fecha programada</th>
+				<th>Aviso</th>
 				<th>Fecha cierre</th>
 				<th>Tecnico</th>
 				<th class="text-nowrap">Acciones</th>
@@ -27,28 +153,112 @@
 		</thead>
 		<tbody>
 			{% for item in items %}
-			<tr class="table-row-click" data-href="{% url 'mantenimiento_update' item.pk %}">
-				<td><strong>{{ item.equipo }}</strong></td>
+			<tr class="table-row-click" data-href="{% url 'mantenimiento_detail' item.pk %}">
+				<td><strong>{{ item.folio_mantenimiento }}</strong></td>
+				<td>{{ item.equipo }}</td>
 				<td>{{ item.tipo_mantenimiento }}</td>
 				<td><span class="status-badge status-badge--{{ item.estado_mantenimiento|slugify }}">{{ item.estado_mantenimiento }}</span></td>
 				<td>{{ item.fecha_programada }}</td>
+				<td>
+					{% if item.estado_mantenimiento == "Programado" or item.estado_mantenimiento == "En Proceso" %}
+						{% if item.fecha_programada < today %}
+						<span class="status-badge status-badge--prio-urgente">Vencido</span>
+						{% elif item.fecha_programada == today %}
+						<span class="status-badge status-badge--advertencia">Hoy</span>
+						{% elif item.fecha_programada <= alerta_hasta %}
+						<span class="status-badge status-badge--advertencia">Por vencer</span>
+						{% else %}
+						-
+						{% endif %}
+					{% elif selected_alerta == "ciclo" and item.cierre and item.cierre.proxima_fecha_mantenimiento %}
+						{% if item.cierre.proxima_fecha_mantenimiento < today %}
+						<span class="status-badge status-badge--prio-urgente">Ciclo vencido</span>
+						{% else %}
+						<span class="status-badge status-badge--advertencia">Proximo ciclo</span>
+						{% endif %}
+						<small class="d-block text-muted">{{ item.cierre.proxima_fecha_mantenimiento }}</small>
+					{% else %}
+					-
+					{% endif %}
+				</td>
 				<td>{% if item.cierre %}{{ item.cierre.fecha_fin }}{% else %}-{% endif %}</td>
 				<td>{{ item.tecnico_responsable|default:"-" }}</td>
 				<td>
-					{% url 'mantenimiento_update' item.pk as update_url %}
-					{% url 'mantenimiento_delete' item.pk as delete_url %}
-					{% include "partials/row_actions.html" with update_url=update_url delete_url=delete_url %}
+					<div class="row-actions">
+						{% if item.puede_completar %}
+						<a class="btn btn-primary btn-sm" href="{% url 'agendamantenimiento_create' %}?mantenimiento={{ item.pk }}">Cerrar</a>
+						{% else %}
+						<a class="btn btn-primary btn-sm" href="{% url 'mantenimiento_detail' item.pk %}">Abrir</a>
+						{% endif %}
+						<div class="dropdown">
+							<button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">⋯</button>
+							<ul class="dropdown-menu dropdown-menu-end">
+								<li><a class="dropdown-item" href="{% url 'mantenimiento_detail' item.pk %}">Ver detalle</a></li>
+								<li><a class="dropdown-item" href="{% url 'mantenimiento_update' item.pk %}">Editar</a></li>
+								{% if item.puede_iniciar %}
+								<li>
+									<form method="post" action="{% url 'mantenimiento_iniciar' item.pk %}">
+										{% csrf_token %}
+										<button class="dropdown-item" type="submit">Iniciar</button>
+									</form>
+								</li>
+								{% endif %}
+								{% if item.puede_completar %}
+								<li><a class="dropdown-item" href="{% url 'agendamantenimiento_create' %}?mantenimiento={{ item.pk }}">Registrar cierre</a></li>
+								{% endif %}
+								{% if item.puede_cancelar %}
+								<li>
+									<form method="post" action="{% url 'mantenimiento_cancelar' item.pk %}">
+										{% csrf_token %}
+										<button class="dropdown-item" type="submit">Cancelar</button>
+									</form>
+								</li>
+								{% endif %}
+								{% if item.puede_reabrir %}
+								<li>
+									<form method="post" action="{% url 'mantenimiento_reabrir' item.pk %}">
+										{% csrf_token %}
+										<button class="dropdown-item" type="submit">Reabrir</button>
+									</form>
+								</li>
+								{% endif %}
+								<li><hr class="dropdown-divider"></li>
+								<li><a class="dropdown-item text-danger" href="{% url 'mantenimiento_delete' item.pk %}">Eliminar</a></li>
+							</ul>
+						</div>
+					</div>
 				</td>
 			</tr>
 			{% empty %}
 			<tr>
-				<td colspan="7" class="text-center text-muted py-4">
-					No hay mantenimientos.
+				<td colspan="9" class="text-center text-muted py-4">
+					No hay mantenimientos{% if selected_alerta or search_query or selected_estado or selected_tipo %} con estos filtros{% endif %}.
+					{% if selected_alerta or search_query or selected_estado or selected_tipo or selected_equipo or selected_tecnico or fecha_desde or fecha_hasta %}
+					<a href="{% url 'mantenimiento_list' %}">Ver todos</a>
+					{% else %}
 					<a href="{% url 'mantenimiento_create' %}">Programar el primero</a>
+					{% endif %}
 				</td>
 			</tr>
 			{% endfor %}
 		</tbody>
 	</table>
 </div>
+
+{% if page_obj.paginator.num_pages > 1 %}
+<nav class="list-pagination" aria-label="Paginacion de mantenimientos">
+	<span class="text-muted">
+		Pagina {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+		· {{ page_obj.paginator.count }} mantenimientos
+	</span>
+	<div class="d-flex gap-2">
+		{% if page_obj.has_previous %}
+			<a class="btn btn-outline-secondary btn-sm" href="?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">Anterior</a>
+		{% endif %}
+		{% if page_obj.has_next %}
+			<a class="btn btn-outline-secondary btn-sm" href="?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">Siguiente</a>
+		{% endif %}
+	</div>
+</nav>
+{% endif %}
 {% endblock %}

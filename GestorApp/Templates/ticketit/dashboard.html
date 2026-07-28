@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard tickets{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+	<div>
+		<p class="eyebrow mb-2">Soporte</p>
+		<h1 class="h3 mb-1">Dashboard de tickets</h1>
+		<p class="text-muted mb-0">Operacion, SLA por prioridad y focos de atencion (avisos en panel, sin email).</p>
+	</div>
+	<div class="d-flex flex-wrap gap-2">
+		<a class="btn btn-outline-secondary" href="{% url 'ticketit_list' %}">Lista</a>
+		<a class="btn btn-primary" href="{% url 'ticketit_create' %}">Nuevo ticket</a>
+	</div>
+</div>
+
+<section class="kpi-grid kpi-grid--ops mb-4">
+	<a class="kpi-card" href="{% url 'ticketit_list' %}?status=Abierto">
+		<span class="kpi-card__label">Activos</span>
+		<strong class="kpi-card__value">{{ ticket_dashboard.abiertos }}</strong>
+		<small>Sin cerrar</small>
+	</a>
+	<a class="kpi-card" href="{% url 'ticketit_list' %}?alerta=sla">
+		<span class="kpi-card__label">SLA vencido</span>
+		<strong class="kpi-card__value">{{ ticket_dashboard.sla_vencidos }}</strong>
+		<small>Fuera de tiempo</small>
+	</a>
+	<a class="kpi-card" href="{% url 'ticketit_list' %}?alerta=sla_por_vencer">
+		<span class="kpi-card__label">SLA por vencer</span>
+		<strong class="kpi-card__value">{{ ticket_dashboard.sla_por_vencer }}</strong>
+		<small>Cerca del limite</small>
+	</a>
+	<a class="kpi-card" href="{% url 'ticketit_list' %}?sin_seguimiento=1">
+		<span class="kpi-card__label">Sin seguimiento</span>
+		<strong class="kpi-card__value">{{ ticket_dashboard.sin_seguimiento }}</strong>
+		<small>Sin checks</small>
+	</a>
+</section>
+
+<section class="section-block mb-4">
+	<div class="section-block__header">
+		<div>
+			<h2>SLA por prioridad</h2>
+			<p>Tiempo objetivo desde la creacion del ticket.</p>
+		</div>
+	</div>
+	<div class="table-responsive">
+		<table class="table table-sm align-middle mb-0">
+			<thead>
+				<tr>
+					<th>Prioridad</th>
+					<th>Horas SLA</th>
+					<th>Tickets activos</th>
+					<th></th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for item in ticket_dashboard.por_prioridad %}
+				<tr>
+					<td><span class="status-badge status-badge--prio-{{ item.value|slugify }}">{{ item.label }}</span></td>
+					<td>{{ item.horas_sla }} h</td>
+					<td><strong>{{ item.count }}</strong></td>
+					<td class="text-end">
+						<a class="btn btn-outline-secondary btn-sm" href="{% url 'ticketit_list' %}?prioridad={{ item.value }}">Ver</a>
+					</td>
+				</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+	</div>
+</section>
+
+<section class="dash-panels mb-4">
+	<div class="section-block dash-panel">
+		<div class="section-block__header">
+			<div>
+				<h2>Por estado</h2>
+				<p>Tickets abiertos / en atencion.</p>
+			</div>
+		</div>
+		<div class="ops-stat-list">
+			{% for item in ticket_dashboard.por_estado %}
+			<a class="ops-stat-row" href="{% url 'ticketit_list' %}?status={{ item.value }}">
+				<span class="status-badge status-badge--{{ item.value|slugify }}">{{ item.label }}</span>
+				<strong>{{ item.count }}</strong>
+			</a>
+			{% empty %}
+			<p class="text-muted mb-0">Sin tickets activos.</p>
+			{% endfor %}
+		</div>
+	</div>
+
+	<div class="section-block dash-panel">
+		<div class="section-block__header">
+			<div>
+				<h2>Por tipo</h2>
+				<p>Distribucion de tickets activos.</p>
+			</div>
+		</div>
+		<div class="ops-stat-list">
+			{% for item in ticket_dashboard.por_tipo %}
+			<a class="ops-stat-row" href="{% url 'ticketit_list' %}?tipo_ticket={{ item.value }}">
+				<span>{{ item.label }}</span>
+				<strong>{{ item.count }}</strong>
+			</a>
+			{% empty %}
+			<p class="text-muted mb-0">Sin tickets activos.</p>
+			{% endfor %}
+		</div>
+	</div>
+</section>
+
+<section class="dash-panels">
+	<div class="section-block dash-panel">
+		<div class="section-block__header">
+			<div>
+				<h2>SLA vencidos</h2>
+				<p>Requieren atencion inmediata.</p>
+			</div>
+			<a class="btn btn-outline-secondary btn-sm" href="{% url 'ticketit_list' %}?alerta=sla">Ver todos</a>
+		</div>
+		<div class="table-responsive">
+			<table class="table table-sm align-middle mb-0">
+				<thead>
+					<tr>
+						<th>Folio</th>
+						<th>Prioridad</th>
+						<th>Limite</th>
+						<th></th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for item in ticket_dashboard.tickets_sla_vencidos %}
+					<tr class="table-row-click" data-href="{% url 'ticketit_detail' item.pk %}">
+						<td><strong>{{ item.folio_ticket }}</strong></td>
+						<td><span class="status-badge status-badge--prio-{{ item.prioridad|slugify }}">{{ item.prioridad }}</span></td>
+						<td class="text-nowrap">{{ item.sla_fecha_limite }}</td>
+						<td class="text-end"><a class="btn btn-primary btn-sm" href="{% url 'ticketit_detail' item.pk %}">Abrir</a></td>
+					</tr>
+					{% empty %}
+					<tr><td colspan="4" class="text-muted text-center py-3">Sin tickets fuera de SLA.</td></tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		</div>
+	</div>
+
+	<div class="section-block dash-panel">
+		<div class="section-block__header">
+			<div>
+				<h2>Sin seguimiento</h2>
+				<p>Activos sin ningun check.</p>
+			</div>
+			<a class="btn btn-outline-secondary btn-sm" href="{% url 'ticketit_list' %}?sin_seguimiento=1">Ver todos</a>
+		</div>
+		<div class="table-responsive">
+			<table class="table table-sm align-middle mb-0">
+				<thead>
+					<tr>
+						<th>Folio</th>
+						<th>Estado</th>
+						<th>Prioridad</th>
+						<th></th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for item in ticket_dashboard.tickets_sin_seguimiento %}
+					<tr class="table-row-click" data-href="{% url 'ticketit_detail' item.pk %}">
+						<td><strong>{{ item.folio_ticket }}</strong></td>
+						<td><span class="status-badge status-badge--{{ item.status|slugify }}">{{ item.status }}</span></td>
+						<td><span class="status-badge status-badge--prio-{{ item.prioridad|slugify }}">{{ item.prioridad }}</span></td>
+						<td class="text-end"><a class="btn btn-primary btn-sm" href="{% url 'ticketit_detail' item.pk %}">Abrir</a></td>
+					</tr>
+					{% empty %}
+					<tr><td colspan="4" class="text-muted text-center py-3">Todos los activos tienen seguimiento.</td></tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		</div>
+	</div>
+</section>
+{% endblock %}

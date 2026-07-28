@@ -7,35 +7,121 @@
 	<div>
 		<p class="eyebrow mb-2">Soporte</p>
 		<h1 class="h3 mb-1">Seguimiento de tickets</h1>
-		<p class="text-muted mb-0">Checks y avances de soporte.</p>
+		<p class="text-muted mb-0">Checks, avances y avisos de proximo seguimiento.</p>
 	</div>
 	<a class="btn btn-primary" href="{% url 'seguimientoticket_create' %}">Nuevo seguimiento</a>
 </div>
+
+{% if selected_alerta %}
+<div class="dash-alerts mb-3">
+	{% if selected_alerta == "vencidos" %}
+	<div class="dash-alert dash-alert--danger">
+		<div>
+			<strong>Filtro: vencidos</strong>
+			<p class="mb-0">Checks con fecha de proximo seguimiento anterior a hoy.</p>
+		</div>
+		<a class="btn btn-sm btn-outline-secondary" href="{% url 'seguimientoticket_list' %}">Quitar filtro</a>
+	</div>
+	{% elif selected_alerta == "proximos" %}
+	<div class="dash-alert dash-alert--warn">
+		<div>
+			<strong>Filtro: por vencer</strong>
+			<p class="mb-0">Checks con proximo seguimiento en los proximos dias.</p>
+		</div>
+		<a class="btn btn-sm btn-outline-secondary" href="{% url 'seguimientoticket_list' %}">Quitar filtro</a>
+	</div>
+	{% else %}
+	<div class="dash-alert dash-alert--warn">
+		<div>
+			<strong>Filtro: por atender</strong>
+			<p class="mb-0">Vencidos y proximos (aviso en home/dashboard, sin email).</p>
+		</div>
+		<a class="btn btn-sm btn-outline-secondary" href="{% url 'seguimientoticket_list' %}">Quitar filtro</a>
+	</div>
+	{% endif %}
+</div>
+{% endif %}
+
+<form class="filters" method="get">
+	<div>
+		<label for="filter_search">Buscar</label>
+		<input
+			id="filter_search"
+			name="q"
+			type="search"
+			value="{{ search_query }}"
+			placeholder="Folio, avance, usuario"
+			data-chip-label="Busqueda"
+		/>
+	</div>
+	<div>
+		<label for="filter_scope">Vista</label>
+		<select id="filter_scope" name="scope" data-chip-label="Vista">
+			<option value="" {% if not selected_scope %}selected{% endif %}>Todos</option>
+			<option value="mios" {% if selected_scope == "mios" %}selected{% endif %}>Mis checks</option>
+		</select>
+	</div>
+	<div>
+		<label for="filter_alerta">Aviso</label>
+		<select id="filter_alerta" name="alerta" data-chip-label="Aviso">
+			<option value="" {% if not selected_alerta %}selected{% endif %}>Todos</option>
+			<option value="atencion" {% if selected_alerta == "atencion" %}selected{% endif %}>Por atender</option>
+			<option value="vencidos" {% if selected_alerta == "vencidos" %}selected{% endif %}>Vencidos</option>
+			<option value="proximos" {% if selected_alerta == "proximos" %}selected{% endif %}>Por vencer</option>
+		</select>
+	</div>
+	<div>
+		<label for="filter_status">Estado ticket</label>
+		<select id="filter_status" name="status" data-chip-label="Estado">
+			<option value="">Todos</option>
+			{% for value, label in status_choices %}
+				<option value="{{ value }}" {% if value == selected_status %}selected{% endif %}>{{ label }}</option>
+			{% endfor %}
+		</select>
+	</div>
+	<div>
+		<label for="filter_terminado">Concluido</label>
+		<select id="filter_terminado" name="terminado" data-chip-label="Concluido">
+			<option value="" {% if not selected_terminado %}selected{% endif %}>Todos</option>
+			<option value="si" {% if selected_terminado == "si" %}selected{% endif %}>Si</option>
+			<option value="no" {% if selected_terminado == "no" %}selected{% endif %}>No</option>
+		</select>
+	</div>
+	<div class="filters-actions">
+		<button class="btn btn-primary" type="submit">Filtrar</button>
+		<a class="btn btn-outline-secondary" href="{% url 'seguimientoticket_list' %}">Limpiar</a>
+	</div>
+</form>
 
 <div class="table-responsive">
 	<table class="table table-striped table-hover align-middle">
 		<thead class="table-light">
 			<tr>
 				<th>Ticket</th>
-				<th>Estado ticket</th>
-				<th>Folio</th>
-				<th>Fecha</th>
+				<th>Estado</th>
+				<th>Fecha check</th>
+				<th>Proximo</th>
 				<th>Avance</th>
-				<th>Pendiente</th>
 				<th>Usuario</th>
-				<th>Terminado</th>
+				<th>Concluido</th>
+				<th>Aviso</th>
 				<th class="text-nowrap">Acciones</th>
 			</tr>
 		</thead>
 		<tbody>
 			{% for item in items %}
-			<tr class="table-row-click" data-href="{% url 'seguimientoticket_update' item.pk %}">
-				<td><strong>{{ item.ticket }}</strong></td>
+			<tr class="table-row-click" data-href="{% url 'ticketit_detail' item.ticket_id %}">
+				<td><strong>{{ item.ticket.folio_ticket }}</strong></td>
 				<td><span class="status-badge status-badge--{{ item.ticket.status|slugify }}">{{ item.ticket.get_status_display }}</span></td>
-				<td>{{ item.folio_check }}</td>
 				<td>{{ item.fecha_check }}</td>
-				<td>{{ item.avance_realizado|default:"-" }}</td>
-				<td>{{ item.pendiente|default:"-" }}</td>
+				<td>
+					{% if item.fecha_proximo_seguimiento %}
+						{{ item.fecha_proximo_seguimiento }}
+					{% else %}
+						<span class="text-muted">-</span>
+					{% endif %}
+				</td>
+				<td>{{ item.avance_realizado|default:"-"|truncatechars:40 }}</td>
 				<td>{{ item.usuario|default:"-" }}</td>
 				<td>
 					{% if item.ya_terminado %}
@@ -45,9 +131,31 @@
 					{% endif %}
 				</td>
 				<td>
-					{% url 'seguimientoticket_update' item.pk as update_url %}
-					{% url 'seguimientoticket_delete' item.pk as delete_url %}
-					{% include "partials/row_actions.html" with update_url=update_url delete_url=delete_url %}
+					{% if not item.ya_terminado and item.fecha_proximo_seguimiento and item.ticket.status != "Cerrado" %}
+						{% if item.fecha_proximo_seguimiento < today %}
+							<span class="status-badge status-badge--prio-urgente">Vencido</span>
+						{% elif item.fecha_proximo_seguimiento <= today %}
+							<span class="status-badge status-badge--advertencia">Hoy</span>
+						{% else %}
+							<span class="status-badge status-badge--advertencia">Programado</span>
+						{% endif %}
+					{% else %}
+						<span class="text-muted">-</span>
+					{% endif %}
+				</td>
+				<td>
+					<div class="row-actions">
+						<a class="btn btn-primary btn-sm" href="{% url 'ticketit_detail' item.ticket_id %}">Ticket</a>
+						<div class="dropdown">
+							<button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">⋯</button>
+							<ul class="dropdown-menu dropdown-menu-end">
+								<li><a class="dropdown-item" href="{% url 'seguimientoticket_update' item.pk %}">Editar check</a></li>
+								<li><a class="dropdown-item" href="{% url 'ticketit_detail' item.ticket_id %}">Ver ticket</a></li>
+								<li><hr class="dropdown-divider"></li>
+								<li><a class="dropdown-item text-danger" href="{% url 'seguimientoticket_delete' item.pk %}">Eliminar</a></li>
+							</ul>
+						</div>
+					</div>
 				</td>
 			</tr>
 			{% empty %}
@@ -61,4 +169,21 @@
 		</tbody>
 	</table>
 </div>
+
+{% if page_obj.paginator.num_pages > 1 %}
+<nav class="list-pagination" aria-label="Paginacion de seguimientos">
+	<div class="text-muted small">
+		Pagina {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+		· {{ page_obj.paginator.count }} registros
+	</div>
+	<div class="d-flex flex-wrap gap-2">
+		{% if page_obj.has_previous %}
+			<a class="btn btn-outline-secondary btn-sm" href="?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">Anterior</a>
+		{% endif %}
+		{% if page_obj.has_next %}
+			<a class="btn btn-outline-secondary btn-sm" href="?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">Siguiente</a>
+		{% endif %}
+	</div>
+</nav>
+{% endif %}
 {% endblock %}

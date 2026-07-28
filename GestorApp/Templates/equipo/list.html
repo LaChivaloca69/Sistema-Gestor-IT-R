@@ -6,41 +6,160 @@
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
 	<div>
 		<p class="eyebrow mb-2">Inventario</p>
-		<h1 class="h3 mb-1">Listado de equipos</h1>
-		<p class="text-muted mb-0">Gestiona los equipos registrados en el sistema.</p>
+		<h1 class="h3 mb-1">Equipos</h1>
+		<p class="text-muted mb-0">Inventario unitario, estados y ubicacion.</p>
 	</div>
-	<a class="btn btn-primary" href="{% url 'equipo_create' %}">Nuevo equipo</a>
+	<div class="d-flex flex-wrap gap-2">
+		<a class="btn btn-outline-secondary" href="{% url 'equipo_dashboard' %}">Dashboard</a>
+		<a
+			class="btn btn-outline-secondary"
+			href="?export=csv{% for key, value in request.GET.items %}{% if key != 'export' and key != 'page' %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}"
+		>Exportar CSV</a>
+		<a class="btn btn-primary" href="{% url 'equipo_create' %}">Nuevo equipo</a>
+	</div>
 </div>
+
+{% if selected_alerta %}
+<div class="dash-alerts mb-3">
+	{% if selected_alerta == "sin_ubicacion" %}
+	<div class="dash-alert dash-alert--warn">
+		<div>
+			<strong>Filtro: sin ubicacion</strong>
+			<p class="mb-0">Equipos activos sin lugar fisico asignado.</p>
+		</div>
+		<a class="btn btn-sm btn-outline-secondary" href="{% url 'equipo_list' %}">Quitar filtro</a>
+	</div>
+	{% elif selected_alerta == "mant_largo" %}
+	<div class="dash-alert dash-alert--warn">
+		<div>
+			<strong>Filtro: mantenimiento prolongado</strong>
+			<p class="mb-0">En Mantenimiento por mas de {{ equipos_mant_largo_dias }} dias.</p>
+		</div>
+		<a class="btn btn-sm btn-outline-secondary" href="{% url 'equipo_list' %}">Quitar filtro</a>
+	</div>
+	{% elif selected_alerta == "asignacion_antigua" %}
+	<div class="dash-alert dash-alert--warn">
+		<div>
+			<strong>Filtro: asignaciones antiguas</strong>
+			<p class="mb-0">Asignacion activa con mas de {{ equipos_asignacion_alerta_dias }} dias.</p>
+		</div>
+		<a class="btn btn-sm btn-outline-secondary" href="{% url 'equipo_list' %}">Quitar filtro</a>
+	</div>
+	{% elif selected_alerta == "baja" %}
+	<div class="dash-alert dash-alert--danger">
+		<div>
+			<strong>Filtro: baja</strong>
+			<p class="mb-0">Equipos dados de baja.</p>
+		</div>
+		<a class="btn btn-sm btn-outline-secondary" href="{% url 'equipo_list' %}">Quitar filtro</a>
+	</div>
+	{% endif %}
+</div>
+{% endif %}
+
+<form class="filters" method="get">
+	<div>
+		<label for="filter_search">Buscar</label>
+		<input
+			id="filter_search"
+			name="q"
+			type="search"
+			value="{{ search_query }}"
+			placeholder="Codigo, serie, marca, modelo, pedimiento"
+			data-chip-label="Busqueda"
+		/>
+	</div>
+	<div>
+		<label for="filter_alerta">Aviso</label>
+		<select id="filter_alerta" name="alerta" data-chip-label="Aviso">
+			<option value="" {% if not selected_alerta %}selected{% endif %}>Todos</option>
+			<option value="sin_ubicacion" {% if selected_alerta == "sin_ubicacion" %}selected{% endif %}>Sin ubicacion</option>
+			<option value="mant_largo" {% if selected_alerta == "mant_largo" %}selected{% endif %}>Mant. prolongado</option>
+			<option value="asignacion_antigua" {% if selected_alerta == "asignacion_antigua" %}selected{% endif %}>Asignacion antigua</option>
+			<option value="baja" {% if selected_alerta == "baja" %}selected{% endif %}>Baja</option>
+		</select>
+	</div>
+	<div>
+		<label for="filter_estado">Estado</label>
+		<select id="filter_estado" name="estado_equipo" data-chip-label="Estado">
+			<option value="">Todos</option>
+			{% for value, label in estado_choices %}
+			<option value="{{ value }}" {% if value == selected_estado %}selected{% endif %}>{{ label }}</option>
+			{% endfor %}
+		</select>
+	</div>
+	<div>
+		<label for="filter_categoria">Categoria</label>
+		<select id="filter_categoria" name="categoria" data-chip-label="Categoria">
+			<option value="">Todas</option>
+			{% for value, label in categoria_choices %}
+			<option value="{{ value }}" {% if value|stringformat:"s" == selected_categoria %}selected{% endif %}>{{ label }}</option>
+			{% endfor %}
+		</select>
+	</div>
+	<div>
+		<label for="filter_ubicacion">Ubicacion</label>
+		<select id="filter_ubicacion" name="ubicacion" data-chip-label="Ubicacion">
+			<option value="">Todas</option>
+			{% for value, label in ubicacion_choices %}
+			<option value="{{ value }}" {% if value|stringformat:"s" == selected_ubicacion %}selected{% endif %}>{{ label }}</option>
+			{% endfor %}
+		</select>
+	</div>
+	<div>
+		<label for="filter_sin_ubicacion">Sin ubicacion</label>
+		<select id="filter_sin_ubicacion" name="sin_ubicacion" data-chip-label="Sin ubicacion">
+			<option value="" {% if not selected_sin_ubicacion %}selected{% endif %}>No</option>
+			<option value="1" {% if selected_sin_ubicacion == "1" %}selected{% endif %}>Solo sin ubicacion</option>
+		</select>
+	</div>
+	<div>
+		<label for="filter_activo">Activo</label>
+		<select id="filter_activo" name="activo" data-chip-label="Activo">
+			<option value="" {% if not selected_activo %}selected{% endif %}>Todos</option>
+			<option value="true" {% if selected_activo == "true" %}selected{% endif %}>Si</option>
+			<option value="false" {% if selected_activo == "false" %}selected{% endif %}>No</option>
+		</select>
+	</div>
+	<div>
+		<label for="filter_desde">Alta desde</label>
+		<input id="filter_desde" name="fecha_alta_desde" type="date" value="{{ fecha_alta_desde }}" data-chip-label="Alta desde" />
+	</div>
+	<div>
+		<label for="filter_hasta">Alta hasta</label>
+		<input id="filter_hasta" name="fecha_alta_hasta" type="date" value="{{ fecha_alta_hasta }}" data-chip-label="Alta hasta" />
+	</div>
+	<div class="filters-actions">
+		<button class="btn btn-primary" type="submit">Filtrar</button>
+		<a class="btn btn-outline-secondary" href="{% url 'equipo_list' %}">Limpiar</a>
+	</div>
+</form>
 
 <div class="table-responsive">
 	<table class="table table-striped table-hover align-middle">
 		<thead class="table-light">
 			<tr>
-				<th>Codigo inventario</th>
-				<th>Numero serie</th>
+				<th>Codigo</th>
+				<th>Serie</th>
 				<th>Categoria</th>
-				<th>Marca</th>
-				<th>Modelo</th>
+				<th>Marca / modelo</th>
 				<th>Estado</th>
-				<th>Proveedor</th>
 				<th>Ubicacion</th>
 				<th>Activo</th>
-				<th>Fecha alta</th>
-				<th>Imagen</th>
+				<th>Alta</th>
+				<th>Img</th>
 				<th class="text-nowrap">Acciones</th>
 			</tr>
 		</thead>
 		<tbody>
 			{% for item in items %}
-			<tr class="table-row-click" data-href="{% url 'equipo_update' item.pk %}">
+			<tr class="table-row-click" data-href="{% url 'equipo_detail' item.pk %}">
 				<td><strong>{{ item.codigo_inventario }}</strong></td>
-				<td>{{ item.numero_serie }}</td>
+				<td>{{ item.numero_serie|default:"-" }}</td>
 				<td>{{ item.categoria }}</td>
-				<td>{{ item.marca }}</td>
-				<td>{{ item.modelo }}</td>
+				<td>{{ item.marca|default:"-" }} {{ item.modelo|default:"" }}</td>
 				<td><span class="status-badge status-badge--{{ item.estado_equipo|slugify }}">{{ item.estado_equipo }}</span></td>
-				<td>{{ item.proveedor }}</td>
-				<td>{{ item.ubicacion }}</td>
+				<td>{{ item.ubicacion|default:"-" }}</td>
 				<td>
 					{% if item.activo %}
 					<span class="status-badge status-badge--asignado">Si</span>
@@ -51,22 +170,29 @@
 				<td>{{ item.fecha_alta }}</td>
 				<td>
 					{% if item.imagen %}
-						<a href="{{ item.imagen.url }}" target="_blank" rel="noopener">
-							<img src="{{ item.imagen.url }}" alt="{{ item.codigo_inventario }}" style="height:40px; width:auto; border-radius:4px;" />
-						</a>
+						<img src="{{ item.imagen.url }}" alt="{{ item.codigo_inventario }}" style="height:36px; width:auto; border-radius:4px;" />
 					{% else %}
 						<span class="text-muted">-</span>
 					{% endif %}
 				</td>
 				<td>
 					<div class="row-actions">
-						<a class="btn btn-primary btn-sm" href="{% url 'equipo_update' item.pk %}">Abrir</a>
+						<a class="btn btn-primary btn-sm" href="{% url 'equipo_detail' item.pk %}">Abrir</a>
 						<div class="dropdown">
 							<button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">⋯</button>
 							<ul class="dropdown-menu dropdown-menu-end">
+								<li><a class="dropdown-item" href="{% url 'equipo_detail' item.pk %}">Ver detalle</a></li>
 								<li><a class="dropdown-item" href="{% url 'equipo_update' item.pk %}">Editar</a></li>
+								{% if item.puede_asignarse %}
+								<li><a class="dropdown-item" href="{% url 'equipo_asignar' item.pk %}">Asignar</a></li>
+								{% endif %}
+								{% if item.puede_dar_de_baja %}
+								<li><a class="dropdown-item text-danger" href="{% url 'equipo_dar_baja' item.pk %}">Dar de baja</a></li>
+								{% endif %}
+								{% if item.puede_eliminar_fisico %}
 								<li><hr class="dropdown-divider"></li>
 								<li><a class="dropdown-item text-danger" href="{% url 'equipo_delete' item.pk %}">Eliminar</a></li>
+								{% endif %}
 							</ul>
 						</div>
 					</div>
@@ -74,8 +200,8 @@
 			</tr>
 			{% empty %}
 			<tr>
-				<td colspan="12" class="text-center text-muted py-4">
-					No hay equipos.
+				<td colspan="10" class="text-center text-muted py-4">
+					No hay equipos{% if search_query or selected_estado or selected_categoria %} con estos filtros{% endif %}.
 					<a href="{% url 'equipo_create' %}">Crear el primero</a>
 				</td>
 			</tr>
@@ -83,4 +209,21 @@
 		</tbody>
 	</table>
 </div>
+
+{% if page_obj.paginator.num_pages > 1 %}
+<nav class="list-pagination" aria-label="Paginacion de equipos">
+	<span class="text-muted">
+		Pagina {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+		· {{ page_obj.paginator.count }} equipos
+	</span>
+	<div class="d-flex gap-2">
+		{% if page_obj.has_previous %}
+			<a class="btn btn-outline-secondary btn-sm" href="?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">Anterior</a>
+		{% endif %}
+		{% if page_obj.has_next %}
+			<a class="btn btn-outline-secondary btn-sm" href="?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">Siguiente</a>
+		{% endif %}
+	</div>
+</nav>
+{% endif %}
 {% endblock %}

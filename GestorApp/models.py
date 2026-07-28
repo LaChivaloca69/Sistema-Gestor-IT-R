@@ -1,7 +1,9 @@
 import re
+from datetime import timedelta
+
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.db import IntegrityError, models
 from django.db.models.signals import post_delete
 from django.dispatch import receiver
@@ -140,6 +142,55 @@ class Equipo(models.Model):
     def __str__(self):
         return self.codigo_inventario
 
+    @property
+    def asignacion_activa(self):
+        return (
+            self.asignaciones.filter(estado_asignacion=EstadoAsignacion.ACTIVA)
+            .select_related('personal')
+            .order_by('-fecha_asignacion')
+            .first()
+        )
+
+    @property
+    def puede_asignarse(self):
+        if not self.activo:
+            return False
+        return self.estado_equipo not in {
+            EstadoEquipo.BAJA,
+            EstadoEquipo.EN_MANTENIMIENTO,
+        }
+
+    @property
+    def puede_devolver(self):
+        if self.estado_equipo == EstadoEquipo.BAJA:
+            return False
+        return self.asignacion_activa is not None
+
+    @property
+    def puede_dar_de_baja(self):
+        return self.estado_equipo not in {
+            EstadoEquipo.BAJA,
+            EstadoEquipo.EN_MANTENIMIENTO,
+        }
+
+    @property
+    def puede_reactivar(self):
+        return self.estado_equipo == EstadoEquipo.BAJA
+
+    @property
+    def puede_cambiar_ubicacion(self):
+        return self.estado_equipo != EstadoEquipo.BAJA
+
+    @property
+    def puede_eliminar_fisico(self):
+        if self.asignaciones.exists() or self.mantenimientos.exists():
+            return False
+        if self.ticketit_set.exists():
+            return False
+        return not self.movimientos.exclude(
+            tipo_movimiento=TipoMovimiento.DADA_DE_ALTA
+        ).exists()
+
 
 class TipoMovimiento(models.TextChoices):
     DADA_DE_ALTA = "Dada de alta", "Dada de alta"
@@ -203,6 +254,72 @@ class Mantenimiento(models.Model):
         fecha = self.fecha_programada or timezone.localdate()
         return f"MAN{self.pk:03d}-{fecha.strftime('%m%d%y')}"
 
+    @property
+    def tiene_cierre(self):
+        try:
+            return self.cierre is not None
+        except ObjectDoesNotExist:
+            return False
+
+    @property
+    def puede_iniciar(self):
+        return self.estado_mantenimiento == EstadoMantenimiento.PROGRAMADO
+
+    @property
+    def puede_cancelar(self):
+        return self.estado_mantenimiento in {
+            EstadoMantenimiento.PROGRAMADO,
+            EstadoMantenimiento.EN_PROCESO,
+        }
+
+    @property
+    def puede_completar(self):
+        return self.estado_mantenimiento in {
+            EstadoMantenimiento.PROGRAMADO,
+            EstadoMantenimiento.EN_PROCESO,
+        } and not self.tiene_cierre
+
+    @property
+    def puede_reabrir(self):
+        return self.estado_mantenimiento in {
+            EstadoMantenimiento.COMPLETADO,
+            EstadoMantenimiento.CANCELADO,
+        }
+
+    def iniciar(self, save=True):
+        if not self.puede_iniciar:
+            raise ValidationError('Solo se puede iniciar un mantenimiento Programado.')
+        self.estado_mantenimiento = EstadoMantenimiento.EN_PROCESO
+        if save:
+            self.save(update_fields=['estado_mantenimiento'])
+        return self.estado_mantenimiento
+
+    def cancelar(self, save=True):
+        if not self.puede_cancelar:
+            raise ValidationError('Solo se puede cancelar un mantenimiento Programado o En Proceso.')
+        self.estado_mantenimiento = EstadoMantenimiento.CANCELADO
+        if save:
+            self.save(update_fields=['estado_mantenimiento'])
+        return self.estado_mantenimiento
+
+    def marcar_completado(self, save=True):
+        self.estado_mantenimiento = EstadoMantenimiento.COMPLETADO
+        if save:
+            self.save(update_fields=['estado_mantenimiento'])
+        return self.estado_mantenimiento
+
+    def reabrir(self, save=True):
+        if not self.puede_reabrir:
+            raise ValidationError('Solo se pueden reabrir mantenimientos Completados o Cancelados.')
+        if self.estado_mantenimiento == EstadoMantenimiento.COMPLETADO and self.tiene_cierre:
+            # Queda En Proceso para permitir actualizar el cierre o continuar trabajo.
+            self.estado_mantenimiento = EstadoMantenimiento.EN_PROCESO
+        else:
+            self.estado_mantenimiento = EstadoMantenimiento.PROGRAMADO
+        if save:
+            self.save(update_fields=['estado_mantenimiento'])
+        return self.estado_mantenimiento
+
     def __str__(self):
         return self.folio_mantenimiento()
 
@@ -254,6 +371,14 @@ class PrioridadSupport(models.TextChoices):
     ALTA = "Alta", "Alta"
     URGENTE = "Urgente", "Urgente"
 
+
+# Horas calendario para respuesta/atencion segun prioridad (aviso en panel, sin email).
+SLA_HORAS_POR_PRIORIDAD = {
+    PrioridadSupport.URGENTE: 4,
+    PrioridadSupport.ALTA: 24,
+    PrioridadSupport.MEDIA: 72,
+    PrioridadSupport.BAJA: 168,
+}
 
 
 class TicketIT(models.Model):
@@ -317,6 +442,53 @@ class TicketIT(models.Model):
     @property
     def puede_reabrir(self):
         return self.status == EstadoSupport.CERRADO
+
+    @property
+    def tiene_seguimientos(self):
+        return self.seguimientos.exists()
+
+    @property
+    def puede_eliminar(self):
+        return not self.tiene_seguimientos
+
+    @property
+    def sla_horas_objetivo(self):
+        return SLA_HORAS_POR_PRIORIDAD.get(self.prioridad, SLA_HORAS_POR_PRIORIDAD[PrioridadSupport.MEDIA])
+
+    @property
+    def sla_fecha_limite(self):
+        if not self.fecha_support:
+            return None
+        return self.fecha_support + timedelta(hours=self.sla_horas_objetivo)
+
+    @property
+    def sla_aplica(self):
+        return self.status != EstadoSupport.CERRADO
+
+    @property
+    def sla_vencido(self):
+        if not self.sla_aplica:
+            return False
+        limite = self.sla_fecha_limite
+        if not limite:
+            return False
+        return timezone.now() > limite
+
+    @property
+    def sla_estado(self):
+        if not self.sla_aplica:
+            return "cerrado"
+        if self.sla_vencido:
+            return "vencido"
+        limite = self.sla_fecha_limite
+        if not limite:
+            return "ok"
+        restante = limite - timezone.now()
+        # Aviso "por vencer" si queda menos del 25% del SLA o menos de 4 horas.
+        umbral = min(timedelta(hours=4), timedelta(hours=self.sla_horas_objetivo) * 0.25)
+        if restante <= umbral:
+            return "por_vencer"
+        return "ok"
 
     def refresh_status_from_followups(self, save=True):
         """

@@ -1,0 +1,297 @@
+{% extends "base.html" %}
+
+{% block title %}{{ object.codigo_inventario }}{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+	<div>
+		<p class="eyebrow mb-2">Inventario</p>
+		<h1 class="h3 mb-1">{{ object.codigo_inventario }}</h1>
+		<p class="text-muted mb-0">
+			{{ object.categoria }}
+			{% if object.marca or object.modelo %}
+			· {{ object.marca|default:"" }} {{ object.modelo|default:"" }}
+			{% endif %}
+		</p>
+	</div>
+	<div class="d-flex flex-wrap gap-2">
+		<a class="btn btn-outline-secondary" href="{% url 'equipo_list' %}">Volver</a>
+		<a class="btn btn-outline-primary" href="{% url 'equipo_update' object.pk %}">Editar</a>
+		{% if object.puede_cambiar_ubicacion %}
+		<a class="btn btn-outline-secondary" href="{% url 'equipo_cambiar_ubicacion' object.pk %}">Ubicacion</a>
+		{% endif %}
+		{% if object.puede_asignarse %}
+		<a class="btn btn-primary" href="{% url 'equipo_asignar' object.pk %}">Asignar</a>
+		{% endif %}
+		{% if object.puede_devolver %}
+		<form method="post" action="{% url 'equipo_devolver' object.pk %}">
+			{% csrf_token %}
+			<button class="btn btn-outline-secondary" type="submit">Devolver</button>
+		</form>
+		{% endif %}
+		{% if object.puede_dar_de_baja %}
+		<a class="btn btn-outline-danger" href="{% url 'equipo_dar_baja' object.pk %}">Dar de baja</a>
+		{% endif %}
+		{% if object.puede_reactivar %}
+		<form method="post" action="{% url 'equipo_reactivar' object.pk %}">
+			{% csrf_token %}
+			<button class="btn btn-outline-warning" type="submit">Reactivar</button>
+		</form>
+		{% endif %}
+		<a class="btn btn-outline-secondary" href="{% url 'mantenimiento_create' %}?equipo={{ object.pk }}">Programar mant.</a>
+	</div>
+</div>
+
+<p class="text-muted small mb-3">
+	<strong>Disponible / Asignado</strong> se sincronizan con la asignacion activa.
+	<strong>En Mantenimiento</strong> y <strong>Baja</strong> prevalecen sobre la asignacion.
+</p>
+
+<div class="ticket-detail-layout">
+	<section class="ticket-panel">
+		<div class="ticket-panel__header">
+			<h2 class="h5 mb-0">Detalle</h2>
+			<span class="status-badge status-badge--{{ object.estado_equipo|slugify }}">{{ object.estado_equipo }}</span>
+		</div>
+
+		{% if object.imagen %}
+		<div class="mb-3">
+			<img src="{{ object.imagen.url }}" alt="{{ object.codigo_inventario }}" style="max-height:180px; width:auto; border-radius:8px;" />
+		</div>
+		{% endif %}
+
+		<div class="ticket-meta">
+			<div>
+				<span class="ticket-meta__label">Numero de serie</span>
+				<strong>{{ object.numero_serie|default:"-" }}</strong>
+			</div>
+			<div>
+				<span class="ticket-meta__label">Pedimiento</span>
+				<strong>{{ object.Numero_Pedimiento|default:"-" }}</strong>
+			</div>
+			<div>
+				<span class="ticket-meta__label">Proveedor</span>
+				<strong>{{ object.proveedor|default:"-" }}</strong>
+			</div>
+			<div>
+				<span class="ticket-meta__label">Ubicacion</span>
+				<strong>{{ object.ubicacion|default:"-" }}</strong>
+			</div>
+			<div>
+				<span class="ticket-meta__label">Fecha alta</span>
+				<strong>{{ object.fecha_alta }}</strong>
+			</div>
+			<div>
+				<span class="ticket-meta__label">Activo</span>
+				<strong>{% if object.activo %}Si{% else %}No{% endif %}</strong>
+			</div>
+			{% if object.fecha_baja %}
+			<div>
+				<span class="ticket-meta__label">Fecha baja</span>
+				<strong>{{ object.fecha_baja }}</strong>
+			</div>
+			{% endif %}
+			{% if object.motivo_baja %}
+			<div>
+				<span class="ticket-meta__label">Motivo baja</span>
+				<strong>{{ object.motivo_baja }}</strong>
+			</div>
+			{% endif %}
+		</div>
+
+		{% if object.descripcion_equipo %}
+		<div class="ticket-block">
+			<span class="ticket-meta__label">Descripcion</span>
+			<p class="mb-0" style="white-space: pre-wrap;">{{ object.descripcion_equipo }}</p>
+		</div>
+		{% endif %}
+
+		<div class="mt-3 d-flex flex-wrap gap-2">
+			{% if object.puede_dar_de_baja %}
+			<a class="btn btn-outline-danger btn-sm" href="{% url 'equipo_dar_baja' object.pk %}">Dar de baja</a>
+			{% endif %}
+			{% if object.puede_eliminar_fisico %}
+			<a class="btn btn-outline-danger btn-sm" href="{% url 'equipo_delete' object.pk %}">Eliminar</a>
+			{% endif %}
+		</div>
+	</section>
+
+	<section class="ticket-panel">
+		<div class="ticket-panel__header">
+			<h2 class="h5 mb-0">Asignacion actual</h2>
+			{% if asignacion_activa %}
+			<span class="status-badge status-badge--asignado">Activa</span>
+			{% else %}
+			<span class="text-muted small">Sin asignacion</span>
+			{% endif %}
+		</div>
+
+		{% if asignacion_activa %}
+		<div class="ticket-meta">
+			<div>
+				<span class="ticket-meta__label">Personal</span>
+				<strong>{{ asignacion_activa.personal }}</strong>
+			</div>
+			<div>
+				<span class="ticket-meta__label">Desde</span>
+				<strong>{{ asignacion_activa.fecha_asignacion }}</strong>
+			</div>
+		</div>
+		{% if asignacion_activa.observaciones %}
+		<p class="mb-0 text-muted">{{ asignacion_activa.observaciones }}</p>
+		{% endif %}
+		<div class="mt-3 d-flex flex-wrap gap-2">
+			<form method="post" action="{% url 'equipo_devolver' object.pk %}">
+				{% csrf_token %}
+				<button class="btn btn-outline-secondary btn-sm" type="submit">Devolver</button>
+			</form>
+			<a class="btn btn-outline-secondary btn-sm" href="{% url 'asignacionequipo_update' asignacion_activa.pk %}">Editar asignacion</a>
+		</div>
+		{% else %}
+		<p class="text-muted mb-3">Este equipo no tiene asignacion activa.</p>
+		{% if object.puede_asignarse %}
+		<a class="btn btn-primary btn-sm" href="{% url 'equipo_asignar' object.pk %}">Asignar ahora</a>
+		{% endif %}
+		{% endif %}
+	</section>
+</div>
+
+<section class="section-block mt-4">
+	<div class="section-block__header">
+		<div>
+			<h2>Movimientos recientes</h2>
+			<p>Ultimos cambios de alta, ubicacion, asignacion o mantenimiento.</p>
+		</div>
+		<a class="btn btn-outline-secondary btn-sm" href="{% url 'movimientoequipo_registros' %}?equipo={{ object.pk }}">Ver movimientos</a>
+	</div>
+	<div class="table-responsive">
+		<table class="table table-sm align-middle mb-0">
+			<thead>
+				<tr>
+					<th>Fecha</th>
+					<th>Tipo</th>
+					<th>Origen</th>
+					<th>Destino</th>
+					<th>Responsable</th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for item in movimientos %}
+				<tr class="table-row-click" data-href="{% url 'movimientoequipo_detail' item.pk %}">
+					<td class="text-nowrap">{{ item.fecha_movimiento }}</td>
+					<td>{{ item.tipo_movimiento }}</td>
+					<td>{{ item.origen|default:"-" }}</td>
+					<td>{{ item.destino|default:"-" }}</td>
+					<td>{{ item.responsable|default:"-" }}</td>
+				</tr>
+				{% empty %}
+				<tr><td colspan="5" class="text-muted text-center py-3">Sin movimientos.</td></tr>
+				{% endfor %}
+			</tbody>
+		</table>
+	</div>
+</section>
+
+<section class="dash-panels mt-4">
+	<div class="section-block dash-panel">
+		<div class="section-block__header">
+			<div>
+				<h2>Mantenimientos</h2>
+				<p>Historial del equipo.</p>
+			</div>
+			<a class="btn btn-outline-secondary btn-sm" href="{% url 'mantenimiento_list' %}?equipo={{ object.pk }}">Ver</a>
+		</div>
+		<div class="table-responsive">
+			<table class="table table-sm align-middle mb-0">
+				<thead>
+					<tr>
+						<th>Folio</th>
+						<th>Fecha</th>
+						<th>Estado</th>
+						<th></th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for item in mantenimientos %}
+					<tr class="table-row-click" data-href="{% url 'mantenimiento_detail' item.pk %}">
+						<td>{{ item.folio_mantenimiento }}</td>
+						<td>{{ item.fecha_programada }}</td>
+						<td><span class="status-badge status-badge--{{ item.estado_mantenimiento|slugify }}">{{ item.estado_mantenimiento }}</span></td>
+						<td class="text-end"><a class="btn btn-primary btn-sm" href="{% url 'mantenimiento_detail' item.pk %}">Abrir</a></td>
+					</tr>
+					{% empty %}
+					<tr><td colspan="4" class="text-muted text-center py-3">Sin mantenimientos.</td></tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		</div>
+	</div>
+
+	<div class="section-block dash-panel">
+		<div class="section-block__header">
+			<div>
+				<h2>Tickets</h2>
+				<p>Soporte ligado a este equipo.</p>
+			</div>
+			<a class="btn btn-outline-secondary btn-sm" href="{% url 'ticketit_list' %}?equipo={{ object.pk }}">Ver</a>
+		</div>
+		<div class="table-responsive">
+			<table class="table table-sm align-middle mb-0">
+				<thead>
+					<tr>
+						<th>Folio</th>
+						<th>Estado</th>
+						<th></th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for item in tickets %}
+					<tr class="table-row-click" data-href="{% url 'ticketit_detail' item.pk %}">
+						<td>{{ item.folio_ticket }}</td>
+						<td><span class="status-badge status-badge--{{ item.status|slugify }}">{{ item.status }}</span></td>
+						<td class="text-end"><a class="btn btn-primary btn-sm" href="{% url 'ticketit_detail' item.pk %}">Abrir</a></td>
+					</tr>
+					{% empty %}
+					<tr><td colspan="3" class="text-muted text-center py-3">Sin tickets.</td></tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		</div>
+	</div>
+</section>
+
+{% if asignaciones %}
+<section class="section-block mt-4">
+	<div class="section-block__header">
+		<div>
+			<h2>Historial de asignaciones</h2>
+			<p>Activas, devueltas y extraviadas.</p>
+		</div>
+	</div>
+	<div class="table-responsive">
+		<table class="table table-sm align-middle mb-0">
+			<thead>
+				<tr>
+					<th>Personal</th>
+					<th>Estado</th>
+					<th>Asignacion</th>
+					<th>Devolucion</th>
+					<th></th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for item in asignaciones %}
+				<tr>
+					<td>{{ item.personal }}</td>
+					<td><span class="status-badge status-badge--{{ item.estado_asignacion|slugify }}">{{ item.estado_asignacion }}</span></td>
+					<td>{{ item.fecha_asignacion }}</td>
+					<td>{{ item.fecha_devolucion|default:"-" }}</td>
+					<td class="text-end"><a class="btn btn-outline-secondary btn-sm" href="{% url 'asignacionequipo_update' item.pk %}">Editar</a></td>
+				</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+	</div>
+</section>
+{% endif %}
+{% endblock %}
