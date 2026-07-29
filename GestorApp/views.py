@@ -1,6 +1,5 @@
 import csv
 from datetime import date, datetime, timedelta
-from functools import wraps
 
 from django import forms
 from django.contrib import messages
@@ -25,6 +24,18 @@ from .forms import (
     UserRegisterForm,
 	UbicacionForm,
 	get_subtipo_ticket_choices,
+)
+from .roles import (
+    ROLE_ADMIN,
+    ROLE_CHOICES,
+    ROLE_TECNICO,
+    ROLE_USUARIO,
+    admin_required,
+    get_user_role,
+    is_admin_user,
+    is_operativo,
+    operativo_required,
+    set_user_role,
 )
 
 from .models import (
@@ -62,30 +73,12 @@ from .models import (
     TipoMoneda,
     TipoMovimiento,
     TipoMantenimiento,
+    TipoProveedor,
     TipoTicketSupport,
     TipoPlantillaDocumento,
     Ubicacion,
     ZonaEdificio,
 )
-
-
-def is_admin_user(user):
-    if not user or not user.is_authenticated:
-        return False
-    return user.is_superuser or user.is_staff
-
-
-def admin_required(view_func):
-    @wraps(view_func)
-    def _wrapped(request, *args, **kwargs):
-        if not request.user.is_authenticated:
-            return redirect("login")
-        if not is_admin_user(request.user):
-            messages.error(request, "No tienes permisos para acceder a esta seccion.")
-            return redirect("home")
-        return view_func(request, *args, **kwargs)
-
-    return _wrapped
 
 
 def _ticket_has_seguimientos(ticket):
@@ -99,7 +92,7 @@ def _ticket_has_seguimientos(ticket):
 def user_can_view_ticket(user, ticket):
     if not user or not user.is_authenticated or ticket is None:
         return False
-    if is_admin_user(user):
+    if is_operativo(user):
         return True
     return ticket.solicitado_por_id == user.id
 
@@ -107,7 +100,7 @@ def user_can_view_ticket(user, ticket):
 def user_can_edit_ticket(user, ticket):
     if not user or not user.is_authenticated or ticket is None:
         return False
-    if is_admin_user(user):
+    if is_operativo(user):
         return True
     if ticket.solicitado_por_id != user.id:
         return False
@@ -122,7 +115,7 @@ def user_can_delete_ticket(user, ticket):
 
 
 def user_can_manage_ticket_flow(user):
-    return is_admin_user(user)
+    return is_operativo(user)
 
 
 def _deny_ticket_access(request, message="No tienes permisos para este ticket."):
@@ -132,9 +125,24 @@ def _deny_ticket_access(request, message="No tienes permisos para este ticket.")
 
 def _tickets_for_user(user, qs=None):
     qs = qs if qs is not None else TicketIT.objects.all()
-    if is_admin_user(user):
+    if is_operativo(user):
         return qs
     return qs.filter(solicitado_por=user)
+
+
+def _ordenes_for_user(user, qs=None):
+    qs = qs if qs is not None else OrdenCompra.objects.all()
+    if is_operativo(user):
+        return qs
+    return qs.filter(elaborado_por=user)
+
+
+def user_can_manage_orden(user, orden):
+    if not user or not user.is_authenticated or orden is None:
+        return False
+    if is_operativo(user):
+        return True
+    return orden.elaborado_por_id == user.id
 
 
 def _tickets_sla_vencidos_q(now=None):
@@ -524,10 +532,11 @@ class PersonalForm(forms.ModelForm):
         required=False,
         label="Tipo de Usuario",
     )
-    es_admin = forms.BooleanField(
+    rol = forms.ChoiceField(
+        choices=ROLE_CHOICES,
         required=False,
-        label="Admin",
-        help_text="Solo admins pueden asignar este permiso.",
+        label="Rol del sistema",
+        help_text="Solo administradores pueden cambiar el rol.",
     )
     user_existing = forms.ModelChoiceField(
         queryset=get_user_model().objects.none(),
@@ -556,7 +565,7 @@ class PersonalForm(forms.ModelForm):
 
     class Meta:
         model = Personal
-        exclude = ["user"]
+        exclude = ["user", "admin_requested"]
         widgets = {
             "fecha_ingreso": forms.DateInput(attrs={"type": "date"}),
         }
@@ -583,11 +592,10 @@ class PersonalForm(forms.ModelForm):
             "password2",
         )
         if not is_admin_user(self.request_user):
-            self.fields.pop("es_admin", None)
-            self.fields.pop("admin_requested", None)
-        elif "es_admin" in self.fields:
+            self.fields.pop("rol", None)
+        elif "rol" in self.fields:
             current_user = self.instance.user if self.instance and self.instance.pk else None
-            self.fields["es_admin"].initial = bool(current_user and current_user.is_staff)
+            self.fields["rol"].initial = get_user_role(current_user) if current_user else ROLE_USUARIO
 
     def clean(self):
         cleaned = super().clean()
@@ -644,20 +652,18 @@ class PersonalForm(forms.ModelForm):
                     "Ese usuario ya esta asignado a otro personal.",
                 )
 
-        if "es_admin" in self.cleaned_data and self.cleaned_data.get("es_admin"):
+        if "rol" in cleaned and cleaned.get("rol") in {ROLE_TECNICO, ROLE_ADMIN}:
             if action == "none":
                 self.add_error(
-                    "es_admin",
-                    "No puedes asignar admin si no hay usuario.",
+                    "rol",
+                    "No puedes asignar Tecnico IT o Administrador sin usuario.",
                 )
 
         return cleaned
 
     def save(self, commit=True):
         action = self.cleaned_data.get("account_action") or "none"
-        make_admin = None
-        if "es_admin" in self.cleaned_data:
-            make_admin = bool(self.cleaned_data.get("es_admin"))
+        rol = self.cleaned_data.get("rol") if "rol" in self.cleaned_data else None
         if action == "create":
             with transaction.atomic():
                 user = get_user_model().objects.create_user(
@@ -665,13 +671,10 @@ class PersonalForm(forms.ModelForm):
                     email=self.cleaned_data["email"].strip(),
                     password=self.cleaned_data["password1"],
                 )
-                if make_admin is not None:
-                    user.is_staff = make_admin
-                    user.save(update_fields=["is_staff"])
+                set_user_role(user, rol or ROLE_USUARIO)
                 personal = super().save(commit=False)
                 personal.user = user
-                if make_admin:
-                    personal.admin_requested = False
+                personal.admin_requested = False
                 if commit:
                     personal.save()
                 return personal
@@ -683,14 +686,17 @@ class PersonalForm(forms.ModelForm):
             personal.user = None
         if commit:
             personal.save()
-            if make_admin is not None and personal.user:
-                if personal.user.is_staff != make_admin:
-                    personal.user.is_staff = make_admin
-                    personal.user.save(update_fields=["is_staff"])
-                if make_admin and personal.admin_requested:
+            if rol and personal.user:
+                set_user_role(personal.user, rol)
+                if personal.admin_requested:
                     personal.admin_requested = False
                     personal.save(update_fields=["admin_requested"])
+            elif personal.user and rol is None:
+                # Sin campo rol (no admin): mantener rol actual o Usuario por defecto.
+                if not get_user_role(personal.user):
+                    set_user_role(personal.user, ROLE_USUARIO)
         return personal
+
 
 def personal_list(request):
     items = Personal.objects.select_related("user", "area", "puesto").all()
@@ -733,6 +739,10 @@ def personal_list(request):
                 fecha_desde, fecha_hasta = range_start, range_end
     items = _apply_date_filters(items, "fecha_ingreso", fecha_desde, fecha_hasta)
 
+    items = list(items)
+    for item in items:
+        item.rol_label = get_user_role(item.user) if item.user_id else "—"
+
     context = {
         "items": items,
         "area_choices": Area.objects.order_by("nombre_area").values_list(
@@ -749,55 +759,35 @@ def personal_list(request):
         "fecha_ingreso_hasta": fecha_hasta_raw,
         "fecha_ingreso_mes": fecha_mes,
         "fecha_ingreso_rango": fecha_rango,
+        "can_manage_personal": is_admin_user(request.user),
     }
     return render(request, "personal/list.html", context)
 
 
+def personal_detail(request, pk):
+    personal = get_object_or_404(
+        Personal.objects.select_related("user", "area", "puesto"),
+        pk=pk,
+    )
+    return render(
+        request,
+        "personal/detail.html",
+        {
+            "object": personal,
+            "rol_label": get_user_role(personal.user) if personal.user_id else "—",
+            "can_manage_personal": is_admin_user(request.user),
+        },
+    )
+
+
 def personal_admin_requests(request):
-    if request.method == "POST":
-        personal_id = request.POST.get("personal_id")
-        action = (request.POST.get("action") or "approve").strip().lower()
-        personal = get_object_or_404(Personal, pk=personal_id, admin_requested=True)
-        if action not in {"approve", "reject"}:
-            messages.error(request, "Accion no valida.")
-            return redirect("personal_admin_requests")
-        if action == "approve":
-            if not personal.user_id:
-                messages.error(request, "El personal no tiene usuario asignado.")
-                return redirect("personal_admin_requests")
-            if not personal.user.is_staff:
-                personal.user.is_staff = True
-                personal.user.save(update_fields=["is_staff"])
-            if personal.admin_requested:
-                personal.admin_requested = False
-                personal.save(update_fields=["admin_requested"])
-            messages.success(request, "Solicitud aprobada.")
-            historial.registrar_historial(
-                request=request,
-                modulo=ModuloHistorial.PERSONAL,
-                accion=historial.AccionHistorial.CAMBIO_ESTADO,
-                titulo=f"Admin aprobado para {personal}",
-                objeto=personal,
-                enlace_nombre="personal_update",
-            )
-        else:
-            if personal.admin_requested:
-                personal.admin_requested = False
-                personal.save(update_fields=["admin_requested"])
-            messages.success(request, "Solicitud rechazada.")
-            historial.registrar_historial(
-                request=request,
-                modulo=ModuloHistorial.PERSONAL,
-                accion=historial.AccionHistorial.CAMBIO_ESTADO,
-                titulo=f"Solicitud de admin rechazada: {personal}",
-                objeto=personal,
-            )
-        return redirect("personal_admin_requests")
-    items = Personal.objects.select_related("user").filter(admin_requested=True)
-    return render(request, "personal/admin_requests.html", {"items": items})
+    """Compat: redirige a gestion de personal/roles."""
+    messages.info(request, "Los roles se asignan al editar el personal.")
+    return redirect("personal_list")
 
 
 def personal_admin_remove(request):
+    """Panel rapido para bajar a Usuario a Tecnico/Admin (excepto superusers)."""
     if request.method == "POST":
         personal_id = request.POST.get("personal_id")
         personal = get_object_or_404(Personal, pk=personal_id)
@@ -805,32 +795,31 @@ def personal_admin_remove(request):
             messages.error(request, "El personal no tiene usuario asignado.")
             return redirect("personal_admin_remove")
         if personal.user.is_superuser:
-            messages.error(request, "No se puede quitar admin a un superusuario.")
+            messages.error(request, "No se puede cambiar el rol de un superusuario.")
             return redirect("personal_admin_remove")
         if request.user.pk == personal.user_id:
-            messages.error(request, "No puedes quitarte admin a ti mismo.")
+            messages.error(request, "No puedes quitarte el rol de administrador a ti mismo.")
             return redirect("personal_admin_remove")
-        if personal.user.is_staff:
-            personal.user.is_staff = False
-            personal.user.save(update_fields=["is_staff"])
+        set_user_role(personal.user, ROLE_USUARIO)
         if personal.admin_requested:
             personal.admin_requested = False
             personal.save(update_fields=["admin_requested"])
-        messages.success(request, "Admin retirado correctamente.")
+        messages.success(request, "Rol cambiado a Usuario.")
         historial.registrar_historial(
             request=request,
             modulo=ModuloHistorial.PERSONAL,
             accion=historial.AccionHistorial.CAMBIO_ESTADO,
-            titulo=f"Permisos de admin retirados: {personal}",
+            titulo=f"Rol reducido a Usuario: {personal}",
             objeto=personal,
             enlace_nombre="personal_update",
         )
         return redirect("personal_admin_remove")
-    items = (
-        Personal.objects.select_related("user")
-        .filter(user__is_staff=True)
-        .exclude(user__is_superuser=True)
-    )
+    items = []
+    for personal in Personal.objects.select_related("user").filter(user__isnull=False):
+        role = get_user_role(personal.user)
+        if role in {ROLE_TECNICO, ROLE_ADMIN} and not personal.user.is_superuser:
+            personal.rol_label = role
+            items.append(personal)
     return render(request, "personal/admin_remove.html", {"items": items})
 
 
@@ -968,24 +957,87 @@ def personal_delete(request, pk):
 class ProveedorForm(forms.ModelForm):
     class Meta:
         model = Proveedor
-        fields = "__all__"
+        fields = [
+            "nombre_proveedor",
+            "razon_social",
+            "rfc",
+            "tipo",
+            "contacto",
+            "correo",
+            "telefono",
+            "sitio_web",
+            "direccion",
+            "ciudad",
+            "estado",
+            "codigo_postal",
+            "notas",
+            "activo",
+        ]
         labels = {
-            "nombre_proveedor": "Nombre del proveedor",
+            "nombre_proveedor": "Nombre comercial",
+            "razon_social": "Razon social",
+            "rfc": "RFC",
+            "tipo": "Tipo de proveedor",
             "contacto": "Contacto",
-            "telefono": "Teléfono",
-            "correo": "Correo electrónico",
-            "direccion": "Dirección",
+            "telefono": "Telefono",
+            "correo": "Correo electronico",
+            "sitio_web": "Sitio web",
+            "direccion": "Direccion",
+            "ciudad": "Ciudad",
+            "estado": "Estado",
+            "codigo_postal": "Codigo postal",
+            "notas": "Notas / condiciones",
+            "activo": "Activo",
         }
         help_texts = {
+            "razon_social": "Nombre legal para facturacion, si difiere del comercial.",
+            "rfc": "RFC para facturas y ordenes formales.",
             "contacto": "Nombre de la persona de contacto.",
+            "notas": "Plazo de pago, garantia, observaciones, etc.",
         }
         widgets = {
-            "direccion": forms.Textarea(attrs={"rows": 2}),
+            "direccion": forms.TextInput(attrs={"class": "form-control"}),
+            "notas": forms.Textarea(attrs={"rows": 3}),
+            "sitio_web": forms.URLInput(attrs={"placeholder": "https://"}),
         }
+
+    def clean_rfc(self):
+        rfc = (self.cleaned_data.get("rfc") or "").strip().upper()
+        return rfc or None
 
 def proveedor_list(request):
     items = Proveedor.objects.all()
-    return render(request, "proveedor/list.html", {"items": items})
+    selected_tipo = request.GET.get("tipo", "")
+    selected_activo = request.GET.get("activo", "")
+    search_query = (request.GET.get("q") or "").strip()
+
+    if search_query:
+        items = items.filter(
+            Q(nombre_proveedor__icontains=search_query)
+            | Q(razon_social__icontains=search_query)
+            | Q(codigo_interno__icontains=search_query)
+            | Q(rfc__icontains=search_query)
+            | Q(contacto__icontains=search_query)
+            | Q(correo__icontains=search_query)
+        )
+    if selected_tipo:
+        items = items.filter(tipo=selected_tipo)
+    if selected_activo == "true":
+        items = items.filter(activo=True)
+    elif selected_activo == "false":
+        items = items.filter(activo=False)
+
+    return render(
+        request,
+        "proveedor/list.html",
+        {
+            "items": items,
+            "tipo_choices": TipoProveedor.choices,
+            "selected_tipo": selected_tipo,
+            "selected_activo": selected_activo,
+            "search_query": search_query,
+        },
+    )
 
 
 def proveedor_create(request):
@@ -3659,7 +3711,7 @@ def _ticketit_queryset():
 
 
 def ticketit_list(request):
-    is_staff_user = is_admin_user(request.user)
+    is_staff_user = is_operativo(request.user)
     items = _tickets_for_user(request.user, _ticketit_queryset()).annotate(
         seguimientos_count=Count("seguimientos")
     ).order_by("-fecha_support", "-pk")
@@ -3742,7 +3794,7 @@ def ticketit_list(request):
 
 def ticketit_dashboard(request):
     context = {
-        "is_staff_user": is_admin_user(request.user),
+        "is_staff_user": is_operativo(request.user),
         **_ticket_dashboard_context(request.user),
     }
     return render(request, "ticketit/dashboard.html", context)
@@ -4570,9 +4622,16 @@ def _proveedores_payload():
         {
             "id": p.pk,
             "nombre": p.nombre_proveedor or "",
+            "razon_social": p.razon_social or "",
+            "rfc": p.rfc or "",
+            "codigo": p.codigo_interno or "",
             "contacto": p.contacto or "",
             "telefono": p.telefono or "",
             "email": p.correo or "",
+            "direccion": p.direccion or "",
+            "ciudad": p.ciudad or "",
+            "estado": p.estado or "",
+            "codigo_postal": p.codigo_postal or "",
         }
         for p in Proveedor.objects.filter(activo=True).order_by("nombre_proveedor")
     ]
@@ -4592,7 +4651,10 @@ def _intentar_generar_pdf(orden, request=None):
 
 
 def ordencompra_list(request):
-    items = OrdenCompra.objects.select_related("proveedor", "elaborado_por").all()
+    items = _ordenes_for_user(
+        request.user,
+        OrdenCompra.objects.select_related("proveedor", "elaborado_por").all(),
+    )
     selected_folio = (request.GET.get("folio_orden") or "").strip()
     selected_estado = request.GET.get("estado", "")
     fecha_desde_raw = request.GET.get("fecha_desde", "")
@@ -4617,6 +4679,7 @@ def ordencompra_list(request):
             "selected_estado": selected_estado,
             "fecha_desde": fecha_desde_raw,
             "fecha_hasta": fecha_hasta_raw,
+            "solo_propias": not is_operativo(request.user),
         },
     )
 
@@ -4709,6 +4772,9 @@ def ordencompra_upload(request):
 
 def ordencompra_update(request, pk):
     orden = get_object_or_404(OrdenCompra.objects.prefetch_related("detalles"), pk=pk)
+    if not user_can_manage_orden(request.user, orden):
+        messages.error(request, "No tienes permisos para esta orden de compra.")
+        return redirect("ordencompra_list")
 
     if orden.origen == OrigenOrdenCompra.SUBIDO:
         if request.method == "POST":
@@ -4783,17 +4849,68 @@ def ordencompra_update(request, pk):
 
 def ordencompra_delete(request, pk):
     orden = get_object_or_404(OrdenCompra, pk=pk)
+    if not user_can_manage_orden(request.user, orden):
+        messages.error(request, "No tienes permisos para esta orden de compra.")
+        return redirect("ordencompra_list")
     if request.method == "POST":
+        folio = orden.folio_orden
+        nivel = (
+            NivelHistorial.CRITICO
+            if not is_admin_user(request.user)
+            else NivelHistorial.ADVERTENCIA
+        )
         historial.registrar_eliminacion(
             request,
             modulo=ModuloHistorial.ORDEN_COMPRA,
-            titulo=f"Orden de compra eliminada: {orden.folio_orden}",
+            titulo=f"Orden de compra eliminada: {folio}",
             objeto=orden,
+            descripcion=(
+                f"Eliminada por {request.user.get_username()} "
+                f"(rol: {get_user_role(request.user) or 'Usuario'})."
+            ),
+            metadata={
+                "folio_orden": folio,
+                "eliminado_por_id": request.user.pk,
+                "eliminado_por": request.user.get_username(),
+                "rol": get_user_role(request.user),
+                "elaborado_por_id": orden.elaborado_por_id,
+                "aviso_admin": True,
+            },
+            nivel=nivel,
         )
         orden.delete()
         messages.success(request, "Orden de compra eliminada correctamente.")
         return redirect("ordencompra_list")
     return render(request, "ordencompra/confirm_delete.html", {"object": orden})
+
+
+def mis_equipos(request):
+    """Equipos asignados al personal vinculado al usuario autenticado."""
+    try:
+        personal = request.user.personal_profile
+    except Personal.DoesNotExist:
+        personal = None
+
+    asignaciones = AsignacionEquipo.objects.none()
+    if personal is not None:
+        asignaciones = (
+            AsignacionEquipo.objects.select_related(
+                "equipo",
+                "equipo__categoria",
+                "equipo__ubicacion",
+            )
+            .filter(personal=personal, estado_asignacion=EstadoAsignacion.ACTIVA)
+            .order_by("-fecha_asignacion")
+        )
+
+    return render(
+        request,
+        "equipo/mis_equipos.html",
+        {
+            "personal": personal,
+            "asignaciones": asignaciones,
+        },
+    )
 
 
 def ordencompra_preview(request):
@@ -4948,7 +5065,7 @@ def _build_home_calendar_events(user=None):
     window_start, window_end, today = _calendar_window()
     now = timezone.now()
     events = []
-    staff_user = is_admin_user(user)
+    staff_user = is_operativo(user)
 
     tickets_qs = (
         TicketIT.objects.select_related("area", "puesto", "solicitado_por")
@@ -5250,7 +5367,7 @@ def _build_home_calendar_events(user=None):
 
 def home(request):
     today = timezone.localdate()
-    is_staff_user = is_admin_user(request.user)
+    is_staff_user = is_operativo(request.user)
     tickets_abiertos_qs = _tickets_abiertos_qs(request.user)
 
     alerta_seguimientos = {}
@@ -5265,7 +5382,7 @@ def home(request):
 
     quick_links = [
         {"label": "Tickets", "url_name": "ticketit_list", "hint": "Soporte activo"},
-        {"label": "Dashboard", "url_name": "ticketit_dashboard", "hint": "SLA y operacion"},
+        {"label": "Mis equipos", "url_name": "mis_equipos", "hint": "Asignados a ti"},
         {"label": "Ordenes", "url_name": "ordencompra_list", "hint": "Compras"},
         {"label": "Calendario", "url_name": "home", "hint": "Agenda", "anchor": "#calendario"},
     ]

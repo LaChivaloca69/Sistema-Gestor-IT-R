@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Personal · {{ object.numero_empleado }}{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+	<div>
+		<p class="eyebrow mb-2">Organizacion</p>
+		<h1 class="h3 mb-1">{{ object.nombre }} {{ object.apellido_paterno }}</h1>
+		<p class="text-muted mb-0">Consulta de personal{% if not can_manage_personal %} (solo lectura){% endif %}.</p>
+	</div>
+	<div class="d-flex gap-2">
+		<a class="btn btn-outline-secondary" href="{% url 'personal_list' %}">Volver</a>
+		{% if can_manage_personal %}
+		<a class="btn btn-primary" href="{% url 'personal_update' object.pk %}">Editar</a>
+		{% endif %}
+	</div>
+</div>
+
+<div class="row g-3">
+	<div class="col-md-6">
+		<dl class="row mb-0">
+			<dt class="col-sm-4">Numero empleado</dt>
+			<dd class="col-sm-8">{{ object.numero_empleado }}</dd>
+			<dt class="col-sm-4">Usuario</dt>
+			<dd class="col-sm-8">{{ object.user.username|default:"—" }}</dd>
+			<dt class="col-sm-4">Rol</dt>
+			<dd class="col-sm-8">{{ rol_label }}</dd>
+			<dt class="col-sm-4">Correo</dt>
+			<dd class="col-sm-8">{{ object.correo|default:"—" }}</dd>
+			<dt class="col-sm-4">Telefono</dt>
+			<dd class="col-sm-8">{{ object.telefono|default:"—" }}</dd>
+		</dl>
+	</div>
+	<div class="col-md-6">
+		<dl class="row mb-0">
+			<dt class="col-sm-4">Area</dt>
+			<dd class="col-sm-8">{{ object.area|default:"—" }}</dd>
+			<dt class="col-sm-4">Puesto</dt>
+			<dd class="col-sm-8">{{ object.puesto|default:"—" }}</dd>
+			<dt class="col-sm-4">Activo</dt>
+			<dd class="col-sm-8">{% if object.activo %}Si{% else %}No{% endif %}</dd>
+			<dt class="col-sm-4">Fecha ingreso</dt>
+			<dd class="col-sm-8">{{ object.fecha_ingreso|date:"Y-m-d"|default:"—" }}</dd>
+		</dl>
+	</div>
+</div>
+{% endblock %}

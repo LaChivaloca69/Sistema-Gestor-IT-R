@@ -8,7 +8,13 @@
 	<div>
 		<p class="eyebrow mb-2">Compras</p>
 		<h1 class="h3 mb-1">Ordenes de compra</h1>
-		<p class="text-muted mb-0">Control y registro de ordenes de compra.</p>
+		<p class="text-muted mb-0">
+			{% if solo_propias %}
+			Solo ves y gestionas las ordenes elaboradas por ti.
+			{% else %}
+			Control y registro de ordenes de compra.
+			{% endif %}
+		</p>
 	</div>
 	<a class="btn btn-primary" href="{% url 'ordencompra_choose' %}">Nueva orden</a>
 </div>

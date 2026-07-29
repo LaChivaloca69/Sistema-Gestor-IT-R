@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}Mis equipos{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+	<div>
+		<p class="eyebrow mb-2">Inventario personal</p>
+		<h1 class="h3 mb-1">Mis equipos</h1>
+		<p class="text-muted mb-0">Equipos asignados actualmente a tu usuario.</p>
+	</div>
+	<a class="btn btn-primary" href="{% url 'ticketit_create' %}">Solicitar mantenimiento (ticket)</a>
+</div>
+
+{% if not personal %}
+<div class="alert alert-warning">
+	Tu cuenta no tiene perfil de personal vinculado. Contacta a un administrador.
+</div>
+{% else %}
+<div class="table-responsive">
+	<table class="table table-striped table-hover align-middle">
+		<thead class="table-light">
+			<tr>
+				<th>Codigo</th>
+				<th>Categoria</th>
+				<th>Marca / modelo</th>
+				<th>Ubicacion</th>
+				<th>Fecha asignacion</th>
+				<th>Estado equipo</th>
+			</tr>
+		</thead>
+		<tbody>
+			{% for item in asignaciones %}
+			<tr>
+				<td><strong>{{ item.equipo.codigo_inventario }}</strong></td>
+				<td>{{ item.equipo.categoria }}</td>
+				<td>{{ item.equipo.marca|default:"-" }} {{ item.equipo.modelo|default:"" }}</td>
+				<td>{{ item.equipo.ubicacion|default:"-" }}</td>
+				<td>{{ item.fecha_asignacion|date:"Y-m-d" }}</td>
+				<td>{{ item.equipo.estado_equipo }}</td>
+			</tr>
+			{% empty %}
+			<tr>
+				<td colspan="6" class="text-muted">No tienes equipos asignados.</td>
+			</tr>
+			{% endfor %}
+		</tbody>
+	</table>
+</div>
+{% endif %}
+{% endblock %}

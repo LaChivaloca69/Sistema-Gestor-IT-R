@@ -8,7 +8,13 @@
 	<div>
 		<p class="eyebrow mb-2">Inventario</p>
 		<h1 class="h3 mb-1">{% if object %}Editar Proveedor{% else %}Nuevo Proveedor{% endif %}</h1>
-		<p class="text-muted mb-0">Captura la informacion principal del proveedor.</p>
+		<p class="text-muted mb-0">
+			{% if object and object.codigo_interno %}
+			Codigo interno: <strong>{{ object.codigo_interno }}</strong> (asignado automaticamente).
+			{% else %}
+			El codigo interno se genera automaticamente al guardar (PROV-000001).
+			{% endif %}
+		</p>
 	</div>
 	<a class="btn btn-outline-secondary" href="{% url 'proveedor_list' %}">Volver</a>
 </div>

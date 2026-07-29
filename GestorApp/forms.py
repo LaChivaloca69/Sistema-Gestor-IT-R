@@ -56,6 +56,13 @@ def get_subtipo_ticket_choices(tipo_ticket):
                            ("Impresiones", "IMPRESIONES"), ("QLICKVIEW", "QLICKVIEW"), ("Daikin Cornerstone", "DAIKIN CORNERSTONE"), ("SAP", "SAP"), ("SAP Seguridad", "SAP SEGURIDAD"), ("SAP Mantenimiento de Datos", "SAP MANTENIMIENTO DE DATOS"), ("SAP Forms", "SAP FORMS"), 
                            ("SAP GUIXT", "SAP GUIXT"), ("SAP Interfaces", "SAP INTERFACES"), ("SAP Reports", "SAP REPORTS"), ("Camaras de Seguridad", "CAMARAS DE SEGURIDAD"), ("SHAREPOINT", "SHAREPOINT"), ("SMOTHIE MAMBO", "SMOPTHIE MAMBO"), 
                            ("Trustwave", "TRUSTWAVE"), ("Ups Worldship", "UPS WORLDSHIP"), ("FTP", "FTP"), ("VPN", "VPN"), ("Otro", "OTRO")],
+        "MANTENIMIENTO": [
+            ("Preventivo", "PREVENTIVO"),
+            ("Correctivo", "CORRECTIVO"),
+            ("Equipo asignado", "EQUIPO ASIGNADO"),
+            ("Solicitud general", "SOLICITUD GENERAL"),
+            ("Otro", "OTRO"),
+        ],
     }
     opciones = opciones_por_tipo.get(tipo_ticket, [])
     return [("", "---------")] + list(opciones)
@@ -68,10 +75,7 @@ def get_tipo_equipo_queryset(current_value=None):
     return qs
 
 
-def is_admin_user(user):
-    if not user or not getattr(user, "is_authenticated", False):
-        return False
-    return user.is_superuser or user.is_staff
+from .roles import is_admin_user, is_operativo, operativo_users_queryset  # noqa: E402
 
 
 def _get_user_personal(user):
@@ -168,23 +172,21 @@ class TicketITForm(forms.ModelForm):
             if (
                 self.request_user
                 and getattr(self.request_user, "is_authenticated", False)
-                and not is_admin_user(self.request_user)
+                and not is_operativo(self.request_user)
             ):
                 self.fields["solicitado_por"].initial = self.request_user
                 self.fields["solicitado_por"].disabled = True
 
         if "asignado_a" in self.fields:
             user_model = get_user_model()
-            user_qs = user_model.objects.filter(is_staff=True)
-            if any(field.name == "is_active" for field in user_model._meta.fields):
-                user_qs = user_qs.filter(is_active=True)
+            user_qs = operativo_users_queryset(user_model)
             if self.instance and self.instance.asignado_a_id:
                 user_qs = user_model.objects.filter(pk=self.instance.asignado_a_id) | user_qs
             self.fields["asignado_a"].queryset = user_qs.distinct().order_by(
                 user_model.USERNAME_FIELD
             )
             self.fields["asignado_a"].required = False
-            if not is_admin_user(self.request_user):
+            if not is_operativo(self.request_user):
                 self.fields["asignado_a"].disabled = True
                 if not (self.instance and self.instance.pk):
                     self.fields.pop("asignado_a")
@@ -242,7 +244,7 @@ class TicketITForm(forms.ModelForm):
         if (
             self.request_user
             and getattr(self.request_user, "is_authenticated", False)
-            and not is_admin_user(self.request_user)
+            and not is_operativo(self.request_user)
             and not instance.solicitado_por_id
         ):
             instance.solicitado_por = self.request_user
@@ -345,9 +347,7 @@ class SeguimientoTicketForm(forms.ModelForm):
 
         if "usuario" in self.fields:
             user_model = get_user_model()
-            user_qs = user_model.objects.filter(is_staff=True)
-            if any(field.name == "is_active" for field in user_model._meta.fields):
-                user_qs = user_qs.filter(is_active=True)
+            user_qs = operativo_users_queryset(user_model)
             if self.instance and self.instance.usuario_id:
                 user_qs = user_model.objects.filter(pk=self.instance.usuario_id) | user_qs
             self.fields["usuario"].queryset = user_qs.distinct().order_by(
@@ -357,7 +357,7 @@ class SeguimientoTicketForm(forms.ModelForm):
                 not (self.instance and self.instance.pk)
                 and self.request_user
                 and getattr(self.request_user, "is_authenticated", False)
-                and is_admin_user(self.request_user)
+                and is_operativo(self.request_user)
             ):
                 self.fields["usuario"].initial = self.request_user
 
@@ -405,11 +405,6 @@ class UserRegisterForm(UserCreationForm):
     nombre = forms.CharField(max_length=100, label="Nombre")
     apellido_paterno = forms.CharField(max_length=100, label="Apellido paterno")
     apellido_materno = forms.CharField(max_length=100, label="Apellido materno", required=False)
-    solicitar_admin = forms.BooleanField(
-        required=False,
-        label="Solicitar admin",
-        help_text="Un admin debe aprobar la solicitud.",
-    )
 
     class Meta:
         model = User
@@ -422,17 +417,20 @@ class UserRegisterForm(UserCreationForm):
         return numero_empleado
 
     def save(self, commit=True):
+        from .roles import ROLE_USUARIO, set_user_role
+
         if not commit:
             return super().save(commit=False)
 
         with transaction.atomic():
             user = super().save(commit=True)
+            set_user_role(user, ROLE_USUARIO)
             Personal.objects.create(
                 user=user,
                 numero_empleado=self.cleaned_data["numero_empleado"],
                 nombre=self.cleaned_data["nombre"],
                 apellido_paterno=self.cleaned_data["apellido_paterno"],
                 apellido_materno=self.cleaned_data.get("apellido_materno") or None,
-                admin_requested=self.cleaned_data.get("solicitar_admin", False),
+                admin_requested=False,
             )
         return user

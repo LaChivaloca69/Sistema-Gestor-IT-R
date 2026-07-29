@@ -1,47 +1,56 @@
 {% extends "base.html" %}
 
-{% block title %}Quitar admin{% endblock %}
+{% block title %}Bajar roles{% endblock %}
 
 {% block content %}
-<h1>Quitar admin</h1>
-<div class="actions">
-    <a class="btn" href="{% url 'personal_list' %}">Volver a personal</a>
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+	<div>
+		<p class="eyebrow mb-2">Admin</p>
+		<h1 class="h3 mb-1">Bajar roles</h1>
+		<p class="text-muted mb-0">Cambia Tecnico IT o Administrador a Usuario.</p>
+	</div>
+	<a class="btn btn-outline-secondary" href="{% url 'personal_list' %}">Volver a personal</a>
 </div>
-<table>
-    <thead>
-        <tr>
-            <th>Numero empleado</th>
-            <th>Usuario</th>
-            <th>Nombre</th>
-            <th>Correo</th>
-            <th>Area</th>
-            <th>Puesto</th>
-            <th>Acciones</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for item in items %}
-        <tr>
-            <td>{{ item.numero_empleado }}</td>
-            <td>{{ item.user.username|default:"-" }}</td>
-            <td>{{ item.nombre }} {{ item.apellido_paterno }} {{ item.apellido_materno }}</td>
-            <td>{{ item.correo|default:"-" }}</td>
-            <td>{{ item.area }}</td>
-            <td>{{ item.puesto }}</td>
-            <td>
-                <form method="post" action="{% url 'personal_admin_remove' %}" style="display: inline;">
-                    {% csrf_token %}
-                    <input type="hidden" name="personal_id" value="{{ item.pk }}">
-                    <button class="btn btn-danger" type="submit">Quitar admin</button>
-                </form>
-                <a class="btn" href="{% url 'personal_update' item.pk %}">Revisar</a>
-            </td>
-        </tr>
-        {% empty %}
-        <tr>
-            <td colspan="7">No hay admins para quitar.</td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+
+<div class="table-responsive">
+	<table class="table table-striped table-hover align-middle">
+		<thead class="table-light">
+			<tr>
+				<th>Numero empleado</th>
+				<th>Usuario</th>
+				<th>Rol actual</th>
+				<th>Nombre</th>
+				<th>Correo</th>
+				<th>Area</th>
+				<th>Puesto</th>
+				<th>Acciones</th>
+			</tr>
+		</thead>
+		<tbody>
+			{% for item in items %}
+			<tr>
+				<td>{{ item.numero_empleado }}</td>
+				<td>{{ item.user.username|default:"-" }}</td>
+				<td>{{ item.rol_label }}</td>
+				<td>{{ item.nombre }} {{ item.apellido_paterno }} {{ item.apellido_materno }}</td>
+				<td>{{ item.correo|default:"-" }}</td>
+				<td>{{ item.area }}</td>
+				<td>{{ item.puesto }}</td>
+				<td>
+					<form method="post" action="{% url 'personal_admin_remove' %}" class="d-inline">
+						{% csrf_token %}
+						<input type="hidden" name="personal_id" value="{{ item.pk }}">
+						<button class="btn btn-outline-danger btn-sm" type="submit">Pasar a Usuario</button>
+					</form>
+					<a class="btn btn-outline-secondary btn-sm" href="{% url 'personal_update' item.pk %}">Editar</a>
+				</td>
+			</tr>
+			{% empty %}
+			<tr>
+				<td colspan="8" class="text-muted text-center py-4">No hay Tecnicos IT ni Administradores (excepto superusuarios).</td>
+			</tr>
+			{% endfor %}
+		</tbody>
+	</table>
+</div>
 {% endblock %}

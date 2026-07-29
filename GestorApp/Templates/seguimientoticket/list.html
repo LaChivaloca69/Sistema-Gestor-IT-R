@@ -151,8 +151,10 @@
 							<ul class="dropdown-menu dropdown-menu-end">
 								<li><a class="dropdown-item" href="{% url 'seguimientoticket_update' item.pk %}">Editar check</a></li>
 								<li><a class="dropdown-item" href="{% url 'ticketit_detail' item.ticket_id %}">Ver ticket</a></li>
+								{% if is_admin_role %}
 								<li><hr class="dropdown-divider"></li>
 								<li><a class="dropdown-item text-danger" href="{% url 'seguimientoticket_delete' item.pk %}">Eliminar</a></li>
+								{% endif %}
 							</ul>
 						</div>
 					</div>

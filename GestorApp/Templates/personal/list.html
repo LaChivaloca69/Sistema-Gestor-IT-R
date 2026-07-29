@@ -11,7 +11,9 @@
 		<h1 class="h3 mb-1">Personal</h1>
 		<p class="text-muted mb-0">Usuarios y personal del sistema.</p>
 	</div>
+	{% if can_manage_personal %}
 	<a class="btn btn-primary" href="{% url 'personal_create' %}">Nuevo personal</a>
+	{% endif %}
 </div>
 
 <form class="filters" method="get">
@@ -105,7 +107,7 @@
 			<tr>
 				<th>Numero empleado</th>
 				<th>Usuario</th>
-				<th>Admin</th>
+				<th>Rol</th>
 				<th>Nombre</th>
 				<th>Apellidos</th>
 				<th>Correo</th>
@@ -118,16 +120,10 @@
 		</thead>
 		<tbody>
 			{% for item in items %}
-			<tr class="table-row-click" data-href="{% url 'personal_update' item.pk %}">
+			<tr class="table-row-click" data-href="{% if can_manage_personal %}{% url 'personal_update' item.pk %}{% else %}{% url 'personal_detail' item.pk %}{% endif %}">
 				<td><strong>{{ item.numero_empleado }}</strong></td>
 				<td>{{ item.user.username|default:"-" }}</td>
-				<td>
-					{% if item.user.is_staff %}
-					<span class="status-badge status-badge--asignado">Si</span>
-					{% else %}
-					<span class="status-badge">No</span>
-					{% endif %}
-				</td>
+				<td>{{ item.rol_label }}</td>
 				<td>{{ item.nombre }}</td>
 				<td>{{ item.apellido_paterno }} {{ item.apellido_materno }}</td>
 				<td>{{ item.correo }}</td>
@@ -143,6 +139,7 @@
 				</td>
 				<td>
 					<div class="row-actions">
+						{% if can_manage_personal %}
 						<a class="btn btn-primary btn-sm" href="{% url 'personal_update' item.pk %}">Abrir</a>
 						<div class="dropdown">
 							<button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">⋯</button>
@@ -152,6 +149,9 @@
 								<li><a class="dropdown-item text-danger" href="{% url 'personal_delete' item.pk %}">Eliminar</a></li>
 							</ul>
 						</div>
+						{% else %}
+						<a class="btn btn-primary btn-sm" href="{% url 'personal_detail' item.pk %}">Ver</a>
+						{% endif %}
 					</div>
 				</td>
 			</tr>
@@ -159,7 +159,9 @@
 			<tr>
 				<td colspan="11" class="text-center text-muted py-4">
 					No hay personal.
+					{% if can_manage_personal %}
 					<a href="{% url 'personal_create' %}">Crear el primero</a>
+					{% endif %}
 				</td>
 			</tr>
 			{% endfor %}

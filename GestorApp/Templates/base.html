@@ -27,7 +27,7 @@
         </div>
         <div class="topbar__actions">
             {% if user.is_authenticated %}
-            <span class="user-chip">{{ user.username }}</span>
+            <span class="user-chip">{{ user.username }}{% if user_role %} · {{ user_role }}{% endif %}</span>
             <form method="post" action="{% url 'logout' %}">
                 {% csrf_token %}
                 <button class="btn btn-outline-danger btn-sm" type="submit">Salir</button>
@@ -66,6 +66,7 @@
                         <div class="sidebar-section-links">
                             <a class="sidebar-link {% if request.path == '/' %}active{% endif %}" href="{% url 'home' %}" data-nav-label="Inicio panel home"><span class="sidebar-link__icon" aria-hidden="true">⌂</span><span>Inicio</span></a>
                             <a class="sidebar-link" href="{% url 'home' %}#calendario" data-nav-label="Calendario agenda"><span class="sidebar-link__icon" aria-hidden="true">▦</span><span>Calendario</span></a>
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'mis_equipos' %}active{% endif %}" href="{% url 'mis_equipos' %}" data-nav-label="Mis equipos asignados"><span class="sidebar-link__icon" aria-hidden="true">▣</span><span>Mis equipos</span></a>
                         </div>
                     </section>
 
@@ -74,7 +75,7 @@
                         <div class="sidebar-section-links">
                             <a class="sidebar-link {% if request.resolver_match.url_name == 'ticketit_list' or request.resolver_match.url_name == 'ticketit_detail' or request.resolver_match.url_name == 'ticketit_create' or request.resolver_match.url_name == 'ticketit_update' or request.resolver_match.url_name == 'ticketit_dashboard' %}active{% endif %}" href="{% url 'ticketit_list' %}" data-nav-label="Tickets support soporte"><span class="sidebar-link__icon" aria-hidden="true">🎫</span><span>Tickets</span></a>
                             <a class="sidebar-link {% if request.resolver_match.url_name == 'ticketit_dashboard' %}active{% endif %}" href="{% url 'ticketit_dashboard' %}" data-nav-label="Dashboard tickets sla operacion"><span class="sidebar-link__icon" aria-hidden="true">▣</span><span>Dashboard</span></a>
-                            {% if user.is_staff or user.is_superuser %}
+                            {% if is_operativo_role %}
                             <a class="sidebar-link {% if request.resolver_match.url_name == 'seguimientoticket_list' %}active{% endif %}" href="{% url 'seguimientoticket_list' %}" data-nav-label="Seguimiento checks"><span class="sidebar-link__icon" aria-hidden="true">✓</span><span>Seguimiento</span></a>
                             <a class="sidebar-link {% if request.resolver_match.url_name == 'bitacora_list' %}active{% endif %}" href="{% url 'bitacora_list' %}" data-nav-label="Bitacora"><span class="sidebar-link__icon" aria-hidden="true">☰</span><span>Bitacora</span></a>
                             <a class="sidebar-link {% if request.resolver_match.url_name == 'answer_list' %}active{% endif %}" href="{% url 'answer_list' %}" data-nav-label="Respuestas answer"><span class="sidebar-link__icon" aria-hidden="true">↩</span><span>Respuestas</span></a>
@@ -86,19 +87,19 @@
                         <button class="sidebar-section-toggle" type="button" aria-expanded="true"><span class="sidebar-section-title">Compras</span><span class="sidebar-section-chevron" aria-hidden="true">v</span></button>
                         <div class="sidebar-section-links">
                             <a class="sidebar-link {% if request.resolver_match.url_name == 'ordencompra_list' or request.resolver_match.url_name == 'ordencompra_choose' or request.resolver_match.url_name == 'ordencompra_create' or request.resolver_match.url_name == 'ordencompra_upload' or request.resolver_match.url_name == 'ordencompra_update' %}active{% endif %}" href="{% url 'ordencompra_list' %}" data-nav-label="Ordenes de compra"><span class="sidebar-link__icon" aria-hidden="true">$</span><span>Ordenes</span></a>
-                            {% if user.is_staff or user.is_superuser %}
+                            {% if is_admin_role %}
                             <a class="sidebar-link {% if request.resolver_match.url_name == 'plantilla_list' %}active{% endif %}" href="{% url 'plantilla_list' %}" data-nav-label="Plantillas documentos"><span class="sidebar-link__icon" aria-hidden="true">▤</span><span>Plantillas</span></a>
                             {% endif %}
                         </div>
                     </section>
 
-                    {% if user.is_staff or user.is_superuser %}
+                    {% if is_operativo_role %}
                     <section class="sidebar-section" data-section="organizacion">
                         <button class="sidebar-section-toggle" type="button" aria-expanded="true"><span class="sidebar-section-title">Organizacion</span><span class="sidebar-section-chevron" aria-hidden="true">v</span></button>
                         <div class="sidebar-section-links">
                             <a class="sidebar-link {% if request.resolver_match.url_name == 'area_list' %}active{% endif %}" href="{% url 'area_list' %}" data-nav-label="Areas"><span class="sidebar-link__icon" aria-hidden="true">◈</span><span>Areas</span></a>
                             <a class="sidebar-link {% if request.resolver_match.url_name == 'puesto_list' %}active{% endif %}" href="{% url 'puesto_list' %}" data-nav-label="Puestos"><span class="sidebar-link__icon" aria-hidden="true">◎</span><span>Puestos</span></a>
-                            <a class="sidebar-link {% if request.resolver_match.url_name == 'personal_list' %}active{% endif %}" href="{% url 'personal_list' %}" data-nav-label="Personal empleados"><span class="sidebar-link__icon" aria-hidden="true">☺</span><span>Personal</span></a>
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'personal_list' or request.resolver_match.url_name == 'personal_detail' %}active{% endif %}" href="{% url 'personal_list' %}" data-nav-label="Personal empleados"><span class="sidebar-link__icon" aria-hidden="true">☺</span><span>Personal</span></a>
                         </div>
                     </section>
 
@@ -131,12 +132,13 @@
                             <a class="sidebar-link {% if request.resolver_match.url_name == 'agendamantenimiento_list' or request.resolver_match.url_name == 'agendamantenimiento_create' or request.resolver_match.url_name == 'agendamantenimiento_update' or request.resolver_match.url_name == 'agendamantenimiento_delete' %}active{% endif %}" href="{% url 'agendamantenimiento_list' %}" data-nav-label="Cierres de mantenimiento"><span class="sidebar-link__icon" aria-hidden="true">📋</span><span>Cierres</span></a>
                         </div>
                     </section>
+                    {% endif %}
 
+                    {% if is_admin_role %}
                     <section class="sidebar-section" data-section="admin">
                         <button class="sidebar-section-toggle" type="button" aria-expanded="true"><span class="sidebar-section-title">Admin</span><span class="sidebar-section-chevron" aria-hidden="true">v</span></button>
                         <div class="sidebar-section-links">
-                            <a class="sidebar-link {% if request.resolver_match.url_name == 'personal_admin_requests' %}active{% endif %}" href="{% url 'personal_admin_requests' %}" data-nav-label="Solicitudes admin"><span class="sidebar-link__icon" aria-hidden="true">★</span><span>Solicitudes</span></a>
-                            <a class="sidebar-link {% if request.resolver_match.url_name == 'personal_admin_remove' %}active{% endif %}" href="{% url 'personal_admin_remove' %}" data-nav-label="Quitar admin"><span class="sidebar-link__icon" aria-hidden="true">✕</span><span>Quitar admin</span></a>
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'personal_admin_remove' %}active{% endif %}" href="{% url 'personal_admin_remove' %}" data-nav-label="Quitar roles tecnico admin"><span class="sidebar-link__icon" aria-hidden="true">✕</span><span>Bajar roles</span></a>
                             <a class="sidebar-link {% if request.resolver_match.url_name == 'historial_retencion_admin' %}active{% endif %}" href="{% url 'historial_retencion_admin' %}" data-nav-label="Archivar purgar retencion historial"><span class="sidebar-link__icon" aria-hidden="true">🗄</span><span>Archivar</span></a>
                         </div>
                     </section>

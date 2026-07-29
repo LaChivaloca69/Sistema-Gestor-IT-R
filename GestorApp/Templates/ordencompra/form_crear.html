@@ -93,9 +93,11 @@
 						{{ form.proveedor.errors }}
 						<div class="row g-2 mt-2" id="proveedor-info">
 							<div class="col-md-6"><small class="text-muted">Nombre</small><div id="prov-nombre">—</div></div>
+							<div class="col-md-6"><small class="text-muted">RFC</small><div id="prov-rfc">—</div></div>
 							<div class="col-md-6"><small class="text-muted">Contacto</small><div id="prov-contacto">—</div></div>
 							<div class="col-md-6"><small class="text-muted">Telefono</small><div id="prov-telefono">—</div></div>
 							<div class="col-md-6"><small class="text-muted">Email</small><div id="prov-email">—</div></div>
+							<div class="col-md-6"><small class="text-muted">Ciudad</small><div id="prov-ciudad">—</div></div>
 						</div>
 					</div>
 					<div class="col-md-6">
@@ -275,9 +277,12 @@
 	function actualizarProveedor() {
 		const p = proveedorActual();
 		document.getElementById("prov-nombre").textContent = p ? p.nombre : "—";
+		document.getElementById("prov-rfc").textContent = p ? (p.rfc || "—") : "—";
 		document.getElementById("prov-contacto").textContent = p ? (p.contacto || "—") : "—";
 		document.getElementById("prov-telefono").textContent = p ? (p.telefono || "—") : "—";
 		document.getElementById("prov-email").textContent = p ? (p.email || "—") : "—";
+		const ciudadParts = p ? [p.ciudad, p.estado].filter(Boolean) : [];
+		document.getElementById("prov-ciudad").textContent = ciudadParts.length ? ciudadParts.join(", ") : "—";
 	}
 
 	function ivaPorcentaje() {
@@ -337,9 +342,16 @@
 			fecha: fecha ? fecha.value : "",
 			elaborado_por: elaboradoNombre,
 			proveedor_nombre: p ? p.nombre : "",
+			proveedor_razon_social: p ? (p.razon_social || "") : "",
+			proveedor_rfc: p ? (p.rfc || "") : "",
+			proveedor_codigo: p ? (p.codigo || "") : "",
 			proveedor_contacto: p ? (p.contacto || "") : "",
 			proveedor_telefono: p ? (p.telefono || "") : "",
 			proveedor_email: p ? (p.email || "") : "",
+			proveedor_direccion: p ? (p.direccion || "") : "",
+			proveedor_ciudad: p ? (p.ciudad || "") : "",
+			proveedor_estado: p ? (p.estado || "") : "",
+			proveedor_cp: p ? (p.codigo_postal || "") : "",
 			moneda: moneda ? moneda.value : "MXN",
 			iva_porcentaje: calc.pct,
 			comentarios: comentarios ? comentarios.value : "",

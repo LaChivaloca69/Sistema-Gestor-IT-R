@@ -37,7 +37,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'GestorApp',
+    'GestorApp.apps.GestorappConfig',
     'django_bootstrap5',
 ]
 
@@ -63,6 +63,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'GestorApp.context_processors.roles',
             ],
         },
     },

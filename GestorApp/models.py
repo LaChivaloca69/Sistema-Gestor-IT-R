@@ -61,16 +61,79 @@ def delete_user_for_personal(sender, instance, **kwargs):
         get_user_model().objects.filter(pk=instance.user_id).delete()
 
 # ------------ MODELO DE PROVEEDORES------------
+class TipoProveedor(models.TextChoices):
+    HARDWARE = "Hardware", "Hardware"
+    SOFTWARE = "Software", "Software"
+    MANTENIMIENTO = "Mantenimiento", "Mantenimiento"
+    TELECOMUNICACIONES = "Telecomunicaciones", "Telecomunicaciones"
+    CONSUMIBLES = "Consumibles", "Consumibles"
+    OTRO = "Otro", "Otro"
+
+
 class Proveedor(models.Model):
-    nombre_proveedor = models.CharField(max_length=150)
+    CODIGO_PREFIX = "PROV-"
+    CODIGO_WIDTH = 6
+
+    codigo_interno = models.CharField(
+        max_length=30,
+        blank=True,
+        null=True,
+        unique=True,
+        verbose_name="Codigo interno",
+    )
+    nombre_proveedor = models.CharField(max_length=150, verbose_name="Nombre comercial")
+    razon_social = models.CharField(max_length=200, blank=True, null=True)
+    rfc = models.CharField(max_length=13, blank=True, null=True, verbose_name="RFC")
+    tipo = models.CharField(
+        max_length=30,
+        choices=TipoProveedor.choices,
+        blank=True,
+        null=True,
+        verbose_name="Tipo de proveedor",
+    )
     contacto = models.CharField(max_length=150, blank=True, null=True)
     correo = models.EmailField(blank=True, null=True)
     telefono = models.CharField(max_length=30, blank=True, null=True)
+    sitio_web = models.URLField(blank=True, null=True, verbose_name="Sitio web")
     direccion = models.CharField(max_length=255, blank=True, null=True)
+    ciudad = models.CharField(max_length=100, blank=True, null=True)
+    estado = models.CharField(max_length=100, blank=True, null=True)
+    codigo_postal = models.CharField(max_length=10, blank=True, null=True, verbose_name="Codigo postal")
+    notas = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Condiciones de pago, garantia, observaciones, etc.",
+    )
     activo = models.BooleanField(default=True)
 
+    class Meta:
+        ordering = ["nombre_proveedor"]
+        verbose_name = "Proveedor"
+        verbose_name_plural = "Proveedores"
+
     def __str__(self):
+        if self.codigo_interno:
+            return f"{self.codigo_interno} — {self.nombre_proveedor}"
         return self.nombre_proveedor
+
+    @classmethod
+    def _next_codigo_interno(cls):
+        codigos = (
+            cls.objects.filter(codigo_interno__startswith=cls.CODIGO_PREFIX)
+            .order_by("-codigo_interno")
+            .values_list("codigo_interno", flat=True)
+        )
+        for codigo in codigos:
+            suffix = codigo[len(cls.CODIGO_PREFIX):]
+            if suffix.isdigit():
+                next_number = int(suffix) + 1
+                return f"{cls.CODIGO_PREFIX}{next_number:0{cls.CODIGO_WIDTH}d}"
+        return f"{cls.CODIGO_PREFIX}{1:0{cls.CODIGO_WIDTH}d}"
+
+    def save(self, *args, **kwargs):
+        if not (self.codigo_interno or "").strip():
+            self.codigo_interno = self._next_codigo_interno()
+        super().save(*args, **kwargs)
 
 # ------------ MODELOS DE UBICACION, EDIFICIO ------------
 class Edificio(models.Model):
@@ -346,6 +409,7 @@ class TipoTicketSupport(models.TextChoices):
     HELPDESK = "HELPDESK", "HELPDESK"
     TELEFONIA = "TELEFONIA", "TELEFONIA"
     SOFTWARE = "SOFTWARE", "SOFTWARE"
+    MANTENIMIENTO = "MANTENIMIENTO", "MANTENIMIENTO"
 
 
 class TipoEquipoSupport(models.TextChoices):

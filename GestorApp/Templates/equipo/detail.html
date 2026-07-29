@@ -29,10 +29,10 @@
 			<button class="btn btn-outline-secondary" type="submit">Devolver</button>
 		</form>
 		{% endif %}
-		{% if object.puede_dar_de_baja %}
+		{% if object.puede_dar_de_baja and is_admin_role %}
 		<a class="btn btn-outline-danger" href="{% url 'equipo_dar_baja' object.pk %}">Dar de baja</a>
 		{% endif %}
-		{% if object.puede_reactivar %}
+		{% if object.puede_reactivar and is_admin_role %}
 		<form method="post" action="{% url 'equipo_reactivar' object.pk %}">
 			{% csrf_token %}
 			<button class="btn btn-outline-warning" type="submit">Reactivar</button>
@@ -111,7 +111,9 @@
 			<a class="btn btn-outline-danger btn-sm" href="{% url 'equipo_dar_baja' object.pk %}">Dar de baja</a>
 			{% endif %}
 			{% if object.puede_eliminar_fisico %}
+			{% if is_admin_role %}
 			<a class="btn btn-outline-danger btn-sm" href="{% url 'equipo_delete' object.pk %}">Eliminar</a>
+			{% endif %}
 			{% endif %}
 		</div>
 	</section>

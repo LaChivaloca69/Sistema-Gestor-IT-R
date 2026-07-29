@@ -63,8 +63,10 @@
 							<ul class="dropdown-menu dropdown-menu-end">
 								<li><a class="dropdown-item" href="{% url 'mantenimiento_detail' item.mantenimiento_id %}">Ver mantenimiento</a></li>
 								<li><a class="dropdown-item" href="{% url 'agendamantenimiento_update' item.pk %}">Editar cierre</a></li>
+								{% if is_admin_role %}
 								<li><hr class="dropdown-divider"></li>
 								<li><a class="dropdown-item text-danger" href="{% url 'agendamantenimiento_delete' item.pk %}">Eliminar cierre</a></li>
+								{% endif %}
 							</ul>
 						</div>
 					</div>

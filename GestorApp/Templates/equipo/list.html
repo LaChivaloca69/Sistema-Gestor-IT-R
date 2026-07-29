@@ -186,10 +186,10 @@
 								{% if item.puede_asignarse %}
 								<li><a class="dropdown-item" href="{% url 'equipo_asignar' item.pk %}">Asignar</a></li>
 								{% endif %}
-								{% if item.puede_dar_de_baja %}
+								{% if item.puede_dar_de_baja and is_admin_role %}
 								<li><a class="dropdown-item text-danger" href="{% url 'equipo_dar_baja' item.pk %}">Dar de baja</a></li>
 								{% endif %}
-								{% if item.puede_eliminar_fisico %}
+								{% if item.puede_eliminar_fisico and is_admin_role %}
 								<li><hr class="dropdown-divider"></li>
 								<li><a class="dropdown-item text-danger" href="{% url 'equipo_delete' item.pk %}">Eliminar</a></li>
 								{% endif %}

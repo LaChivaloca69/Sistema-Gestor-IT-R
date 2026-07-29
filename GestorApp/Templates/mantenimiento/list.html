@@ -222,8 +222,10 @@
 									</form>
 								</li>
 								{% endif %}
+								{% if is_admin_role %}
 								<li><hr class="dropdown-divider"></li>
 								<li><a class="dropdown-item text-danger" href="{% url 'mantenimiento_delete' item.pk %}">Eliminar</a></li>
+								{% endif %}
 							</ul>
 						</div>
 					</div>
