@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% load django_bootstrap5 %}
+
+{% block title %}Terminar orden {{ object.folio_orden }}{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+	<div>
+		<p class="eyebrow mb-2">Ordenes de compra</p>
+		<h1 class="h3 mb-1">Marcar como Terminado</h1>
+		<p class="text-muted mb-0">
+			Orden <strong>{{ object.folio_orden }}</strong>
+			· {{ object.get_origen_display }}
+		</p>
+	</div>
+	<a class="btn btn-outline-secondary" href="{% url 'ordencompra_update' object.pk %}">Volver</a>
+</div>
+
+{% if es_pdf %}
+<div class="alert alert-info">
+	Esta orden se subio como PDF. Captura las <strong>lineas de productos</strong> que se daran de alta en inventario
+	(descripcion y cantidad). Luego la orden quedara lista para inventariar.
+</div>
+
+<form method="post" class="stack-form">
+	{% csrf_token %}
+	{{ formset.management_form }}
+	{{ formset.non_form_errors }}
+	<div class="table-responsive card shadow-sm border-0 mb-3">
+		<table class="table table-sm align-middle mb-0">
+			<thead class="table-light">
+				<tr>
+					<th>Descripcion</th>
+					<th style="width: 7rem;">Cantidad</th>
+					<th style="width: 8rem;">ID (opc.)</th>
+					<th style="width: 8rem;">P.U. (opc.)</th>
+					<th style="width: 5rem;">Borrar</th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for f in formset %}
+				<tr>
+					<td>
+						{% for hidden in f.hidden_fields %}{{ hidden }}{% endfor %}
+						{{ f.descripcion }}
+						{{ f.descripcion.errors }}
+					</td>
+					<td>{{ f.cantidad }}{{ f.cantidad.errors }}</td>
+					<td>{{ f.id_producto }}</td>
+					<td>{{ f.precio_unitario }}</td>
+					<td class="text-center">{% if f.DELETE %}{{ f.DELETE }}{% endif %}</td>
+				</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+	</div>
+	<div class="d-flex justify-content-end gap-2">
+		<a class="btn btn-outline-secondary" href="{% url 'ordencompra_update' object.pk %}">Cancelar</a>
+		<button class="btn btn-primary" type="submit">Guardar lineas y terminar</button>
+	</div>
+</form>
+{% else %}
+<div class="card shadow-sm border-0 mb-3">
+	<div class="card-body">
+		<p class="mb-3">
+			Al marcar esta orden como <strong>Terminado</strong> quedara disponible para dar de alta equipos
+			en inventario a partir de sus lineas.
+		</p>
+		<div class="table-responsive">
+			<table class="table table-sm">
+				<thead>
+					<tr>
+						<th>Descripcion</th>
+						<th>Cantidad</th>
+						<th>P.U.</th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for d in detalles %}
+					<tr>
+						<td>{{ d.descripcion }}</td>
+						<td>{{ d.cantidad }}</td>
+						<td>{{ d.precio_unitario }}</td>
+					</tr>
+					{% empty %}
+					<tr><td colspan="3" class="text-muted">Sin lineas</td></tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		</div>
+		<form method="post" class="d-flex justify-content-end gap-2 mt-3">
+			{% csrf_token %}
+			<a class="btn btn-outline-secondary" href="{% url 'ordencompra_update' object.pk %}">Cancelar</a>
+			<button class="btn btn-primary" type="submit">Confirmar Terminado</button>
+		</form>
+	</div>
+</div>
+{% endif %}
+{% endblock %}

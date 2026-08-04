@@ -114,6 +114,22 @@
 		</select>
 	</div>
 	<div>
+		<label for="filter_origen">Origen alta</label>
+		<select id="filter_origen" name="origen_alta" data-chip-label="Origen">
+			<option value="">Todos</option>
+			{% for value, label in origen_choices %}
+			<option value="{{ value }}" {% if value == selected_origen %}selected{% endif %}>{{ label }}</option>
+			{% endfor %}
+		</select>
+	</div>
+	<div>
+		<label for="filter_sin_oc">Sin OC</label>
+		<select id="filter_sin_oc" name="sin_oc" data-chip-label="Sin OC">
+			<option value="" {% if not selected_sin_oc %}selected{% endif %}>No</option>
+			<option value="1" {% if selected_sin_oc == "1" %}selected{% endif %}>Solo sin orden</option>
+		</select>
+	</div>
+	<div>
 		<label for="filter_activo">Activo</label>
 		<select id="filter_activo" name="activo" data-chip-label="Activo">
 			<option value="" {% if not selected_activo %}selected{% endif %}>Todos</option>

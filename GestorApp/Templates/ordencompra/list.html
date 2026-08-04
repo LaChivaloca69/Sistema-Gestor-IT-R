@@ -89,6 +89,12 @@
 						<div class="dropdown">
 							<button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">⋯</button>
 							<ul class="dropdown-menu dropdown-menu-end">
+								{% if item.estado != "Terminado" and item.estado != "Cancelado" %}
+								<li><a class="dropdown-item" href="{% url 'ordencompra_terminar' item.pk %}">Marcar como Terminado</a></li>
+								{% endif %}
+								{% if puede_alta_inventario and item.estado == "Terminado" and item.lineas_count %}
+								<li><a class="dropdown-item" href="{% url 'equipo_create' %}?orden={{ item.pk }}">Dar de alta equipo</a></li>
+								{% endif %}
 								{% if item.archivo_pdf %}
 								<li><a class="dropdown-item" href="{{ item.archivo_pdf.url }}" target="_blank" rel="noopener">Ver PDF</a></li>
 								{% endif %}

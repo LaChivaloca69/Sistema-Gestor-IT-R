@@ -87,6 +87,11 @@ urlpatterns = [
     path('Equipos/', views.operativo_required(views.equipo_list), name='equipo_list'),
     path('Equipos/dashboard/', views.operativo_required(views.equipo_dashboard), name='equipo_dashboard'),
     path('Equipos/create/', views.operativo_required(views.equipo_create), name='equipo_create'),
+    path(
+        'Equipos/detalle-orden-choices/',
+        views.operativo_required(views.equipo_detalle_orden_choices),
+        name='equipo_detalle_orden_choices',
+    ),
     path('Equipos/<int:pk>/', views.operativo_required(views.equipo_detail), name='equipo_detail'),
     path('Equipos/update/<int:pk>/', views.operativo_required(views.equipo_update), name='equipo_update'),
     path('Equipos/delete/<int:pk>/', views.admin_required(views.equipo_delete), name='equipo_delete'),
@@ -201,6 +206,7 @@ urlpatterns = [
     path('OrdenesCompra/crear/', login_required(views.ordencompra_create), name='ordencompra_create'),
     path('OrdenesCompra/subir/', login_required(views.ordencompra_upload), name='ordencompra_upload'),
     path('OrdenesCompra/update/<int:pk>/', login_required(views.ordencompra_update), name='ordencompra_update'),
+    path('OrdenesCompra/<int:pk>/terminar/', login_required(views.ordencompra_terminar), name='ordencompra_terminar'),
     path('OrdenesCompra/delete/<int:pk>/', login_required(views.ordencompra_delete), name='ordencompra_delete'),
     path('OrdenesCompra/preview/', login_required(views.ordencompra_preview), name='ordencompra_preview'),
 ]

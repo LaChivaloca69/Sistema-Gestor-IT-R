@@ -74,6 +74,20 @@
 				<strong>{{ object.proveedor|default:"-" }}</strong>
 			</div>
 			<div>
+				<span class="ticket-meta__label">Origen de alta</span>
+				<strong>{{ object.get_origen_alta_display }}</strong>
+			</div>
+			<div>
+				<span class="ticket-meta__label">Orden de compra</span>
+				<strong>
+					{% if object.orden_compra_id %}
+					<a href="{% url 'ordencompra_update' object.orden_compra_id %}">{{ object.orden_compra.folio_orden }}</a>
+					{% else %}
+					—
+					{% endif %}
+				</strong>
+			</div>
+			<div>
 				<span class="ticket-meta__label">Ubicacion</span>
 				<strong>{{ object.ubicacion|default:"-" }}</strong>
 			</div>

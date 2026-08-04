@@ -14,6 +14,68 @@
 	<a class="btn btn-outline-secondary" href="{% url 'ordencompra_list' %}">Volver</a>
 </div>
 
+{% if object %}
+<div class="d-flex flex-wrap gap-2 mb-3">
+	{% if object.estado != "Terminado" and object.estado != "Cancelado" %}
+	<a class="btn btn-outline-primary" href="{% url 'ordencompra_terminar' object.pk %}">Marcar como Terminado</a>
+	{% endif %}
+	{% if puede_alta %}
+	<a class="btn btn-primary" href="{% url 'equipo_create' %}?orden={{ object.pk }}">Dar de alta equipo</a>
+	{% elif object.lista_para_inventario %}
+	<span class="align-self-center text-muted small">Sin cupo disponible: todas las lineas ya tienen sus altas.</span>
+	{% endif %}
+</div>
+{% if lineas_cupo %}
+<div class="card shadow-sm border-0 mb-3">
+	<div class="card-body py-3">
+		<h2 class="h6 mb-2">Productos de la orden (cupo inventario)</h2>
+		<div class="table-responsive">
+			<table class="table table-sm mb-0 align-middle">
+				<thead>
+					<tr>
+						<th>Producto / descripcion</th>
+						<th>Cantidad OC</th>
+						<th>Dados de alta</th>
+						<th>Disponibles</th>
+						<th></th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for row in lineas_cupo %}
+					<tr>
+						<td>{{ row.detalle.descripcion }}</td>
+						<td>{{ row.esperada }}</td>
+						<td>{{ row.recibida }}</td>
+						<td>
+							{% if row.disponible %}
+							<span class="status-badge status-badge--asignado">{{ row.disponible }}</span>
+							{% else %}
+							<span class="status-badge status-badge--baja">0</span>
+							{% endif %}
+						</td>
+						<td class="text-end">
+							{% if puede_alta and row.disponible %}
+							<a class="btn btn-sm btn-outline-primary" href="{% url 'equipo_create' %}?orden={{ object.pk }}&detalle={{ row.detalle.pk }}">Alta (-1)</a>
+							{% endif %}
+						</td>
+					</tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		</div>
+	</div>
+</div>
+{% endif %}
+{% if equipos_ligados %}
+<div class="alert alert-secondary py-2">
+	Equipos vinculados:
+	{% for eq in equipos_ligados %}
+	<a href="{% url 'equipo_detail' eq.pk %}">{{ eq.codigo_inventario }}</a>{% if not forloop.last %}, {% endif %}
+	{% endfor %}
+</div>
+{% endif %}
+{% endif %}
+
 <style>
 	.oc-layout {
 		display: grid;

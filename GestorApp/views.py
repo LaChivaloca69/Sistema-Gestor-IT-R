@@ -61,6 +61,7 @@ from .models import (
     MovimientoEquipo,
     NivelHistorial,
     OrdenCompra,
+    OrigenAltaEquipo,
     OrigenOrdenCompra,
     Personal,
     PlantillaDocumento,
@@ -1306,6 +1307,8 @@ def _equipo_queryset():
         "ubicacion",
         "ubicacion__edificio",
         "ubicacion__zona",
+        "orden_compra",
+        "detalle_orden",
     )
 
 
@@ -1440,7 +1443,24 @@ def equipo_dashboard(request):
 class EquipoForm(forms.ModelForm):
     class Meta:
         model = Equipo
-        fields = "__all__"
+        fields = [
+            "codigo_inventario",
+            "numero_serie",
+            "categoria",
+            "marca",
+            "modelo",
+            "Numero_Pedimiento",
+            "descripcion_equipo",
+            "imagen",
+            "proveedor",
+            "origen_alta",
+            "orden_compra",
+            "detalle_orden",
+            "estado_equipo",
+            "ubicacion",
+            "fecha_alta",
+            "activo",
+        ]
         labels = {
             "codigo_inventario": "Código de inventario (ID)",
             "numero_serie": "Número de serie",
@@ -1450,20 +1470,26 @@ class EquipoForm(forms.ModelForm):
             "proveedor": "Proveedor",
             "Numero_Pedimiento": "Número de pedimiento",
             "descripcion_equipo": "Descripción del equipo",
+            "origen_alta": "Origen de alta",
+            "orden_compra": "Orden de compra",
+            "detalle_orden": "Producto de la orden",
             "estado_equipo": "Estado del equipo",
             "ubicacion": "Ubicación",
             "fecha_alta": "Fecha de alta",
-            "fecha_baja": "Fecha de baja",
-            "motivo_baja": "Motivo de baja",
             "activo": "Activo",
             "imagen": "Imagen",
         }
         help_texts = {
             "codigo_inventario": "Código único de inventario del equipo.",
             "numero_serie": "Número de serie del equipo.",
-            "marca": "Marca del equipo.",
-            "modelo": "Modelo del equipo.",
-            "categoria": "Categoría a la que pertenece el equipo.",
+            "origen_alta": (
+                "Compra: con OC. Legado: equipos viejos sin documento. "
+                "Otros: donacion, transferencia, etc."
+            ),
+            "orden_compra": "Opcional. Solo OC en estado Terminado con cupo disponible.",
+            "detalle_orden": (
+                "Obligatorio si es Compra. Cada alta descuenta 1 de la cantidad de la linea."
+            ),
             "proveedor": "Proveedor del equipo.",
             "Numero_Pedimiento": "Número de pedimiento del equipo(si aplica).",
             "descripcion_equipo": "Descripción detallada del equipo.",
@@ -1473,13 +1499,128 @@ class EquipoForm(forms.ModelForm):
             ),
             "ubicacion": "Ubicación física del equipo.",
             "fecha_alta": "Fecha en que se dio de alta el equipo.",
-            "fecha_baja": "Fecha en que se dio de baja el equipo (si aplica).",
         }
         widgets = {
             "descripcion_equipo": forms.Textarea(attrs={"rows": 4}),
             "fecha_alta": forms.DateInput(attrs={"type": "date"}),
-            "fecha_baja": forms.DateInput(attrs={"type": "date"}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        exclude_id = self.instance.pk if self.instance and self.instance.pk else None
+
+        ordenes_qs = (
+            OrdenCompra.objects.filter(estado=EstadoOrdenCompra.TERMINADO)
+            .prefetch_related("detalles", "detalles__equipos")
+            .order_by("-creado_en")
+        )
+        ordenes_con_cupo = [
+            orden.pk for orden in ordenes_qs if orden.puede_recibir_equipos
+        ]
+        if self.instance and self.instance.orden_compra_id:
+            ordenes_con_cupo.append(self.instance.orden_compra_id)
+        self.fields["orden_compra"].queryset = OrdenCompra.objects.filter(
+            pk__in=set(ordenes_con_cupo) or [-1]
+        ).order_by("-creado_en")
+        self.fields["orden_compra"].required = False
+        self.fields["detalle_orden"].required = False
+        self.fields["detalle_orden"].label = "Producto de la orden"
+        self.fields["detalle_orden"].empty_label = "---------"
+
+        orden = None
+        if self.is_bound:
+            orden_id = self.data.get("orden_compra")
+            if orden_id:
+                orden = OrdenCompra.objects.filter(pk=orden_id).first()
+        elif self.initial.get("orden_compra"):
+            orden = self.initial.get("orden_compra")
+            if getattr(orden, "pk", None) is None and str(orden).isdigit():
+                orden = OrdenCompra.objects.filter(pk=orden).first()
+        elif self.instance and self.instance.orden_compra_id:
+            orden = self.instance.orden_compra
+
+        if orden is not None and getattr(orden, "pk", None):
+            lineas = list(
+                DetalleOrdenCompra.objects.filter(orden=orden)
+                .prefetch_related("equipos")
+                .order_by("pk")
+            )
+            lineas_visibles = [
+                linea
+                for linea in lineas
+                if linea.cantidad_disponible(exclude_equipo_id=exclude_id) > 0
+                or (
+                    self.instance
+                    and self.instance.detalle_orden_id
+                    and linea.pk == self.instance.detalle_orden_id
+                )
+            ]
+            self.fields["detalle_orden"].queryset = DetalleOrdenCompra.objects.filter(
+                pk__in=[linea.pk for linea in lineas_visibles] or [-1]
+            ).order_by("pk")
+            self.fields["detalle_orden"].label_from_instance = (
+                lambda obj, _exclude=exclude_id: obj.etiqueta_inventario(
+                    exclude_equipo_id=_exclude
+                )
+            )
+        else:
+            self.fields["detalle_orden"].queryset = DetalleOrdenCompra.objects.none()
+
+    def clean(self):
+        cleaned = super().clean()
+        origen = cleaned.get("origen_alta")
+        orden = cleaned.get("orden_compra")
+        detalle = cleaned.get("detalle_orden")
+        exclude_id = self.instance.pk if self.instance and self.instance.pk else None
+
+        # Sin origen Compra no aplican datos de OC.
+        if origen != OrigenAltaEquipo.COMPRA:
+            cleaned["orden_compra"] = None
+            cleaned["detalle_orden"] = None
+            return cleaned
+
+        if not orden:
+            self.add_error(
+                "orden_compra",
+                "Si el origen es Compra, selecciona una orden de compra terminada.",
+            )
+        if orden and not detalle:
+            self.add_error(
+                "detalle_orden",
+                "Selecciona el producto de la orden. Cada alta descuenta 1 unidad de esa linea.",
+            )
+        if orden and not orden.lista_para_inventario:
+            self.add_error(
+                "orden_compra",
+                "La orden debe estar en Terminado y tener lineas capturadas.",
+            )
+        if detalle and orden and detalle.orden_id != orden.pk:
+            self.add_error("detalle_orden", "La linea no pertenece a la orden seleccionada.")
+        if detalle and not orden:
+            cleaned["orden_compra"] = detalle.orden
+            orden = detalle.orden
+        if detalle is not None:
+            disponible = detalle.cantidad_disponible(exclude_equipo_id=exclude_id)
+            if disponible <= 0:
+                self.add_error(
+                    "detalle_orden",
+                    (
+                        f"Ya no hay cupo en esta linea "
+                        f"({detalle.descripcion}: {detalle.cantidad_recibida(exclude_equipo_id=exclude_id)}"
+                        f"/{detalle.cantidad_esperada})."
+                    ),
+                )
+        if orden and not orden.puede_recibir_equipos:
+            if not (
+                self.instance
+                and self.instance.pk
+                and self.instance.orden_compra_id == orden.pk
+            ):
+                self.add_error(
+                    "orden_compra",
+                    "Esta orden ya no tiene productos disponibles para dar de alta.",
+                )
+        return cleaned
 
     def clean_imagen(self):
         imagen = self.cleaned_data.get("imagen")
@@ -1507,6 +1648,8 @@ def _filtrar_equipos(request):
     selected_ubicacion = request.GET.get("ubicacion", "")
     selected_sin_ubicacion = request.GET.get("sin_ubicacion", "")
     selected_alerta = (request.GET.get("alerta") or "").strip()
+    selected_origen = request.GET.get("origen_alta", "")
+    selected_sin_oc = request.GET.get("sin_oc", "")
     fecha_desde_raw = request.GET.get("fecha_alta_desde", "")
     fecha_hasta_raw = request.GET.get("fecha_alta_hasta", "")
     fecha_mes = request.GET.get("fecha_alta_mes", "")
@@ -1532,6 +1675,10 @@ def _filtrar_equipos(request):
         items = items.filter(activo=False)
     if selected_sin_ubicacion == "1":
         items = items.filter(ubicacion__isnull=True)
+    if selected_origen:
+        items = items.filter(origen_alta=selected_origen)
+    if selected_sin_oc == "1":
+        items = items.filter(orden_compra__isnull=True)
     elif selected_ubicacion:
         items = items.filter(ubicacion_id=selected_ubicacion)
 
@@ -1566,6 +1713,9 @@ def _filtrar_equipos(request):
         "selected_ubicacion": selected_ubicacion,
         "selected_sin_ubicacion": selected_sin_ubicacion,
         "selected_alerta": selected_alerta,
+        "selected_origen": selected_origen,
+        "selected_sin_oc": selected_sin_oc,
+        "origen_choices": OrigenAltaEquipo.choices,
         "fecha_alta_desde": fecha_desde_raw,
         "fecha_alta_hasta": fecha_hasta_raw,
         "fecha_alta_mes": fecha_mes,
@@ -1615,6 +1765,51 @@ def _export_equipos_csv(queryset):
             ]
         )
     return response
+
+
+def equipo_detalle_orden_choices(request):
+    """Lineas de una OC con cupo disponible, para el combo Producto de la orden."""
+    orden_id = (request.GET.get("orden_id") or "").strip()
+    exclude_equipo_id = (request.GET.get("exclude_equipo_id") or "").strip()
+    exclude_id = int(exclude_equipo_id) if exclude_equipo_id.isdigit() else None
+
+    choices = []
+    proveedor_id = None
+    folio = ""
+    if orden_id.isdigit():
+        orden = (
+            OrdenCompra.objects.filter(pk=orden_id)
+            .prefetch_related("detalles", "detalles__equipos")
+            .first()
+        )
+        if orden is not None:
+            proveedor_id = orden.proveedor_id
+            folio = orden.folio_orden or ""
+            for linea in orden.detalles.all().order_by("pk"):
+                disponible = linea.cantidad_disponible(exclude_equipo_id=exclude_id)
+                if disponible <= 0 and not (
+                    exclude_id
+                    and Equipo.objects.filter(
+                        pk=exclude_id, detalle_orden_id=linea.pk
+                    ).exists()
+                ):
+                    continue
+                choices.append(
+                    {
+                        "id": linea.pk,
+                        "label": linea.etiqueta_inventario(exclude_equipo_id=exclude_id),
+                        "descripcion": linea.descripcion or "",
+                        "disponible": disponible,
+                    }
+                )
+
+    return JsonResponse(
+        {
+            "choices": choices,
+            "proveedor_id": proveedor_id,
+            "folio": folio,
+        }
+    )
 
 
 def equipo_list(request):
@@ -1683,6 +1878,52 @@ def equipo_detail(request, pk):
 
 
 def equipo_create(request):
+    orden = None
+    detalle = None
+    orden_id = (request.GET.get("orden") or request.POST.get("orden_compra") or "").strip()
+    detalle_id = (request.GET.get("detalle") or "").strip()
+
+    if orden_id.isdigit():
+        orden = OrdenCompra.objects.filter(pk=orden_id).prefetch_related(
+            "detalles", "detalles__equipos"
+        ).first()
+        if orden is None:
+            messages.error(request, "Orden de compra no encontrada.")
+            return redirect("ordencompra_list")
+        if not orden.lista_para_inventario:
+            messages.error(
+                request,
+                "La orden debe estar en Terminado y tener lineas para dar de alta equipos.",
+            )
+            return redirect("ordencompra_update", pk=orden.pk)
+        if not orden.puede_recibir_equipos:
+            messages.error(
+                request,
+                "Esta orden ya no tiene productos disponibles: todas las lineas estan cubiertas.",
+            )
+            return redirect("ordencompra_update", pk=orden.pk)
+
+    if detalle_id.isdigit():
+        detalle = DetalleOrdenCompra.objects.filter(pk=detalle_id).select_related("orden").prefetch_related("equipos").first()
+        if detalle and orden and detalle.orden_id != orden.pk:
+            messages.error(request, "La linea no pertenece a la orden indicada.")
+            return redirect("equipo_create")
+        if detalle and orden is None:
+            orden = detalle.orden
+            if not orden.lista_para_inventario:
+                messages.error(
+                    request,
+                    "La orden debe estar en Terminado y tener lineas para dar de alta equipos.",
+                )
+                return redirect("ordencompra_update", pk=orden.pk)
+        if detalle and detalle.cantidad_disponible() <= 0:
+            messages.error(
+                request,
+                f"La linea '{detalle.descripcion}' ya no tiene cupo disponible "
+                f"({detalle.cantidad_recibida()}/{detalle.cantidad_esperada}).",
+            )
+            return redirect("ordencompra_update", pk=detalle.orden_id)
+
     if request.method == "POST":
         form = EquipoForm(request.POST, request.FILES)
         if form.is_valid():
@@ -1694,6 +1935,11 @@ def equipo_create(request):
                 titulo=f"Equipo dado de alta: {equipo.codigo_inventario}",
                 objeto=equipo,
                 enlace_nombre="equipo_detail",
+                metadata={
+                    "origen_alta": equipo.origen_alta,
+                    "orden_compra_id": equipo.orden_compra_id,
+                    "detalle_orden_id": equipo.detalle_orden_id,
+                },
             )
             _crear_movimiento(
                 equipo,
@@ -1706,8 +1952,30 @@ def equipo_create(request):
             messages.success(request, "Equipo creado correctamente.")
             return redirect("equipo_detail", pk=equipo.pk)
     else:
-        form = EquipoForm()
-    return render(request, "equipo/form.html", {"form": form})
+        initial = {}
+        if orden is not None:
+            initial = {
+                "origen_alta": OrigenAltaEquipo.COMPRA,
+                "orden_compra": orden,
+                "proveedor": orden.proveedor_id,
+                "Numero_Pedimiento": (orden.folio_orden or "")[:15] or None,
+            }
+            if detalle is not None:
+                initial["detalle_orden"] = detalle
+                initial["descripcion_equipo"] = (detalle.descripcion or "")[:255]
+        else:
+            initial = {"origen_alta": OrigenAltaEquipo.LEGADO}
+        form = EquipoForm(initial=initial)
+
+    return render(
+        request,
+        "equipo/form.html",
+        {
+            "form": form,
+            "orden_vinculada": orden,
+            "detalle_vinculado": detalle,
+        },
+    )
 
 
 def equipo_update(request, pk):
@@ -4617,6 +4885,49 @@ DetalleOrdenCompraFormSet = forms.inlineformset_factory(
 )
 
 
+class DetalleOrdenCompraCapturaForm(forms.ModelForm):
+    """Lineas minimas para OC subidas al marcar Terminado."""
+
+    class Meta:
+        model = DetalleOrdenCompra
+        fields = ["descripcion", "cantidad", "id_producto", "precio_unitario"]
+        labels = {
+            "descripcion": "Descripcion / producto",
+            "cantidad": "Cantidad",
+            "id_producto": "ID producto (opcional)",
+            "precio_unitario": "P.U. (opcional)",
+        }
+        widgets = {
+            "descripcion": forms.TextInput(attrs={"class": "form-control form-control-sm"}),
+            "cantidad": forms.NumberInput(
+                attrs={"class": "form-control form-control-sm", "step": "1", "min": "1"}
+            ),
+            "id_producto": forms.TextInput(attrs={"class": "form-control form-control-sm"}),
+            "precio_unitario": forms.NumberInput(
+                attrs={"class": "form-control form-control-sm", "step": "0.01", "min": "0"}
+            ),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["descripcion"].required = True
+        self.fields["cantidad"].required = True
+        self.fields["id_producto"].required = False
+        self.fields["precio_unitario"].required = False
+        self.fields["precio_unitario"].initial = 0
+
+
+DetalleOrdenCompraCapturaFormSet = forms.inlineformset_factory(
+    OrdenCompra,
+    DetalleOrdenCompra,
+    form=DetalleOrdenCompraCapturaForm,
+    extra=2,
+    can_delete=True,
+    min_num=1,
+    validate_min=True,
+)
+
+
 def _proveedores_payload():
     return [
         {
@@ -4653,7 +4964,12 @@ def _intentar_generar_pdf(orden, request=None):
 def ordencompra_list(request):
     items = _ordenes_for_user(
         request.user,
-        OrdenCompra.objects.select_related("proveedor", "elaborado_por").all(),
+        OrdenCompra.objects.select_related("proveedor", "elaborado_por")
+        .annotate(
+            lineas_count=Count("detalles"),
+            equipos_count=Count("equipos", distinct=True),
+        )
+        .all(),
     )
     selected_folio = (request.GET.get("folio_orden") or "").strip()
     selected_estado = request.GET.get("estado", "")
@@ -4680,6 +4996,7 @@ def ordencompra_list(request):
             "fecha_desde": fecha_desde_raw,
             "fecha_hasta": fecha_hasta_raw,
             "solo_propias": not is_operativo(request.user),
+            "puede_alta_inventario": is_operativo(request.user),
         },
     )
 
@@ -4771,15 +5088,45 @@ def ordencompra_upload(request):
 
 
 def ordencompra_update(request, pk):
-    orden = get_object_or_404(OrdenCompra.objects.prefetch_related("detalles"), pk=pk)
+    orden = get_object_or_404(
+        OrdenCompra.objects.prefetch_related("detalles", "detalles__equipos"),
+        pk=pk,
+    )
     if not user_can_manage_orden(request.user, orden):
         messages.error(request, "No tienes permisos para esta orden de compra.")
         return redirect("ordencompra_list")
+
+    puede_alta = orden.puede_recibir_equipos and is_operativo(request.user)
+    equipos_ligados = (
+        Equipo.objects.filter(orden_compra=orden).order_by("codigo_inventario")
+        if orden.pk
+        else Equipo.objects.none()
+    )
+    lineas_cupo = []
+    for linea in orden.detalles.all():
+        lineas_cupo.append(
+            {
+                "detalle": linea,
+                "esperada": linea.cantidad_esperada,
+                "recibida": linea.cantidad_recibida(),
+                "disponible": linea.cantidad_disponible(),
+            }
+        )
 
     if orden.origen == OrigenOrdenCompra.SUBIDO:
         if request.method == "POST":
             form = OrdenCompraSubirForm(request.POST, request.FILES, instance=orden)
             if form.is_valid():
+                nuevo_estado = form.cleaned_data.get("estado")
+                if (
+                    nuevo_estado == EstadoOrdenCompra.TERMINADO
+                    and not orden.detalles.exists()
+                ):
+                    messages.warning(
+                        request,
+                        "Para marcar como Terminado una orden subida, captura las lineas de productos.",
+                    )
+                    return redirect("ordencompra_terminar", pk=orden.pk)
                 form.save()
                 historial.registrar_actualizacion(
                     request,
@@ -4790,7 +5137,7 @@ def ordencompra_update(request, pk):
                     enlace_nombre="ordencompra_update",
                 )
                 messages.success(request, "Orden de compra actualizada correctamente.")
-                return redirect("ordencompra_list")
+                return redirect("ordencompra_update", pk=orden.pk)
         else:
             form = OrdenCompraSubirForm(instance=orden)
         return render(
@@ -4799,6 +5146,9 @@ def ordencompra_update(request, pk):
             {
                 "form": form,
                 "object": orden,
+                "puede_alta": puede_alta,
+                "equipos_ligados": equipos_ligados,
+                "lineas_cupo": lineas_cupo,
                 "elaborado_por_nombre": (
                     (orden.elaborado_por.get_full_name() or orden.elaborado_por.get_username())
                     if orden.elaborado_por
@@ -4811,10 +5161,19 @@ def ordencompra_update(request, pk):
         form = OrdenCompraCrearForm(request.POST, instance=orden)
         formset = DetalleOrdenCompraFormSet(request.POST, instance=orden)
         if form.is_valid() and formset.is_valid():
+            nuevo_estado = form.cleaned_data.get("estado")
             with transaction.atomic():
                 orden = form.save()
                 formset.save()
                 orden.recalcular_totales(save=True)
+            if nuevo_estado == EstadoOrdenCompra.TERMINADO and not orden.detalles.exists():
+                orden.estado = EstadoOrdenCompra.EN_PROCESO
+                orden.save(update_fields=["estado"])
+                messages.error(
+                    request,
+                    "No se puede terminar una orden sin lineas de producto.",
+                )
+                return redirect("ordencompra_update", pk=orden.pk)
             historial.registrar_actualizacion(
                 request,
                 modulo=ModuloHistorial.ORDEN_COMPRA,
@@ -4824,8 +5183,14 @@ def ordencompra_update(request, pk):
                 enlace_nombre="ordencompra_update",
             )
             _intentar_generar_pdf(orden, request)
-            messages.success(request, "Orden de compra actualizada correctamente.")
-            return redirect("ordencompra_list")
+            if orden.puede_recibir_equipos:
+                messages.success(
+                    request,
+                    "Orden terminada y lista para inventariar. Puedes dar de alta equipos.",
+                )
+            else:
+                messages.success(request, "Orden de compra actualizada correctamente.")
+            return redirect("ordencompra_update", pk=orden.pk)
     else:
         form = OrdenCompraCrearForm(instance=orden)
         formset = DetalleOrdenCompraFormSet(instance=orden)
@@ -4837,12 +5202,103 @@ def ordencompra_update(request, pk):
             "form": form,
             "formset": formset,
             "object": orden,
+            "puede_alta": puede_alta,
+            "equipos_ligados": equipos_ligados,
+            "lineas_cupo": lineas_cupo,
             "proveedores_json": _proveedores_payload(),
             "elaborado_por_nombre": (
                 (orden.elaborado_por.get_full_name() or orden.elaborado_por.get_username())
                 if orden.elaborado_por
                 else (request.user.get_full_name() or request.user.get_username())
             ),
+        },
+    )
+
+
+def ordencompra_terminar(request, pk):
+    """Marca OC como Terminado. Si es PDF, exige capturar lineas de productos."""
+    orden = get_object_or_404(
+        OrdenCompra.objects.prefetch_related("detalles"),
+        pk=pk,
+    )
+    if not user_can_manage_orden(request.user, orden):
+        messages.error(request, "No tienes permisos para esta orden de compra.")
+        return redirect("ordencompra_list")
+
+    if orden.estado == EstadoOrdenCompra.TERMINADO and orden.lista_para_inventario:
+        messages.info(request, "Esta orden ya esta terminada y lista para inventariar.")
+        return redirect("ordencompra_update", pk=orden.pk)
+
+    if orden.estado == EstadoOrdenCompra.CANCELADO:
+        messages.error(request, "No se puede terminar una orden cancelada.")
+        return redirect("ordencompra_update", pk=orden.pk)
+
+    es_pdf = orden.origen == OrigenOrdenCompra.SUBIDO
+
+    if not es_pdf:
+        if not orden.detalles.exists():
+            messages.error(request, "Agrega lineas de producto antes de terminar la orden.")
+            return redirect("ordencompra_update", pk=orden.pk)
+        if request.method == "POST":
+            orden.estado = EstadoOrdenCompra.TERMINADO
+            orden.save(update_fields=["estado"])
+            historial.registrar_historial(
+                request=request,
+                modulo=ModuloHistorial.ORDEN_COMPRA,
+                accion=AccionHistorial.CAMBIO_ESTADO,
+                titulo=f"Orden terminada (lista para inventariar): {orden.folio_orden}",
+                objeto=orden,
+                enlace_nombre="ordencompra_update",
+            )
+            messages.success(
+                request,
+                "Orden marcada como Terminado. Ya puedes dar de alta equipos.",
+            )
+            return redirect("ordencompra_update", pk=orden.pk)
+        return render(
+            request,
+            "ordencompra/terminar.html",
+            {
+                "object": orden,
+                "es_pdf": False,
+                "detalles": orden.detalles.all(),
+            },
+        )
+
+    # OC subida: capturar lineas
+    if request.method == "POST":
+        formset = DetalleOrdenCompraCapturaFormSet(request.POST, instance=orden)
+        if formset.is_valid():
+            with transaction.atomic():
+                formset.save()
+                orden.estado = EstadoOrdenCompra.TERMINADO
+                orden.save(update_fields=["estado"])
+                orden.recalcular_totales(save=True)
+            historial.registrar_historial(
+                request=request,
+                modulo=ModuloHistorial.ORDEN_COMPRA,
+                accion=AccionHistorial.CAMBIO_ESTADO,
+                titulo=f"Orden PDF terminada con lineas: {orden.folio_orden}",
+                objeto=orden,
+                enlace_nombre="ordencompra_update",
+                metadata={"lineas": orden.detalles.count()},
+            )
+            messages.success(
+                request,
+                "Lineas capturadas y orden terminada. Ya puedes dar de alta equipos.",
+            )
+            return redirect("ordencompra_update", pk=orden.pk)
+    else:
+        formset = DetalleOrdenCompraCapturaFormSet(instance=orden)
+
+    return render(
+        request,
+        "ordencompra/terminar.html",
+        {
+            "object": orden,
+            "es_pdf": True,
+            "formset": formset,
+            "detalles": orden.detalles.all(),
         },
     )
 

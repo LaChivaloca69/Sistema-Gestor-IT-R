@@ -177,10 +177,19 @@ class CategoriaEquipo(models.Model):
 
 
 class EstadoEquipo(models.TextChoices):
-    DISPONIBLE = "Disponible", "Disponible"
+    DISPONIBLE = "En Stock", "En Stock"
     ASIGNADO = "Asignado", "Asignado"
     EN_MANTENIMIENTO = "En Mantenimiento", "En Mantenimiento"
     BAJA = "Baja", "Baja"
+
+
+class OrigenAltaEquipo(models.TextChoices):
+    COMPRA = "Compra", "Compra (con OC)"
+    LEGADO = "Legado", "Legado / historico"
+    DONACION = "Donacion", "Donacion"
+    TRANSFERENCIA = "Transferencia", "Transferencia"
+    OTRO = "Otro", "Otro"
+
 
 # --- Equipo ------
 class Equipo(models.Model):
@@ -194,6 +203,28 @@ class Equipo(models.Model):
     descripcion_equipo = models.CharField(max_length=255, blank=True, null=True)
     imagen = models.ImageField(upload_to='equipos', blank=True, null=True)
     proveedor = models.ForeignKey(Proveedor, on_delete=models.SET_NULL, null=True, blank=True)
+    origen_alta = models.CharField(
+        max_length=20,
+        choices=OrigenAltaEquipo.choices,
+        default=OrigenAltaEquipo.LEGADO,
+        verbose_name="Origen de alta",
+    )
+    orden_compra = models.ForeignKey(
+        "OrdenCompra",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="equipos",
+        verbose_name="Orden de compra",
+    )
+    detalle_orden = models.ForeignKey(
+        "DetalleOrdenCompra",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="equipos",
+        verbose_name="Linea de orden",
+    )
     estado_equipo = models.CharField(max_length=30, choices=EstadoEquipo.choices, default=EstadoEquipo.DISPONIBLE)
     ubicacion = models.ForeignKey(Ubicacion, on_delete=models.SET_NULL, null=True, blank=True)
     fecha_alta = models.DateField(default=timezone.now)
@@ -895,6 +926,29 @@ class OrdenCompra(models.Model):
     def __str__(self):
         return self.folio_orden or f'Orden {self.pk}'
 
+    @property
+    def lista_para_inventario(self):
+        """Terminado y con al menos una linea para poder dar de alta equipos."""
+        if self.estado != EstadoOrdenCompra.TERMINADO:
+            return False
+        return self.detalles.exists()
+
+    @property
+    def puede_recibir_equipos(self):
+        """Hay cupo libre en alguna linea (cantidad - equipos ya dados de alta)."""
+        if not self.lista_para_inventario:
+            return False
+        return any(detalle.cantidad_disponible() > 0 for detalle in self.detalles.all())
+
+    @property
+    def cantidad_lineas_esperada(self):
+        from decimal import Decimal
+
+        total = Decimal("0")
+        for detalle in self.detalles.all():
+            total += detalle.cantidad or Decimal("0")
+        return total
+
     @classmethod
     def _next_folio_orden(cls):
         folios = cls.objects.filter(
@@ -978,6 +1032,32 @@ class DetalleOrdenCompra(models.Model):
 
     def __str__(self):
         return f'{self.orden.folio_orden} - {self.descripcion}'
+
+    @property
+    def cantidad_esperada(self):
+        """Unidades esperadas a inventariar (parte entera de la cantidad de la linea)."""
+        from decimal import Decimal, ROUND_DOWN
+
+        cantidad = self.cantidad or Decimal("0")
+        return int(cantidad.to_integral_value(rounding=ROUND_DOWN))
+
+    def cantidad_recibida(self, exclude_equipo_id=None):
+        qs = self.equipos.all()
+        if exclude_equipo_id:
+            qs = qs.exclude(pk=exclude_equipo_id)
+        return qs.count()
+
+    def cantidad_disponible(self, exclude_equipo_id=None):
+        return max(0, self.cantidad_esperada - self.cantidad_recibida(exclude_equipo_id=exclude_equipo_id))
+
+    def etiqueta_inventario(self, exclude_equipo_id=None):
+        disponible = self.cantidad_disponible(exclude_equipo_id=exclude_equipo_id)
+        esperada = self.cantidad_esperada
+        recibida = self.cantidad_recibida(exclude_equipo_id=exclude_equipo_id)
+        return (
+            f"{self.descripcion} — disponibles: {disponible} "
+            f"(alta: {recibida}/{esperada})"
+        )
 
 
 # ------------ HISTORIAL GENERAL DE ACTIVIDAD ------------

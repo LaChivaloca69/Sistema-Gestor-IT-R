@@ -9,7 +9,15 @@
 	<div>
 		<p class="eyebrow mb-2">Inventario</p>
 		<h1 class="h3 mb-1">{% if object %}Editar equipo{% else %}Nuevo equipo{% endif %}</h1>
-		<p class="text-muted mb-0">Captura la informacion principal del equipo.</p>
+		<p class="text-muted mb-0">
+			{% if orden_vinculada %}
+			Alta desde orden <strong>{{ orden_vinculada.folio_orden }}</strong>.
+			Elige <strong>Producto de la orden</strong>: se descuenta 1 disponible de esa linea.
+			{% if detalle_vinculado %} Linea preseleccionada: {{ detalle_vinculado.descripcion|truncatechars:40 }}.{% endif %}
+			{% else %}
+			Captura la informacion principal del equipo. Los datos de OC solo aparecen si el origen es Compra.
+			{% endif %}
+		</p>
 	</div>
 	{% if object %}
 	<a class="btn btn-outline-primary" href="{% url 'equipo_detail' object.pk %}">Ver detalle</a>
@@ -19,7 +27,7 @@
 
 <div class="card shadow-sm border-0">
 	<div class="card-body">
-		<form method="post" enctype="multipart/form-data" class="stack-form">
+		<form method="post" enctype="multipart/form-data" class="stack-form" id="equipo-form">
 			{% csrf_token %}
 			{{ form.non_field_errors }}
 			{% bootstrap_form form %}
@@ -30,4 +38,131 @@
 		</form>
 	</div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+	const ORIGEN_COMPRA = "Compra";
+	const origen = document.getElementById("id_origen_alta");
+	const orden = document.getElementById("id_orden_compra");
+	const detalle = document.getElementById("id_detalle_orden");
+	const proveedor = document.getElementById("id_proveedor");
+	const pedimiento = document.getElementById("id_Numero_Pedimiento");
+	const descripcion = document.getElementById("id_descripcion_equipo");
+	if (!origen || !orden || !detalle) return;
+
+	const choicesUrl = "{% url 'equipo_detalle_orden_choices' %}";
+	const excludeEquipoId = "{% if object %}{{ object.pk }}{% endif %}";
+	const initialDetalleId = detalle.value || "";
+
+	function fieldWrap(el) {
+		return el.closest(".mb-3, .form-group, div");
+	}
+
+	const wrapOrden = fieldWrap(orden);
+	const wrapDetalle = fieldWrap(detalle);
+
+	function clearDetalleOptions(placeholder) {
+		detalle.innerHTML = "";
+		const empty = document.createElement("option");
+		empty.value = "";
+		empty.textContent = placeholder || "---------";
+		detalle.appendChild(empty);
+	}
+
+	function setDetalleOptions(choices, selectedId) {
+		clearDetalleOptions();
+		choices.forEach((item) => {
+			const opt = document.createElement("option");
+			opt.value = String(item.id);
+			opt.textContent = item.label;
+			opt.dataset.descripcion = item.descripcion || "";
+			if (selectedId && String(item.id) === String(selectedId)) {
+				opt.selected = true;
+			}
+			detalle.appendChild(opt);
+		});
+		if (!detalle.value && choices.length === 1) {
+			detalle.value = String(choices[0].id);
+		}
+	}
+
+	function loadDetalleChoices(preserveSelected) {
+		const ordenId = orden.value;
+		if (!ordenId) {
+			clearDetalleOptions();
+			return Promise.resolve();
+		}
+		detalle.disabled = true;
+		clearDetalleOptions("Cargando...");
+		const params = new URLSearchParams({ orden_id: ordenId });
+		if (excludeEquipoId) params.set("exclude_equipo_id", excludeEquipoId);
+		return fetch(`${choicesUrl}?${params.toString()}`, {
+			headers: { Accept: "application/json" },
+			credentials: "same-origin",
+		})
+			.then((res) => {
+				if (!res.ok) throw new Error("No se pudieron cargar las lineas");
+				return res.json();
+			})
+			.then((data) => {
+				const selected = preserveSelected ? (detalle.dataset.keep || initialDetalleId) : "";
+				setDetalleOptions(data.choices || [], selected);
+				if (proveedor && data.proveedor_id && !proveedor.value) {
+					proveedor.value = String(data.proveedor_id);
+				}
+				if (pedimiento && data.folio && !pedimiento.value) {
+					pedimiento.value = String(data.folio).slice(0, 15);
+				}
+				detalle.disabled = origen.value !== ORIGEN_COMPRA;
+				detalle.dataset.keep = "";
+				syncDescripcionFromDetalle();
+			})
+			.catch(() => {
+				clearDetalleOptions("Error al cargar");
+				detalle.disabled = origen.value !== ORIGEN_COMPRA;
+			});
+	}
+
+	function syncDescripcionFromDetalle() {
+		if (!descripcion || descripcion.value) return;
+		const opt = detalle.selectedOptions && detalle.selectedOptions[0];
+		if (opt && opt.dataset.descripcion) {
+			descripcion.value = opt.dataset.descripcion.slice(0, 255);
+		}
+	}
+
+	function syncOcFields() {
+		const esCompra = origen.value === ORIGEN_COMPRA;
+		[wrapOrden, wrapDetalle].forEach((wrap) => {
+			if (!wrap) return;
+			wrap.hidden = !esCompra;
+			wrap.style.display = esCompra ? "" : "none";
+		});
+		orden.disabled = !esCompra;
+		detalle.disabled = !esCompra;
+		if (!esCompra) {
+			orden.value = "";
+			clearDetalleOptions();
+		} else if (orden.value) {
+			loadDetalleChoices(true);
+		}
+	}
+
+	origen.addEventListener("change", syncOcFields);
+	orden.addEventListener("change", () => {
+		detalle.dataset.keep = "";
+		loadDetalleChoices(false);
+	});
+	detalle.addEventListener("change", syncDescripcionFromDetalle);
+
+	if (origen.value === ORIGEN_COMPRA && orden.value) {
+		detalle.dataset.keep = initialDetalleId;
+		loadDetalleChoices(true);
+	} else {
+		syncOcFields();
+	}
+})();
+</script>
 {% endblock %}
