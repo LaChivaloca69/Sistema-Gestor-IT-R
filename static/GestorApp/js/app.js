@@ -163,60 +163,279 @@
     const appShell = document.querySelector(".app-shell");
     const toggle = document.querySelector(".sidebar-toggle");
     const sidebar = document.querySelector(".sidebar");
-    if (appShell && toggle) {
-        const storageKey = "sidebar-collapsed";
-        const setCollapsed = (isCollapsed) => {
-            appShell.classList.toggle("sidebar-collapsed", isCollapsed);
-            if (sidebar) {
-                sidebar.hidden = isCollapsed;
-                sidebar.setAttribute("aria-hidden", isCollapsed.toString());
-            }
-            toggle.setAttribute("aria-expanded", (!isCollapsed).toString());
-        };
+    const backdrop = document.getElementById("sidebar-backdrop");
+    const MOBILE_MQ = window.matchMedia("(max-width: 1100px)");
+    const COLLAPSE_KEY = "sidebar-collapsed";
+    const FAV_KEY = "sidebar-favorites";
+    const RECENT_KEY = "sidebar-recents";
+    const DEFAULT_FAVS = ["tickets", "equipos", "ordenes", "mantenimientos"];
+    const RECENT_SKIP = new Set(["home", "calendario"]);
 
-        const storedValue = localStorage.getItem(storageKey);
-        const isCollapsed = storedValue === "1";
-        setCollapsed(isCollapsed);
+
+    const isMobile = () => MOBILE_MQ.matches;
+
+    const setSidebarCollapsed = (isCollapsed) => {
+        if (!appShell) {
+            return;
+        }
+        appShell.classList.toggle("sidebar-collapsed", isCollapsed);
+        if (sidebar) {
+            sidebar.setAttribute("aria-hidden", isCollapsed && isMobile() ? "true" : "false");
+        }
+        if (toggle) {
+            toggle.setAttribute("aria-expanded", (!isCollapsed).toString());
+        }
+        if (backdrop) {
+            backdrop.hidden = isCollapsed || !isMobile();
+        }
+        document.body.classList.toggle("sidebar-drawer-open", !isCollapsed && isMobile());
+        if (!isMobile()) {
+            localStorage.setItem(COLLAPSE_KEY, isCollapsed ? "1" : "0");
+        }
+    };
+
+    if (appShell && toggle && sidebar) {
+        const initialCollapsed = isMobile() ? true : localStorage.getItem(COLLAPSE_KEY) === "1";
+        setSidebarCollapsed(initialCollapsed);
 
         toggle.addEventListener("click", () => {
             const nextState = !appShell.classList.contains("sidebar-collapsed");
-            setCollapsed(nextState);
-            localStorage.setItem(storageKey, nextState ? "1" : "0");
+            setSidebarCollapsed(nextState);
+        });
+
+        if (backdrop) {
+            backdrop.addEventListener("click", () => setSidebarCollapsed(true));
+        }
+
+        MOBILE_MQ.addEventListener("change", () => {
+            setSidebarCollapsed(isMobile() ? true : localStorage.getItem(COLLAPSE_KEY) === "1");
+        });
+
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape" && isMobile() && !appShell.classList.contains("sidebar-collapsed")) {
+                setSidebarCollapsed(true);
+            }
         });
     }
 
-    Array.from(document.querySelectorAll(".sidebar-section")).forEach((section, index) => {
+    // Acordeon: solo una seccion abierta (siempre la del item activo al cargar)
+    const sections = Array.from(document.querySelectorAll(".sidebar-section"));
+    const setSectionCollapsed = (section, isCollapsed) => {
+        const sectionToggle = section.querySelector(".sidebar-section-toggle");
+        section.classList.toggle("collapsed", isCollapsed);
+        if (sectionToggle) {
+            sectionToggle.setAttribute("aria-expanded", (!isCollapsed).toString());
+        }
+    };
+
+    sections.forEach((section) => {
+        const hasActive = Boolean(section.querySelector(".sidebar-link.active"));
+        setSectionCollapsed(section, !hasActive);
+
         const sectionToggle = section.querySelector(".sidebar-section-toggle");
         if (!sectionToggle) {
             return;
         }
-
-        const key = section.dataset.section || `section-${index}`;
-        const storageKey = `sidebar-section-${key}`;
-        const hasActive = Boolean(section.querySelector(".sidebar-link.active"));
-        const stored = localStorage.getItem(storageKey);
-        const initialCollapsed = hasActive ? false : stored === "1";
-
-        const setCollapsed = (isCollapsed) => {
-            section.classList.toggle("collapsed", isCollapsed);
-            sectionToggle.setAttribute("aria-expanded", (!isCollapsed).toString());
-        };
-
-        setCollapsed(initialCollapsed);
-
         sectionToggle.addEventListener("click", () => {
-            const nextCollapsed = !section.classList.contains("collapsed");
-            setCollapsed(nextCollapsed);
-            localStorage.setItem(storageKey, nextCollapsed ? "1" : "0");
+            const willOpen = section.classList.contains("collapsed");
+            sections.forEach((other) => setSectionCollapsed(other, true));
+            if (willOpen) {
+                setSectionCollapsed(section, false);
+            }
         });
     });
 
+    if (sections.length && !sections.some((section) => !section.classList.contains("collapsed"))) {
+        setSectionCollapsed(sections[0], false);
+    }
+
+    // Favoritos
+    const favHost = document.getElementById("sidebar-favorites");
+    const favList = document.getElementById("sidebar-favorites-list");
+    const navLinks = Array.from(document.querySelectorAll("#sidebar-nav .sidebar-link[data-nav-id]"));
+
+    const readFavorites = () => {
+        try {
+            const raw = localStorage.getItem(FAV_KEY);
+            if (raw === null) {
+                return DEFAULT_FAVS.filter((id) => navLinks.some((link) => link.dataset.navId === id));
+            }
+            const parsed = JSON.parse(raw);
+            return Array.isArray(parsed) ? parsed.filter((id) => typeof id === "string") : [];
+        } catch (error) {
+            return [];
+        }
+    };
+
+    let favoriteIds = readFavorites();
+
+    const saveFavorites = () => {
+        localStorage.setItem(FAV_KEY, JSON.stringify(favoriteIds));
+    };
+
+    const renderFavorites = () => {
+        if (!favHost || !favList) {
+            return;
+        }
+        favList.innerHTML = "";
+        const items = favoriteIds
+            .map((id) => navLinks.find((link) => link.dataset.navId === id))
+            .filter(Boolean);
+
+        navLinks.forEach((link) => {
+            const isFav = favoriteIds.includes(link.dataset.navId);
+            link.classList.toggle("is-favorite", isFav);
+            const pin = link.querySelector("[data-fav-pin]");
+            if (pin) {
+                pin.setAttribute("aria-label", isFav ? "Quitar de favoritos" : "Fijar en favoritos");
+                pin.title = isFav ? "Quitar de favoritos" : "Fijar en favoritos";
+            }
+        });
+
+        if (!items.length) {
+            favHost.hidden = true;
+        } else {
+            favHost.hidden = false;
+            items.forEach((link) => {
+                const clone = link.cloneNode(true);
+                clone.classList.add("sidebar-link--favorite");
+                const pin = clone.querySelector("[data-fav-pin]");
+                if (pin) {
+                    pin.remove();
+                }
+                favList.appendChild(clone);
+            });
+        }
+        renderRecents();
+    };
+
+    const toggleFavorite = (navId) => {
+        if (!navId) {
+            return;
+        }
+        if (favoriteIds.includes(navId)) {
+            favoriteIds = favoriteIds.filter((id) => id !== navId);
+        } else {
+            favoriteIds = [...favoriteIds, navId].slice(0, 8);
+        }
+        saveFavorites();
+        renderFavorites();
+    };
+
+    // Recientes
+    const recentHost = document.getElementById("sidebar-recents");
+    const recentList = document.getElementById("sidebar-recents-list");
+
+    const readRecents = () => {
+        try {
+            const parsed = JSON.parse(localStorage.getItem(RECENT_KEY) || "[]");
+            return Array.isArray(parsed) ? parsed.filter((id) => typeof id === "string") : [];
+        } catch (error) {
+            return [];
+        }
+    };
+
+    let recentIds = readRecents();
+
+    const saveRecents = () => {
+        localStorage.setItem(RECENT_KEY, JSON.stringify(recentIds));
+    };
+
+    const renderRecents = () => {
+        if (!recentHost || !recentList) {
+            return;
+        }
+        recentList.innerHTML = "";
+        const items = recentIds
+            .filter((id) => !favoriteIds.includes(id) && !RECENT_SKIP.has(id))
+            .map((id) => navLinks.find((link) => link.dataset.navId === id))
+            .filter(Boolean)
+            .slice(0, 5);
+
+        if (!items.length) {
+            recentHost.hidden = true;
+            return;
+        }
+
+        recentHost.hidden = false;
+        items.forEach((link) => {
+            const clone = link.cloneNode(true);
+            clone.classList.add("sidebar-link--recent");
+            const pin = clone.querySelector("[data-fav-pin]");
+            if (pin) {
+                pin.remove();
+            }
+            recentList.appendChild(clone);
+        });
+    };
+
+    const pushRecent = (navId) => {
+        if (!navId || RECENT_SKIP.has(navId)) {
+            return;
+        }
+        recentIds = [navId, ...recentIds.filter((id) => id !== navId)].slice(0, 8);
+        saveRecents();
+        renderRecents();
+    };
+
+    document.addEventListener("click", (event) => {
+        const pin = event.target.closest("[data-fav-pin]");
+        if (!pin) {
+            return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        const link = pin.closest(".sidebar-link");
+        if (link) {
+            toggleFavorite(link.dataset.navId);
+        }
+    });
+
+    document.addEventListener("keydown", (event) => {
+        const pin = event.target.closest?.("[data-fav-pin]");
+        if (!pin) {
+            return;
+        }
+        if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            event.stopPropagation();
+            const link = pin.closest(".sidebar-link");
+            if (link) {
+                toggleFavorite(link.dataset.navId);
+            }
+        }
+    });
+
+    // Cerrar drawer móvil al navegar
+    if (sidebar) {
+        sidebar.addEventListener("click", (event) => {
+            const link = event.target.closest("a.sidebar-link, a.sidebar-search__item");
+            if (link && isMobile() && !event.target.closest("[data-fav-pin]")) {
+                setSidebarCollapsed(true);
+            }
+        });
+    }
+
+    renderFavorites();
+    const activeNav = document.querySelector("#sidebar-nav .sidebar-link.active[data-nav-id]");
+    if (activeNav) {
+        pushRecent(activeNav.dataset.navId);
+    } else {
+        renderRecents();
+    }
+
+    // Busqueda Ir a... + Ctrl/Cmd+K
     const gotoInput = document.getElementById("sidebar-goto");
     const gotoResults = document.getElementById("sidebar-goto-results");
+    const railSearch = document.getElementById("sidebar-rail-search");
+
     if (gotoInput && gotoResults) {
-        const navLinks = Array.from(document.querySelectorAll(".sidebar-link[href]")).map((link) => ({
+        const searchable = Array.from(document.querySelectorAll("#sidebar-nav .sidebar-link[href]")).map((link) => ({
             href: link.getAttribute("href"),
-            label: (link.textContent || "").replace(/\s+/g, " ").trim(),
+            label: (link.querySelector(".sidebar-link__text")?.textContent || link.textContent || "")
+                .replace(/\s+/g, " ")
+                .trim(),
+            icon: link.querySelector(".sidebar-link__icon")?.innerHTML || "",
             haystack: `${link.dataset.navLabel || ""} ${link.textContent || ""}`.toLowerCase(),
         }));
 
@@ -231,16 +450,29 @@
                 hideResults();
                 return;
             }
-            const matches = navLinks.filter((item) => item.haystack.includes(q)).slice(0, 8);
+            const matches = searchable.filter((item) => item.haystack.includes(q)).slice(0, 8);
             if (!matches.length) {
                 gotoResults.innerHTML = `<div class="sidebar-search__empty">Sin coincidencias</div>`;
                 gotoResults.hidden = false;
                 return;
             }
             gotoResults.innerHTML = matches
-                .map((item) => `<a class="sidebar-search__item" href="${item.href}">${item.label}</a>`)
+                .map(
+                    (item) =>
+                        `<a class="sidebar-search__item" href="${item.href}"><span class="sidebar-link__icon">${item.icon}</span><span>${item.label}</span></a>`
+                )
                 .join("");
             gotoResults.hidden = false;
+        };
+
+        const focusSearch = () => {
+            if (appShell && appShell.classList.contains("sidebar-collapsed")) {
+                setSidebarCollapsed(false);
+            }
+            window.setTimeout(() => {
+                gotoInput.focus();
+                gotoInput.select();
+            }, 50);
         };
 
         gotoInput.addEventListener("input", () => renderResults(gotoInput.value));
@@ -248,6 +480,7 @@
             if (event.key === "Escape") {
                 gotoInput.value = "";
                 hideResults();
+                gotoInput.blur();
             }
             if (event.key === "Enter") {
                 const first = gotoResults.querySelector(".sidebar-search__item");
@@ -256,12 +489,64 @@
                     window.location = first.getAttribute("href");
                 }
             }
+            if (event.key === "ArrowDown") {
+                const first = gotoResults.querySelector(".sidebar-search__item");
+                if (first) {
+                    event.preventDefault();
+                    first.focus();
+                }
+            }
         });
+
+        gotoResults.addEventListener("keydown", (event) => {
+            const items = Array.from(gotoResults.querySelectorAll(".sidebar-search__item"));
+            const current = document.activeElement;
+            const index = items.indexOf(current);
+            if (event.key === "ArrowDown" && index < items.length - 1) {
+                event.preventDefault();
+                items[index + 1].focus();
+            }
+            if (event.key === "ArrowUp") {
+                event.preventDefault();
+                if (index <= 0) {
+                    gotoInput.focus();
+                } else {
+                    items[index - 1].focus();
+                }
+            }
+            if (event.key === "Escape") {
+                hideResults();
+                gotoInput.focus();
+            }
+        });
+
         document.addEventListener("click", (event) => {
-            if (!event.target.closest(".sidebar-search, #sidebar-goto-results")) {
+            if (!event.target.closest(".sidebar-search, #sidebar-goto-results, #sidebar-rail-search")) {
                 hideResults();
             }
         });
+
+        document.addEventListener("keydown", (event) => {
+            const isK = event.key.toLowerCase() === "k";
+            const isSlash = event.key === "/";
+            const meta = event.ctrlKey || event.metaKey;
+            const target = event.target;
+            const inField =
+                target &&
+                (target.tagName === "INPUT" ||
+                    target.tagName === "TEXTAREA" ||
+                    target.tagName === "SELECT" ||
+                    target.isContentEditable);
+
+            if ((meta && isK) || (isSlash && !inField && !meta && !event.altKey)) {
+                event.preventDefault();
+                focusSearch();
+            }
+        });
+
+        if (railSearch) {
+            railSearch.addEventListener("click", () => focusSearch());
+        }
     }
 
     // ---- Chips de filtros activos ----

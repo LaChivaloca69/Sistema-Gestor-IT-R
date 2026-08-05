@@ -181,7 +181,10 @@ class TicketITForm(forms.ModelForm):
             user_model = get_user_model()
             user_qs = operativo_users_queryset(user_model)
             if self.instance and self.instance.asignado_a_id:
-                user_qs = user_model.objects.filter(pk=self.instance.asignado_a_id) | user_qs
+                # No OR de querysets distinct/non-distinct (TypeError en Django).
+                user_qs = user_model.objects.filter(
+                    Q(pk=self.instance.asignado_a_id) | Q(pk__in=user_qs.values("pk"))
+                )
             self.fields["asignado_a"].queryset = user_qs.distinct().order_by(
                 user_model.USERNAME_FIELD
             )
@@ -349,7 +352,10 @@ class SeguimientoTicketForm(forms.ModelForm):
             user_model = get_user_model()
             user_qs = operativo_users_queryset(user_model)
             if self.instance and self.instance.usuario_id:
-                user_qs = user_model.objects.filter(pk=self.instance.usuario_id) | user_qs
+                # No OR de querysets distinct/non-distinct (TypeError en Django).
+                user_qs = user_model.objects.filter(
+                    Q(pk=self.instance.usuario_id) | Q(pk__in=user_qs.values("pk"))
+                )
             self.fields["usuario"].queryset = user_qs.distinct().order_by(
                 user_model.USERNAME_FIELD
             )

@@ -5837,18 +5837,20 @@ def home(request):
     ticket_ops = _ticket_dashboard_context(request.user)["ticket_dashboard"]
 
     quick_links = [
-        {"label": "Tickets", "url_name": "ticketit_list", "hint": "Soporte activo"},
-        {"label": "Mis equipos", "url_name": "mis_equipos", "hint": "Asignados a ti"},
-        {"label": "Ordenes", "url_name": "ordencompra_list", "hint": "Compras"},
-        {"label": "Calendario", "url_name": "home", "hint": "Agenda", "anchor": "#calendario"},
+        {"label": "Tickets", "url_name": "ticketit_list", "hint": "Soporte activo", "icon": "bi-ticket-perforated"},
+        {"label": "Mis equipos", "url_name": "mis_equipos", "hint": "Asignados a ti", "icon": "bi-laptop"},
+        {"label": "Ordenes", "url_name": "ordencompra_list", "hint": "Compras", "icon": "bi-receipt"},
+        {"label": "Calendario", "url_name": "home", "hint": "Agenda", "anchor": "#calendario", "icon": "bi-calendar3"},
     ]
     if is_staff_user:
         quick_links = [
-            {"label": "Tickets", "url_name": "ticketit_list", "hint": "Soporte activo"},
-            {"label": "Inventario", "url_name": "equipo_dashboard", "hint": "Equipos y avisos"},
-            {"label": "Seguimientos", "url_name": "seguimientoticket_list", "hint": "Checks y avisos"},
-            {"label": "Mantenimientos", "url_name": "mantenimiento_dashboard", "hint": "Dashboard y avisos"},
+            {"label": "Tickets", "url_name": "ticketit_list", "hint": "Soporte activo", "icon": "bi-ticket-perforated"},
+            {"label": "Inventario", "url_name": "equipo_dashboard", "hint": "Equipos y avisos", "icon": "bi-hdd-rack"},
+            {"label": "Seguimientos", "url_name": "seguimientoticket_list", "hint": "Checks y avisos", "icon": "bi-check2-square"},
+            {"label": "Mantenimientos", "url_name": "mantenimiento_dashboard", "hint": "Dashboard y avisos", "icon": "bi-tools"},
         ]
+
+    ordenes_count = _ordenes_for_user(request.user).count()
 
     seguimientos_atencion = (
         alerta_seguimientos.get("seguimientos_vencidos_count", 0)
@@ -5908,6 +5910,7 @@ def home(request):
             "seguimientos_atencion": seguimientos_atencion,
             "seguimientos_vencidos": alerta_seguimientos.get("seguimientos_vencidos_count", 0),
             "seguimientos_por_vencer": alerta_seguimientos.get("seguimientos_por_vencer_count", 0),
+            "ordenes": ordenes_count,
             "historial_hoy": HistorialActividad.objects.filter(
                 fecha__date=today,
                 archivado=False,
@@ -5916,7 +5919,15 @@ def home(request):
         "quick_links": quick_links,
         "recent_tickets": tickets_abiertos_qs.select_related(
             "area", "solicitado_por", "tipo_equipo"
-        ).order_by("-fecha_support")[:6],
+        ).order_by("-fecha_support")[:5],
+        "has_attention_alerts": bool(
+            ticket_ops["sla_vencidos"]
+            or ticket_ops["sin_seguimiento"]
+            or seguimientos_atencion
+            or mantenimientos_atencion
+            or alerta_mantenimientos.get("mantenimientos_ciclos_count", 0)
+            or equipos_atencion
+        ),
         "upcoming_mantenimientos": alerta_mantenimientos.get("mantenimientos_proximos_lista", []),
         "recent_historial": list(
             HistorialActividad.objects.select_related("usuario")
