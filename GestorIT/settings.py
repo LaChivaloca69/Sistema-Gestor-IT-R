@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'GestorApp.apps.GestorappConfig',
     'django_bootstrap5',
+    'django_q',
 ]
 
 MIDDLEWARE = [
@@ -77,6 +78,8 @@ WSGI_APPLICATION = 'GestorIT.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
+
+# Usuario y contraseña de la base de datos PostgreSQL. Cambiar para mayor seguridad.
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
@@ -129,8 +132,17 @@ STATICFILES_DIRS = [BASE_DIR / 'static']
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-DATA_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024
-FILE_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024
+# Limites y reglas de subida (imagenes, PDF, plantillas).
+MEDIA_UPLOAD = {
+    "image_max_bytes": 5 * 1024 * 1024,       # 5 MB
+    "pdf_max_bytes": 10 * 1024 * 1024,        # 10 MB
+    "plantilla_max_bytes": 15 * 1024 * 1024,  # 15 MB
+    "image_extensions": (".jpg", ".jpeg", ".png", ".gif", ".webp"),
+    "plantilla_extensions": (".docx", ".xlsx", ".pdf"),
+}
+# Tope global de Django alineado al archivo mas grande permitido.
+DATA_UPLOAD_MAX_MEMORY_SIZE = MEDIA_UPLOAD["plantilla_max_bytes"]
+FILE_UPLOAD_MAX_MEMORY_SIZE = MEDIA_UPLOAD["plantilla_max_bytes"]
 
 # Adds an asterisk next to required fields and a highlight on fields with
 # errors, rendered through django-bootstrap5 on every form in the app.
@@ -139,10 +151,40 @@ BOOTSTRAP5 = {
     "error_css_class": "field-error",
 }
 
+# Cache de KPIs / badges (sidebar + home). TTL corto para no saturar la BD.
+METRICS_CACHE_TTL = 45  # segundos
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "gestor-it-metrics",
+        "TIMEOUT": METRICS_CACHE_TTL,
+        "OPTIONS": {"MAX_ENTRIES": 2000},
+    }
+}
+
+# Jobs en background (django-q2, broker ORM = PostgreSQL, sin Redis).
+# Arrancar worker: python manage.py qcluster
+# Schedules: retencion diaria + recordatorios operativos cada 15 min.
+BACKGROUND_JOBS_ENABLED = True
+# True = siempre ejecuta en el request (util en dev sin worker).
+BACKGROUND_JOBS_SYNC = False
+Q_CLUSTER = {
+    "name": "gestorit",
+    "workers": 2,
+    "recycle": 500,
+    "timeout": 300,
+    "retry": 360,
+    "queue_limit": 50,
+    "bulk": 10,
+    "orm": "default",
+    "catch_up": False,
+}
+
 # Politica de retencion del historial general de actividad.
 # Flujo default: activo -> archivado (oculto) -> purgado (borrado).
 # Ejecutar periodicamente: python manage.py limpiar_historial
 # Vista previa sin cambios: python manage.py limpiar_historial --dry-run
+# Encolar: python manage.py limpiar_historial --async
 HISTORIAL_RETENCION = {
     # archivar_luego_purgar | solo_archivar | solo_purgar
     "modo": "archivar_luego_purgar",

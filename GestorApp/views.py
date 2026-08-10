@@ -13,10 +13,11 @@ from django.db.models import Count, Q, Sum, Max, F
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-from django.urls import reverse
+from django.urls import NoReverseMatch, reverse
 
 from . import document_engine
 from . import historial
+from .cobertura import coberturas_activas_para_suplente, ticket_asignados_q_for_user
 from .forms import (
 	AnswerForm,
 	SeguimientoTicketForm,
@@ -825,8 +826,10 @@ def personal_admin_remove(request):
 
 
 def historial_retencion_admin(request):
-    """Panel admin para previsualizar y aplicar archivar/purgar del historial."""
+    """Panel admin para previsualizar y encolar archivar/purgar del historial."""
     from django.conf import settings as django_settings
+
+    from .job_queue import enqueue_retencion
 
     cfg = getattr(django_settings, "HISTORIAL_RETENCION", {}) or {}
     candidatos_archivo = historial.queryset_candidatos_archivo().count()
@@ -854,29 +857,24 @@ def historial_retencion_admin(request):
             )
             return redirect("historial_retencion_admin")
 
-        if accion == "archivar":
-            resultado = {"archivo": historial.archivar_historial(), "purga": {"omitido": True}}
-        elif accion == "purgar":
-            resultado = {"archivo": {"omitido": True}, "purga": historial.purgar_historial()}
+        resultado, mode = enqueue_retencion(
+            accion=accion,
+            solicitado_por_id=request.user.pk,
+        )
+        if mode == "async":
+            messages.success(
+                request,
+                f"Retencion ({accion}) encolada en background (tarea {resultado}). "
+                "El worker django-q la ejecutara en breve.",
+            )
         else:
-            resultado = historial.aplicar_retencion()
-
-        archivados = (resultado.get("archivo") or {}).get("archivados", 0)
-        purgados = (resultado.get("purga") or {}).get("purgados", 0)
-        messages.success(
-            request,
-            f"Retencion aplicada. Archivados: {archivados}. Purgados: {purgados}.",
-        )
-        historial.registrar_historial(
-            request=request,
-            modulo=ModuloHistorial.SISTEMA,
-            accion=historial.AccionHistorial.OTRO,
-            titulo=f"Retencion de historial ({accion})",
-            descripcion=f"Archivados={archivados}, Purgados={purgados}",
-            nivel=NivelHistorial.ADVERTENCIA if accion in {"purgar", "ambos"} else NivelHistorial.INFO,
-            es_automatico=False,
-            metadata={"accion": accion, "resultado": resultado, "config": cfg},
-        )
+            archivados = (resultado or {}).get("archivados", 0)
+            purgados = (resultado or {}).get("purgados", 0)
+            messages.success(
+                request,
+                f"Retencion aplicada en este request (sin worker). "
+                f"Archivados: {archivados}. Purgados: {purgados}.",
+            )
         return redirect("historial_retencion_admin")
 
     return render(
@@ -892,6 +890,9 @@ def historial_retencion_admin(request):
             "candidatos_archivo": candidatos_archivo,
             "candidatos_purga": candidatos_purga,
             "totales": totales,
+            "background_jobs_sync": bool(
+                getattr(django_settings, "BACKGROUND_JOBS_SYNC", False)
+            ),
         },
     )
 
@@ -1623,20 +1624,9 @@ class EquipoForm(forms.ModelForm):
         return cleaned
 
     def clean_imagen(self):
-        imagen = self.cleaned_data.get("imagen")
-        if not imagen:
-            return imagen
+        from .media_security import validate_image_upload
 
-        max_size = 50 * 1024 * 1024
-        if imagen.size > max_size:
-            raise forms.ValidationError("La imagen debe pesar menos de 50 MB.")
-
-        allowed_types = {"image/jpeg", "image/png", "image/gif", "image/webp"}
-        content_type = getattr(imagen, "content_type", None)
-        if content_type and content_type not in allowed_types:
-            raise forms.ValidationError("Formato no permitido. Usa JPG, JPEG, PNG, GIF o WEBP.")
-
-        return imagen
+        return validate_image_upload(self.cleaned_data.get("imagen"))
 
 
 def _filtrar_equipos(request):
@@ -2374,6 +2364,7 @@ def equipo_cambiar_ubicacion(request, pk):
 
 # ============  MovimientoEquipo views ==============
 MOVIMIENTO_LIST_PAGE_SIZE = 25
+HISTORIAL_LIST_PAGE_SIZE = 40
 
 
 def _movimiento_queryset():
@@ -2556,12 +2547,14 @@ class MovimientoEquipoForm(forms.ModelForm):
 
 
 def movimientoequipo_list(request):
-    items = HistorialActividad.objects.select_related("usuario").order_by("-fecha")
+    """Auditoria / historial general de actividad (filtrable)."""
+    items = HistorialActividad.objects.select_related("usuario").order_by("-fecha", "-pk")
     selected_modulo = request.GET.get("modulo", "")
     selected_accion = request.GET.get("accion", "")
     selected_nivel = request.GET.get("nivel", "")
     selected_origen = request.GET.get("origen", "")  # automatico | manual | ""
     selected_estado = request.GET.get("estado", "activo")  # activo | archivado | todos
+    selected_usuario = (request.GET.get("usuario") or "").strip()
     busqueda = (request.GET.get("q") or "").strip()
     fecha_desde = _parse_date(request.GET.get("fecha_desde"))
     fecha_hasta = _parse_date(request.GET.get("fecha_hasta"))
@@ -2582,30 +2575,74 @@ def movimientoequipo_list(request):
         items = items.filter(es_automatico=True)
     elif selected_origen == "manual":
         items = items.filter(es_automatico=False)
+    if selected_usuario == "sistema":
+        items = items.filter(usuario__isnull=True)
+    elif selected_usuario.isdigit():
+        items = items.filter(usuario_id=int(selected_usuario))
     if busqueda:
         items = items.filter(
             Q(titulo__icontains=busqueda)
             | Q(descripcion__icontains=busqueda)
             | Q(objeto_etiqueta__icontains=busqueda)
             | Q(entidad_relacionada_etiqueta__icontains=busqueda)
+            | Q(usuario__username__icontains=busqueda)
+            | Q(usuario__first_name__icontains=busqueda)
+            | Q(usuario__last_name__icontains=busqueda)
         )
     items = _apply_date_filters(items, "fecha", fecha_desde, fecha_hasta)
 
+    paginator = Paginator(items, HISTORIAL_LIST_PAGE_SIZE)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    User = get_user_model()
+    usuario_choices = (
+        User.objects.filter(historial_actividades__isnull=False)
+        .distinct()
+        .order_by("username")
+        .values_list("id", "username", "first_name", "last_name")
+    )
+
     context = {
-        "items": items[:500],
+        "items": page_obj,
+        "page_obj": page_obj,
+        "result_count": paginator.count,
         "modulo_choices": ModuloHistorial.choices,
         "accion_choices": historial.AccionHistorial.choices,
         "nivel_choices": NivelHistorial.choices,
+        "usuario_choices": usuario_choices,
         "selected_modulo": selected_modulo,
         "selected_accion": selected_accion,
         "selected_nivel": selected_nivel,
         "selected_origen": selected_origen,
         "selected_estado": selected_estado or "activo",
+        "selected_usuario": selected_usuario,
         "busqueda": busqueda,
         "fecha_desde": request.GET.get("fecha_desde", ""),
         "fecha_hasta": request.GET.get("fecha_hasta", ""),
     }
     return render(request, "movimientoequipo/list.html", context)
+
+
+def historial_actividad_detail(request, pk):
+    """Detalle de un evento de auditoria / historial."""
+    obj = get_object_or_404(
+        HistorialActividad.objects.select_related("usuario"),
+        pk=pk,
+    )
+    enlace_url = None
+    if obj.enlace_nombre and obj.enlace_pk:
+        try:
+            enlace_url = reverse(obj.enlace_nombre, args=[obj.enlace_pk])
+        except NoReverseMatch:
+            enlace_url = None
+    return render(
+        request,
+        "historial/auditoria_detail.html",
+        {
+            "object": obj,
+            "enlace_url": enlace_url,
+        },
+    )
 
 
 def movimientoequipo_registros(request):
@@ -4019,7 +4056,7 @@ def ticketit_list(request):
         if selected_scope == "mios":
             items = items.filter(solicitado_por=request.user)
         elif selected_scope == "asignados":
-            items = items.filter(asignado_a=request.user)
+            items = items.filter(ticket_asignados_q_for_user(request.user))
 
     if selected_alerta == "sla":
         items = items.filter(_tickets_sla_vencidos_q(now)).order_by("fecha_support", "pk")
@@ -4056,6 +4093,7 @@ def ticketit_list(request):
         "can_manage_flow": user_can_manage_ticket_flow(request.user),
         "is_staff_user": is_staff_user,
         "sla_horas": SLA_HORAS_POR_PRIORIDAD,
+        "mis_coberturas": coberturas_activas_para_suplente(request.user) if is_staff_user else [],
     }
     return render(request, "ticketit/list.html", context)
 
@@ -4677,20 +4715,22 @@ class PlantillaDocumentoForm(forms.ModelForm):
         }
 
     def clean_archivo(self):
-        archivo = self.cleaned_data.get("archivo")
+        from .media_security import validate_plantilla_upload
+
+        archivo = validate_plantilla_upload(self.cleaned_data.get("archivo"))
         if not archivo:
             return archivo
 
-        max_size = 50 * 1024 * 1024
-        if archivo.size > max_size:
-            raise forms.ValidationError("El archivo debe pesar menos de 50 MB.")
-
         nombre_archivo = archivo.name.lower()
-        if nombre_archivo.endswith(".docx"):
+        # Tras sanitize el nombre es uuid.ext; usar extension detectada.
+        from .media_security import normalize_extension
+
+        ext = normalize_extension(archivo.name)
+        if ext == ".docx":
             tipo_archivo = TipoPlantillaDocumento.DOCX
-        elif nombre_archivo.endswith(".xlsx"):
+        elif ext == ".xlsx":
             tipo_archivo = TipoPlantillaDocumento.XLSX
-        elif nombre_archivo.endswith(".pdf"):
+        elif ext == ".pdf":
             tipo_archivo = TipoPlantillaDocumento.PDF
         else:
             raise forms.ValidationError("Formato no permitido. Usa .docx, .xlsx o .pdf.")
@@ -4746,21 +4786,9 @@ def plantilla_delete(request, pk):
 
 # =========== OrdenCompra views =============
 def _validar_pdf_upload(archivo):
-    if not archivo:
-        return archivo
+    from .media_security import validate_pdf_upload
 
-    max_size = 50 * 1024 * 1024
-    if archivo.size > max_size:
-        raise forms.ValidationError("El archivo debe pesar menos de 50 MB.")
-
-    content_type = getattr(archivo, "content_type", None)
-    if content_type and content_type not in {"application/pdf"}:
-        raise forms.ValidationError("Formato no permitido. Solo PDF.")
-
-    if not archivo.name.lower().endswith(".pdf"):
-        raise forms.ValidationError("El archivo debe tener extension .pdf.")
-
-    return archivo
+    return validate_pdf_upload(archivo)
 
 
 def _sync_iva_porcentaje(form, cleaned_data):
@@ -4956,7 +4984,9 @@ def _intentar_generar_pdf(orden, request=None):
             messages.warning(request, f"Orden guardada, pero no se genero el PDF: {exc}")
         return False
 
-    nombre_pdf = f"orden_compra_{orden.folio_orden}.pdf"
+    from .media_security import safe_basename
+
+    nombre_pdf = safe_basename(f"{orden.folio_orden or 'orden'}.pdf", forced_ext=".pdf")
     orden.archivo_pdf.save(nombre_pdf, ContentFile(pdf_bytes), save=True)
     return True
 
@@ -5822,19 +5852,112 @@ def _build_home_calendar_events(user=None):
 
 
 def home(request):
+    from .metrics_cache import get_or_set_user_metric
+
     today = timezone.localdate()
     is_staff_user = is_operativo(request.user)
+
+    def _compute_home_kpis():
+        tickets_abiertos_qs = _tickets_abiertos_qs(request.user)
+        alerta_seguimientos = {}
+        alerta_mantenimientos = {}
+        alerta_equipos = {}
+        if is_staff_user:
+            alerta_seguimientos = _seguimientos_alerta_context(today=today)
+            alerta_mantenimientos = _mantenimientos_alerta_context(today=today)
+            alerta_equipos = _equipos_alerta_context(today=today)
+
+        ticket_ops = _ticket_dashboard_context(request.user)["ticket_dashboard"]
+        ordenes_count = _ordenes_for_user(request.user).count()
+        seguimientos_atencion = (
+            alerta_seguimientos.get("seguimientos_vencidos_count", 0)
+            + alerta_seguimientos.get("seguimientos_por_vencer_count", 0)
+        )
+        mantenimientos_atencion = (
+            alerta_mantenimientos.get("mantenimientos_vencidos_count", 0)
+            + alerta_mantenimientos.get("mantenimientos_por_vencer_count", 0)
+        )
+        equipos_atencion = (
+            alerta_equipos.get("equipos_sin_ubicacion_count", 0)
+            + alerta_equipos.get("equipos_mant_largo_count", 0)
+            + alerta_equipos.get("asignaciones_antiguas_count", 0)
+        )
+        return {
+            "ticket_ops": {
+                "sla_vencidos": ticket_ops["sla_vencidos"],
+                "sin_seguimiento": ticket_ops["sin_seguimiento"],
+            },
+            "alerta_seguimientos": alerta_seguimientos,
+            "alerta_mantenimientos": {
+                k: v
+                for k, v in alerta_mantenimientos.items()
+                if k != "mantenimientos_proximos_lista"
+            },
+            "upcoming_mantenimientos": list(
+                alerta_mantenimientos.get("mantenimientos_proximos_lista", [])
+            )[:8],
+            "alerta_equipos": alerta_equipos,
+            "seguimientos_atencion": seguimientos_atencion,
+            "mantenimientos_atencion": mantenimientos_atencion,
+            "equipos_atencion": equipos_atencion,
+            "dashboard_counts": {
+                "tickets": _tickets_for_user(request.user).count(),
+                "tickets_abiertos": tickets_abiertos_qs.count(),
+                "tickets_sla_vencidos": ticket_ops["sla_vencidos"],
+                "tickets_sin_seguimiento": ticket_ops["sin_seguimiento"],
+                "equipos_activos": Equipo.objects.filter(activo=True)
+                .exclude(estado_equipo=EstadoEquipo.BAJA)
+                .count()
+                if is_staff_user
+                else None,
+                "equipos_atencion": equipos_atencion,
+                "equipos_sin_ubicacion": alerta_equipos.get("equipos_sin_ubicacion_count", 0),
+                "equipos_mant_largo": alerta_equipos.get("equipos_mant_largo_count", 0),
+                "asignaciones_antiguas": alerta_equipos.get("asignaciones_antiguas_count", 0),
+                "mantenimientos_proximos": alerta_mantenimientos.get(
+                    "mantenimientos_proximos_count", 0
+                ),
+                "mantenimientos_atencion": mantenimientos_atencion,
+                "mantenimientos_vencidos": alerta_mantenimientos.get(
+                    "mantenimientos_vencidos_count", 0
+                ),
+                "mantenimientos_por_vencer": alerta_mantenimientos.get(
+                    "mantenimientos_por_vencer_count", 0
+                ),
+                "mantenimientos_ciclos": alerta_mantenimientos.get(
+                    "mantenimientos_ciclos_count", 0
+                ),
+                "seguimientos_atencion": seguimientos_atencion,
+                "seguimientos_vencidos": alerta_seguimientos.get(
+                    "seguimientos_vencidos_count", 0
+                ),
+                "seguimientos_por_vencer": alerta_seguimientos.get(
+                    "seguimientos_por_vencer_count", 0
+                ),
+                "ordenes": ordenes_count,
+                "historial_hoy": HistorialActividad.objects.filter(
+                    fecha__date=today,
+                    archivado=False,
+                ).count()
+                if is_staff_user
+                else None,
+            },
+            "has_attention_alerts": bool(
+                ticket_ops["sla_vencidos"]
+                or ticket_ops["sin_seguimiento"]
+                or seguimientos_atencion
+                or mantenimientos_atencion
+                or alerta_mantenimientos.get("mantenimientos_ciclos_count", 0)
+                or equipos_atencion
+            ),
+        }
+
+    kpis = get_or_set_user_metric("home_kpis", request.user, _compute_home_kpis)
     tickets_abiertos_qs = _tickets_abiertos_qs(request.user)
-
-    alerta_seguimientos = {}
-    alerta_mantenimientos = {}
-    alerta_equipos = {}
-    if is_staff_user:
-        alerta_seguimientos = _seguimientos_alerta_context(today=today)
-        alerta_mantenimientos = _mantenimientos_alerta_context(today=today)
-        alerta_equipos = _equipos_alerta_context(today=today)
-
-    ticket_ops = _ticket_dashboard_context(request.user)["ticket_dashboard"]
+    ticket_ops = kpis["ticket_ops"]
+    alerta_seguimientos = kpis["alerta_seguimientos"]
+    alerta_mantenimientos = kpis["alerta_mantenimientos"]
+    alerta_equipos = kpis["alerta_equipos"]
 
     quick_links = [
         {"label": "Tickets", "url_name": "ticketit_list", "hint": "Soporte activo", "icon": "bi-ticket-perforated"},
@@ -5849,22 +5972,6 @@ def home(request):
             {"label": "Seguimientos", "url_name": "seguimientoticket_list", "hint": "Checks y avisos", "icon": "bi-check2-square"},
             {"label": "Mantenimientos", "url_name": "mantenimiento_dashboard", "hint": "Dashboard y avisos", "icon": "bi-tools"},
         ]
-
-    ordenes_count = _ordenes_for_user(request.user).count()
-
-    seguimientos_atencion = (
-        alerta_seguimientos.get("seguimientos_vencidos_count", 0)
-        + alerta_seguimientos.get("seguimientos_por_vencer_count", 0)
-    )
-    mantenimientos_atencion = (
-        alerta_mantenimientos.get("mantenimientos_vencidos_count", 0)
-        + alerta_mantenimientos.get("mantenimientos_por_vencer_count", 0)
-    )
-    equipos_atencion = (
-        alerta_equipos.get("equipos_sin_ubicacion_count", 0)
-        + alerta_equipos.get("equipos_mant_largo_count", 0)
-        + alerta_equipos.get("asignaciones_antiguas_count", 0)
-    )
 
     calendar_events = _build_home_calendar_events(user=request.user)
     calendar_counts = {
@@ -5890,45 +5997,13 @@ def home(request):
         "calendar_counts": calendar_counts,
         "calendar_past_days": CALENDAR_PAST_DAYS,
         "calendar_future_days": CALENDAR_FUTURE_DAYS,
-        "dashboard_counts": {
-            "tickets": _tickets_for_user(request.user).count(),
-            "tickets_abiertos": tickets_abiertos_qs.count(),
-            "tickets_sla_vencidos": ticket_ops["sla_vencidos"],
-            "tickets_sin_seguimiento": ticket_ops["sin_seguimiento"],
-            "equipos_activos": Equipo.objects.filter(activo=True).exclude(
-                estado_equipo=EstadoEquipo.BAJA
-            ).count() if is_staff_user else None,
-            "equipos_atencion": equipos_atencion,
-            "equipos_sin_ubicacion": alerta_equipos.get("equipos_sin_ubicacion_count", 0),
-            "equipos_mant_largo": alerta_equipos.get("equipos_mant_largo_count", 0),
-            "asignaciones_antiguas": alerta_equipos.get("asignaciones_antiguas_count", 0),
-            "mantenimientos_proximos": alerta_mantenimientos.get("mantenimientos_proximos_count", 0),
-            "mantenimientos_atencion": mantenimientos_atencion,
-            "mantenimientos_vencidos": alerta_mantenimientos.get("mantenimientos_vencidos_count", 0),
-            "mantenimientos_por_vencer": alerta_mantenimientos.get("mantenimientos_por_vencer_count", 0),
-            "mantenimientos_ciclos": alerta_mantenimientos.get("mantenimientos_ciclos_count", 0),
-            "seguimientos_atencion": seguimientos_atencion,
-            "seguimientos_vencidos": alerta_seguimientos.get("seguimientos_vencidos_count", 0),
-            "seguimientos_por_vencer": alerta_seguimientos.get("seguimientos_por_vencer_count", 0),
-            "ordenes": ordenes_count,
-            "historial_hoy": HistorialActividad.objects.filter(
-                fecha__date=today,
-                archivado=False,
-            ).count() if is_staff_user else None,
-        },
+        "dashboard_counts": kpis["dashboard_counts"],
         "quick_links": quick_links,
         "recent_tickets": tickets_abiertos_qs.select_related(
             "area", "solicitado_por", "tipo_equipo"
         ).order_by("-fecha_support")[:5],
-        "has_attention_alerts": bool(
-            ticket_ops["sla_vencidos"]
-            or ticket_ops["sin_seguimiento"]
-            or seguimientos_atencion
-            or mantenimientos_atencion
-            or alerta_mantenimientos.get("mantenimientos_ciclos_count", 0)
-            or equipos_atencion
-        ),
-        "upcoming_mantenimientos": alerta_mantenimientos.get("mantenimientos_proximos_lista", []),
+        "has_attention_alerts": kpis["has_attention_alerts"],
+        "upcoming_mantenimientos": kpis["upcoming_mantenimientos"],
         "recent_historial": list(
             HistorialActividad.objects.select_related("usuario")
             .filter(archivado=False)

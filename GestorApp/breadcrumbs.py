@@ -64,7 +64,8 @@ _MODULE = {
     "movimientoequipo_update": ("Inventario", None, "Editar movimiento", "movimientoequipo_registros"),
     "movimientoequipo_delete": ("Inventario", None, "Eliminar movimiento", "movimientoequipo_registros"),
     # Operaciones
-    "movimientoequipo_list": ("Operaciones", None, "Historial", None),
+    "movimientoequipo_list": ("Operaciones", None, "Auditoria", None),
+    "historial_actividad_detail": ("Operaciones", None, "Detalle", "movimientoequipo_list"),
     "asignacionequipo_list": ("Operaciones", None, "Asignaciones", None),
     "asignacionequipo_create": ("Operaciones", None, "Nueva asignacion", "asignacionequipo_list"),
     "asignacionequipo_update": ("Operaciones", None, "Editar asignacion", "asignacionequipo_list"),
@@ -109,6 +110,17 @@ _MODULE = {
     # Admin
     "personal_admin_remove": ("Admin", None, "Bajar roles", None),
     "historial_retencion_admin": ("Admin", None, "Archivar", None),
+    "permisos_matriz": ("Admin", None, "Matriz de permisos", None),
+    # Gobierno
+    "cobertura_list": ("Gobierno", None, "Coberturas", None),
+    "cobertura_create": ("Gobierno", None, "Nueva cobertura", "cobertura_list"),
+    "cobertura_update": ("Gobierno", None, "Editar cobertura", "cobertura_list"),
+    "cobertura_delete": ("Gobierno", None, "Eliminar cobertura", "cobertura_list"),
+    "solicitud_equipo_list": ("Inventario", None, "Solicitudes", None),
+    "solicitud_equipo_create": ("Inventario", None, "Nueva solicitud", "solicitud_equipo_list"),
+    "solicitud_equipo_detail": ("Inventario", None, "Detalle", "solicitud_equipo_list"),
+    "solicitud_equipo_cancelar": ("Inventario", None, "Cancelar", "solicitud_equipo_list"),
+    "solicitud_equipo_revisar": ("Inventario", None, "Revisar", "solicitud_equipo_list"),
 }
 
 _SKIP = {"login", "logout", "signup", "home"}
@@ -136,6 +148,11 @@ _DETAIL_RESOLVERS = {
     "ordencompra_update": ("GestorApp.models.OrdenCompra", "folio_orden"),
     "ordencompra_terminar": ("GestorApp.models.OrdenCompra", "folio_orden"),
     "ordencompra_delete": ("GestorApp.models.OrdenCompra", "folio_orden"),
+    "solicitud_equipo_detail": ("GestorApp.models.SolicitudEquipo", "folio"),
+    "solicitud_equipo_cancelar": ("GestorApp.models.SolicitudEquipo", "folio"),
+    "solicitud_equipo_revisar": ("GestorApp.models.SolicitudEquipo", "folio"),
+    "cobertura_update": ("GestorApp.models.CoberturaTickets", "__str__"),
+    "historial_actividad_detail": ("GestorApp.models.HistorialActividad", "titulo"),
 }
 
 

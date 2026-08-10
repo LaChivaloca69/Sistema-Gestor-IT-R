@@ -3,18 +3,11 @@
 {% block title %}Personal{% endblock %}
 
 {% block content %}
-
-
-<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-	<div>
-		<p class="eyebrow mb-2">Organizacion</p>
-		<h1 class="h3 mb-1">Personal</h1>
-		<p class="text-muted mb-0">Usuarios y personal del sistema.</p>
-	</div>
+{% include "partials/page_header_open.html" with title="Personal" description="Usuarios y personal del sistema." %}
 	{% if can_manage_personal %}
 	<a class="btn btn-primary" href="{% url 'personal_create' %}">Nuevo personal</a>
 	{% endif %}
-</div>
+{% include "partials/page_header_close.html" %}
 
 <form class="filters" method="get">
 	<div>
@@ -157,10 +150,12 @@
 			</tr>
 			{% empty %}
 			<tr>
-				<td colspan="11" class="text-center text-muted py-4">
-					No hay personal.
+				<td colspan="11" class="text-center py-4">
 					{% if can_manage_personal %}
-					<a href="{% url 'personal_create' %}">Crear el primero</a>
+					{% url 'personal_create' as empty_action_url %}
+					{% include "partials/empty_state.html" with title="Sin personal" description="Registra el primer usuario del sistema." action_url=empty_action_url action_label="Nuevo personal" icon="bi-people" compact=1 %}
+					{% else %}
+					{% include "partials/empty_state.html" with title="Sin personal" description="No hay registros de personal visibles." icon="bi-people" compact=1 %}
 					{% endif %}
 				</td>
 			</tr>

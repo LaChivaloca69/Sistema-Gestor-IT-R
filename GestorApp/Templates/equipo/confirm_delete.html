@@ -3,10 +3,12 @@
 {% block title %}Eliminar Equipo{% endblock %}
 
 {% block content %}
+{% include "partials/page_header_open.html" with title="Eliminar equipo" description="Esta accion no se puede deshacer." %}
+	<a class="btn btn-outline-secondary" href="{% url 'equipo_detail' object.pk %}">Volver</a>
+{% include "partials/page_header_close.html" %}
+
 <div class="card border-danger-subtle shadow-sm mx-auto" style="max-width: 640px;">
 	<div class="card-body p-4">
-		<p class="eyebrow mb-2">Confirmacion</p>
-		<h1 class="h3 mb-3">Eliminar equipo</h1>
 		<p class="mb-3">
 			Estas seguro que deseas <strong>eliminar permanentemente</strong>
 			<strong>"{{ object }}"</strong>?

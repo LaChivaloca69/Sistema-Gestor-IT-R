@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% load django_bootstrap5 %}
+
+{% block title %}{{ object.folio }}{% endblock %}
+
+{% block content %}
+{% include "partials/page_header_open.html" with title=object.folio description=object.titulo %}
+	<a class="btn btn-outline-secondary" href="{% url 'solicitud_equipo_list' %}">Volver</a>
+	{% if can_cancel %}
+	<a class="btn btn-outline-danger" href="{% url 'solicitud_equipo_cancelar' object.pk %}">Cancelar solicitud</a>
+	{% endif %}
+{% include "partials/page_header_close.html" %}
+
+<div class="ticket-detail-layout">
+	<section class="ticket-panel">
+		<div class="ticket-panel__header">
+			<h2 class="h5 mb-0">Detalle</h2>
+			<span class="status-badge status-badge--{{ object.estado|slugify }}">{{ object.estado }}</span>
+		</div>
+		<dl class="row mb-0">
+			<dt class="col-sm-4">Solicitante</dt>
+			<dd class="col-sm-8">{{ object.solicitante.username }}</dd>
+			<dt class="col-sm-4">Personal destino</dt>
+			<dd class="col-sm-8">{{ object.personal|default:"—" }}</dd>
+			<dt class="col-sm-4">Categoria</dt>
+			<dd class="col-sm-8">{{ object.categoria|default:"—" }}</dd>
+			<dt class="col-sm-4">Urgencia</dt>
+			<dd class="col-sm-8"><span class="status-badge status-badge--prio-{{ object.urgencia|slugify }}">{{ object.urgencia }}</span></dd>
+			<dt class="col-sm-4">Creada</dt>
+			<dd class="col-sm-8">{{ object.fecha_creacion|date:"Y-m-d H:i" }}</dd>
+			{% if object.revisado_por %}
+			<dt class="col-sm-4">Revisado por</dt>
+			<dd class="col-sm-8">{{ object.revisado_por.username }}</dd>
+			{% endif %}
+			{% if object.equipo %}
+			<dt class="col-sm-4">Equipo</dt>
+			<dd class="col-sm-8"><a href="{% url 'equipo_detail' object.equipo.pk %}">{{ object.equipo.codigo_inventario }}</a></dd>
+			{% endif %}
+		</dl>
+		<hr>
+		<p class="mb-1"><strong>Justificacion</strong></p>
+		<p>{{ object.justificacion }}</p>
+		{% if object.notas_solicitante %}
+		<p class="mb-1"><strong>Notas del solicitante</strong></p>
+		<p class="text-muted">{{ object.notas_solicitante }}</p>
+		{% endif %}
+		{% if object.notas_it %}
+		<p class="mb-1"><strong>Notas IT</strong></p>
+		<p class="text-muted">{{ object.notas_it }}</p>
+		{% endif %}
+	</section>
+
+	{% if can_manage and revision_form %}
+	<section class="ticket-panel">
+		<div class="ticket-panel__header">
+			<h2 class="h5 mb-0">Revision IT</h2>
+		</div>
+		<form method="post" action="{% url 'solicitud_equipo_revisar' object.pk %}" class="stack-form">
+			{% csrf_token %}
+			{% bootstrap_form revision_form %}
+			<button class="btn btn-primary" type="submit">Guardar revision</button>
+		</form>
+		<p class="text-muted small mt-3 mb-0">
+			Al <strong>completar</strong> (o aprobar con equipo seleccionado) se intenta asignar el equipo disponible al personal de la solicitud.
+		</p>
+	</section>
+	{% endif %}
+</div>
+{% endblock %}

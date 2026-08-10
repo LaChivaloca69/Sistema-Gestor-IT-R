@@ -205,22 +205,9 @@ class TicketITForm(forms.ModelForm):
                 self.fields["tipo_equipo"].help_text = "Favor de comprobar que el tipo de equipo sea correcto."
 
     def clean_imagen(self):
-        imagen = self.cleaned_data.get("imagen")
-        if not imagen:
-            return imagen
+        from .media_security import validate_image_upload
 
-        max_size = 50 * 1024 * 1024
-        if imagen.size > max_size:
-            raise forms.ValidationError("La imagen debe pesar menos de 50 MB.")
-
-        allowed_types = {"image/jpeg", "image/png", "image/gif", "image/webp"}
-        content_type = getattr(imagen, "content_type", None)
-        if content_type and content_type not in allowed_types:
-            raise forms.ValidationError("Formato no permitido. Usa JPG, JPEG, PNG, GIF o WEBP.")
-
-        return imagen
-
-    def _parse_client_datetime(self, value):
+        return validate_image_upload(self.cleaned_data.get("imagen"))
         if not value:
             return None
 

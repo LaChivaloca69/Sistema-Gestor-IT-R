@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% load django_bootstrap5 %}
+
+{% block title %}Nueva solicitud de equipo{% endblock %}
+
+{% block content %}
+{% include "partials/page_header_open.html" with title="Nueva solicitud de equipo" description="Describe que necesitas y por que. IT revisara la solicitud." %}
+	<a class="btn btn-outline-secondary" href="{% url 'solicitud_equipo_list' %}">Volver</a>
+{% include "partials/page_header_close.html" %}
+
+<div class="card shadow-sm border-0">
+	<div class="card-body">
+		<form method="post" class="stack-form">
+			{% csrf_token %}
+			{{ form.non_field_errors }}
+			{% bootstrap_form form %}
+			<div class="d-flex justify-content-end gap-2 mt-3">
+				<a class="btn btn-outline-secondary" href="{% url 'solicitud_equipo_list' %}">Cancelar</a>
+				<button class="btn btn-primary" type="submit">Enviar solicitud</button>
+			</div>
+		</form>
+	</div>
+</div>
+{% endblock %}

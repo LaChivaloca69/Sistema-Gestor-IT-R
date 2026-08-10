@@ -3,44 +3,32 @@
 {% block title %}{{ object.codigo_inventario }}{% endblock %}
 
 {% block content %}
-<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
-	<div>
-		<p class="eyebrow mb-2">Inventario</p>
-		<h1 class="h3 mb-1">{{ object.codigo_inventario }}</h1>
-		<p class="text-muted mb-0">
-			{{ object.categoria }}
-			{% if object.marca or object.modelo %}
-			· {{ object.marca|default:"" }} {{ object.modelo|default:"" }}
-			{% endif %}
-		</p>
-	</div>
-	<div class="d-flex flex-wrap gap-2">
-		<a class="btn btn-outline-secondary" href="{% url 'equipo_list' %}">Volver</a>
-		<a class="btn btn-outline-primary" href="{% url 'equipo_update' object.pk %}">Editar</a>
-		{% if object.puede_cambiar_ubicacion %}
-		<a class="btn btn-outline-secondary" href="{% url 'equipo_cambiar_ubicacion' object.pk %}">Ubicacion</a>
-		{% endif %}
-		{% if object.puede_asignarse %}
-		<a class="btn btn-primary" href="{% url 'equipo_asignar' object.pk %}">Asignar</a>
-		{% endif %}
-		{% if object.puede_devolver %}
-		<form method="post" action="{% url 'equipo_devolver' object.pk %}">
-			{% csrf_token %}
-			<button class="btn btn-outline-secondary" type="submit">Devolver</button>
-		</form>
-		{% endif %}
-		{% if object.puede_dar_de_baja and is_admin_role %}
-		<a class="btn btn-outline-danger" href="{% url 'equipo_dar_baja' object.pk %}">Dar de baja</a>
-		{% endif %}
-		{% if object.puede_reactivar and is_admin_role %}
-		<form method="post" action="{% url 'equipo_reactivar' object.pk %}">
-			{% csrf_token %}
-			<button class="btn btn-outline-warning" type="submit">Reactivar</button>
-		</form>
-		{% endif %}
-		<a class="btn btn-outline-secondary" href="{% url 'mantenimiento_create' %}?equipo={{ object.pk }}">Programar mant.</a>
-	</div>
-</div>
+{% include "partials/page_header_open.html" with title=object.codigo_inventario description="Detalle del equipo en inventario." %}
+	<a class="btn btn-outline-secondary" href="{% url 'equipo_list' %}">Volver</a>
+	<a class="btn btn-outline-primary" href="{% url 'equipo_update' object.pk %}">Editar</a>
+	{% if object.puede_cambiar_ubicacion %}
+	<a class="btn btn-outline-secondary" href="{% url 'equipo_cambiar_ubicacion' object.pk %}">Ubicacion</a>
+	{% endif %}
+	{% if object.puede_asignarse %}
+	<a class="btn btn-primary" href="{% url 'equipo_asignar' object.pk %}">Asignar</a>
+	{% endif %}
+	{% if object.puede_devolver %}
+	<form method="post" action="{% url 'equipo_devolver' object.pk %}">
+		{% csrf_token %}
+		<button class="btn btn-outline-secondary" type="submit">Devolver</button>
+	</form>
+	{% endif %}
+	{% if object.puede_dar_de_baja and is_admin_role %}
+	<a class="btn btn-outline-danger" href="{% url 'equipo_dar_baja' object.pk %}">Dar de baja</a>
+	{% endif %}
+	{% if object.puede_reactivar and is_admin_role %}
+	<form method="post" action="{% url 'equipo_reactivar' object.pk %}">
+		{% csrf_token %}
+		<button class="btn btn-outline-warning" type="submit">Reactivar</button>
+	</form>
+	{% endif %}
+	<a class="btn btn-outline-secondary" href="{% url 'mantenimiento_create' %}?equipo={{ object.pk }}">Programar mant.</a>
+{% include "partials/page_header_close.html" %}
 
 <p class="text-muted small mb-3">
 	<strong>Disponible / Asignado</strong> se sincronizan con la asignacion activa.

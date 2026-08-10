@@ -3,14 +3,9 @@
 {% block title %}Mis equipos{% endblock %}
 
 {% block content %}
-<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-	<div>
-		<p class="eyebrow mb-2">Inventario personal</p>
-		<h1 class="h3 mb-1">Mis equipos</h1>
-		<p class="text-muted mb-0">Equipos asignados actualmente a tu usuario.</p>
-	</div>
+{% include "partials/page_header_open.html" with title="Mis equipos" description="Equipos asignados actualmente a tu usuario." %}
 	<a class="btn btn-primary" href="{% url 'ticketit_create' %}">Solicitar mantenimiento (ticket)</a>
-</div>
+{% include "partials/page_header_close.html" %}
 
 {% if not personal %}
 <div class="alert alert-warning">
@@ -41,7 +36,10 @@
 			</tr>
 			{% empty %}
 			<tr>
-				<td colspan="6" class="text-muted">No tienes equipos asignados.</td>
+				<td colspan="6" class="text-center py-4">
+					{% url 'ticketit_create' as empty_action_url %}
+					{% include "partials/empty_state.html" with title="Sin equipos asignados" description="No tienes equipos activos; abre un ticket si necesitas soporte." action_url=empty_action_url action_label="Nuevo ticket" icon="bi-pc-display-horizontal" compact=1 %}
+				</td>
 			</tr>
 			{% endfor %}
 		</tbody>

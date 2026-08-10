@@ -4,14 +4,13 @@
 {% block title %}{% if object %}Editar Ubicacion{% else %}Nueva Ubicacion{% endif %}{% endblock %}
 
 {% block content %}
-<div class="d-flex flex-wra[ justify-content-between align-items-centerg gap-3 mb-4">
-	<div>
-		<p class="eyebrow mb-2">Organizacion</p>
-		<h1 class="h3 mb-1">{% if object %}Editar ubicacion{% else %}Nueva ubicacion{% endif %}</h1>
-		<p class="text-muted mb-0">Captura la informacion principal de la ubicacion.</p>
-	</div>
+{% if object %}
+{% include "partials/page_header_open.html" with title="Editar ubicacion" description="Captura la informacion principal de la ubicacion." %}
+{% else %}
+{% include "partials/page_header_open.html" with title="Nueva ubicacion" description="Captura la informacion principal de la ubicacion." %}
+{% endif %}
 	<a class="btn btn-outline-secondary" href="{% url 'ubicacion_list' %}">Volver</a>
-</div>
+{% include "partials/page_header_close.html" %}
 
 <div class="card shadow-sm border-0">
 	<div class="card-body">

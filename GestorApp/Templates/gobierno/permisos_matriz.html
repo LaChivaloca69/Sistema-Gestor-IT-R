@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Matriz de permisos{% endblock %}
+
+{% block content %}
+{% include "partials/page_header_open.html" with title="Matriz de permisos" description="Quien puede que en Gestor IT, segun el rol de negocio." %}
+	<a class="btn btn-outline-secondary" href="{% url 'home' %}">Volver</a>
+{% include "partials/page_header_close.html" %}
+
+<p class="text-muted mb-3">
+	Roles: <strong>Usuario</strong>, <strong>Tecnico IT</strong> y <strong>Administrador</strong>
+	(prioridad Admin &gt; Tecnico &gt; Usuario). Esta matriz documenta el comportamiento actual; no modifica permisos.
+</p>
+
+{% for group in groups %}
+<section class="section-block mb-3">
+	<div class="section-block__header">
+		<div>
+			<h2>{{ group.modulo }}</h2>
+		</div>
+	</div>
+	<div class="table-responsive">
+		<table class="table table-sm align-middle mb-0 perm-matrix">
+			<thead class="table-light">
+				<tr>
+					<th>Accion</th>
+					<th class="text-center">Usuario</th>
+					<th class="text-center">Tecnico IT</th>
+					<th class="text-center">Admin</th>
+					<th>Notas</th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for row in group.rows %}
+				<tr>
+					<td><strong>{{ row.accion }}</strong></td>
+					<td class="text-center">{% if row.usuario %}<span class="perm-yes">Si</span>{% else %}<span class="perm-no">—</span>{% endif %}</td>
+					<td class="text-center">{% if row.tecnico %}<span class="perm-yes">Si</span>{% else %}<span class="perm-no">—</span>{% endif %}</td>
+					<td class="text-center">{% if row.admin %}<span class="perm-yes">Si</span>{% else %}<span class="perm-no">—</span>{% endif %}</td>
+					<td class="text-muted small">{{ row.notas }}</td>
+				</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+	</div>
+</section>
+{% endfor %}
+{% endblock %}

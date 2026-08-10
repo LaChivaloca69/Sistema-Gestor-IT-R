@@ -1,0 +1,10 @@
+<div class="empty-state{% if compact %} empty-state--compact{% endif %}">
+	{% if icon %}<i class="bi {{ icon }} empty-state__icon" aria-hidden="true"></i>{% endif %}
+	<div class="empty-state__copy">
+		<strong class="empty-state__title">{{ title }}</strong>
+		{% if description %}<p class="empty-state__desc">{{ description }}</p>{% endif %}
+	</div>
+	{% if action_url and action_label %}
+	<a class="btn btn-primary {% if compact %}btn-sm{% endif %}" href="{{ action_url }}">{{ action_label }}</a>
+	{% endif %}
+</div>

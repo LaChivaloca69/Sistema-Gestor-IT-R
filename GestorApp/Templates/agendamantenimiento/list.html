@@ -3,17 +3,10 @@
 {% block title %}Cierres de mantenimiento{% endblock %}
 
 {% block content %}
-<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-	<div>
-		<p class="eyebrow mb-2">Operaciones</p>
-		<h1 class="h3 mb-1">Cierres de mantenimiento</h1>
-		<p class="text-muted mb-0">Registro de acciones realizadas, fechas y proximo ciclo. No es una agenda de recordatorios.</p>
-	</div>
-	<div class="d-flex flex-wrap gap-2">
-		<a class="btn btn-outline-secondary" href="{% url 'mantenimiento_list' %}">Mantenimientos</a>
-		<a class="btn btn-primary" href="{% url 'agendamantenimiento_create' %}">Registrar cierre</a>
-	</div>
-</div>
+{% include "partials/page_header_open.html" with title="Cierres de mantenimiento" description="Registro de acciones realizadas, fechas y proximo ciclo. No es una agenda de recordatorios." %}
+	<a class="btn btn-outline-secondary" href="{% url 'mantenimiento_list' %}">Mantenimientos</a>
+	<a class="btn btn-primary" href="{% url 'agendamantenimiento_create' %}">Registrar cierre</a>
+{% include "partials/page_header_close.html" %}
 
 <form class="filters" method="get">
 	<div>
@@ -74,9 +67,9 @@
 			</tr>
 			{% empty %}
 			<tr>
-				<td colspan="7" class="text-center text-muted py-4">
-					No hay cierres registrados{% if search_query %} con esta busqueda{% endif %}.
-					<a href="{% url 'mantenimiento_list' %}?alerta=atencion">Ir a mantenimientos por atender</a>
+				<td colspan="7" class="text-center py-4">
+					{% url 'agendamantenimiento_create' as empty_action_url %}
+					{% include "partials/empty_state.html" with title="Sin cierres registrados" description="Registra un cierre desde un mantenimiento atendido." action_url=empty_action_url action_label="Registrar cierre" icon="bi-calendar-check" compact=1 %}
 				</td>
 			</tr>
 			{% endfor %}

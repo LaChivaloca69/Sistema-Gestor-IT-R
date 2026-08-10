@@ -4,20 +4,16 @@
 {% block title %}{% if object %}Editar Proveedor{% else %}Nuevo Proveedor{% endif %}{% endblock %}
 
 {% block content %}
-<div class="d-flex flex-wrap justify-content-between align-itmes-center gap-3 mb-4">
-	<div>
-		<p class="eyebrow mb-2">Inventario</p>
-		<h1 class="h3 mb-1">{% if object %}Editar Proveedor{% else %}Nuevo Proveedor{% endif %}</h1>
-		<p class="text-muted mb-0">
-			{% if object and object.codigo_interno %}
-			Codigo interno: <strong>{{ object.codigo_interno }}</strong> (asignado automaticamente).
-			{% else %}
-			El codigo interno se genera automaticamente al guardar (PROV-000001).
-			{% endif %}
-		</p>
-	</div>
+{% if object %}
+{% include "partials/page_header_open.html" with title="Editar Proveedor" description="El codigo interno se asigna automaticamente al guardar (PROV-000001)." %}
+{% else %}
+{% include "partials/page_header_open.html" with title="Nuevo Proveedor" description="El codigo interno se asigna automaticamente al guardar (PROV-000001)." %}
+{% endif %}
 	<a class="btn btn-outline-secondary" href="{% url 'proveedor_list' %}">Volver</a>
-</div>
+{% include "partials/page_header_close.html" %}
+{% if object and object.codigo_interno %}
+<p class="text-muted mb-3">Codigo interno: <strong>{{ object.codigo_interno }}</strong> (asignado automaticamente).</p>
+{% endif %}
 
 <div class="card shadow-sm border-o">
 	<div class="card-body">

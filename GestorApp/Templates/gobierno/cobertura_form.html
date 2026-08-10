@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% load django_bootstrap5 %}
+
+{% block title %}{% if object %}Editar cobertura{% else %}Nueva cobertura{% endif %}{% endblock %}
+
+{% block content %}
+{% if object %}
+{% include "partials/page_header_open.html" with title="Editar cobertura" description="Ajusta el periodo o el suplente de la delegacion." %}
+{% else %}
+{% include "partials/page_header_open.html" with title="Nueva cobertura" description="El suplente vera los tickets asignados al ausente durante el periodo." %}
+{% endif %}
+	<a class="btn btn-outline-secondary" href="{% url 'cobertura_list' %}">Volver</a>
+{% include "partials/page_header_close.html" %}
+
+<div class="card shadow-sm border-0">
+	<div class="card-body">
+		<form method="post" class="stack-form">
+			{% csrf_token %}
+			{{ form.non_field_errors }}
+			{% bootstrap_form form %}
+			<div class="d-flex justify-content-end gap-2 mt-3">
+				<a class="btn btn-outline-secondary" href="{% url 'cobertura_list' %}">Cancelar</a>
+				<button class="btn btn-primary" type="submit">Guardar</button>
+			</div>
+		</form>
+	</div>
+</div>
+{% endblock %}

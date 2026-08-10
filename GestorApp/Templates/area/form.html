@@ -4,14 +4,13 @@
 {% block title %}{% if object %}Editar Area{% else %}Nueva Area{% endif %}{% endblock %}
 
 {% block content %}
-<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-    <div>
-        <p class="eyebrow mb-2">Ubicaciones</p>
-        <h1 class="h3 mb-1">{% if object %}Editar area{% else %}Nueva area{% endif %}</h1>
-        <p class="text-muted mb-0">Captura la informacion principal de la area.</p>
-    </div>
+{% if object %}
+{% include "partials/page_header_open.html" with title="Editar area" description="Captura la informacion principal de la area." %}
+{% else %}
+{% include "partials/page_header_open.html" with title="Nueva area" description="Captura la informacion principal de la area." %}
+{% endif %}
     <a class="btn btn-outline-secondary" href="{% url 'area_list' %}">Volver</a>
-</div>
+{% include "partials/page_header_close.html" %}
 
 <div class="card shadow-sm border-0">
     <div class="card-body">

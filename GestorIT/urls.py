@@ -9,6 +9,7 @@ from django.contrib.auth.decorators import login_required
 from django.urls import path
 
 from GestorApp import views
+from GestorApp import gobierno_views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -107,6 +108,11 @@ urlpatterns = [
 
     # ------------- Movimiento de equipos Urls -------------
     path('MovimientoEquipos/', views.operativo_required(views.movimientoequipo_list), name='movimientoequipo_list'),
+    path(
+        'Auditoria/<int:pk>/',
+        views.operativo_required(views.historial_actividad_detail),
+        name='historial_actividad_detail',
+    ),
     path('MovimientoEquipos/registros/', views.operativo_required(views.movimientoequipo_registros), name='movimientoequipo_registros'),
     path('MovimientoEquipos/create/', views.operativo_required(views.movimientoequipo_create), name='movimientoequipo_create'),
     path(
@@ -209,6 +215,26 @@ urlpatterns = [
     path('OrdenesCompra/<int:pk>/terminar/', login_required(views.ordencompra_terminar), name='ordencompra_terminar'),
     path('OrdenesCompra/delete/<int:pk>/', login_required(views.ordencompra_delete), name='ordencompra_delete'),
     path('OrdenesCompra/preview/', login_required(views.ordencompra_preview), name='ordencompra_preview'),
+
+    # -------------- Gobierno / roles --------------
+    path('Gobierno/permisos/', views.admin_required(gobierno_views.permisos_matriz), name='permisos_matriz'),
+    path('Gobierno/coberturas/', views.operativo_required(gobierno_views.cobertura_list), name='cobertura_list'),
+    path('Gobierno/coberturas/create/', views.operativo_required(gobierno_views.cobertura_create), name='cobertura_create'),
+    path('Gobierno/coberturas/update/<int:pk>/', views.operativo_required(gobierno_views.cobertura_update), name='cobertura_update'),
+    path('Gobierno/coberturas/delete/<int:pk>/', views.operativo_required(gobierno_views.cobertura_delete), name='cobertura_delete'),
+    path('SolicitudesEquipo/', login_required(gobierno_views.solicitud_equipo_list), name='solicitud_equipo_list'),
+    path('SolicitudesEquipo/create/', login_required(gobierno_views.solicitud_equipo_create), name='solicitud_equipo_create'),
+    path('SolicitudesEquipo/<int:pk>/', login_required(gobierno_views.solicitud_equipo_detail), name='solicitud_equipo_detail'),
+    path(
+        'SolicitudesEquipo/<int:pk>/revisar/',
+        views.operativo_required(gobierno_views.solicitud_equipo_revisar),
+        name='solicitud_equipo_revisar',
+    ),
+    path(
+        'SolicitudesEquipo/<int:pk>/cancelar/',
+        login_required(gobierno_views.solicitud_equipo_cancelar),
+        name='solicitud_equipo_cancelar',
+    ),
 ]
 
 if settings.DEBUG:

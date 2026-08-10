@@ -3,21 +3,14 @@
 {% block title %}Movimientos de equipo{% endblock %}
 
 {% block content %}
-<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-	<div>
-		<p class="eyebrow mb-2">Inventario · Auditoria</p>
-		<h1 class="h3 mb-1">Movimientos de equipo</h1>
-		<p class="text-muted mb-0">Bitacora de altas, bajas, asignaciones y cambios de ubicacion. Solo lectura.</p>
-	</div>
-	<div class="d-flex flex-wrap gap-2">
-		<a class="btn btn-outline-secondary" href="{% url 'movimientoequipo_list' %}">Historial general</a>
-		<a
-			class="btn btn-outline-secondary"
-			href="?export=csv{% for key, value in request.GET.items %}{% if key != 'export' and key != 'page' %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}"
-		>Exportar CSV</a>
-		<a class="btn btn-primary" href="{% url 'movimientoequipo_create' %}{% if selected_equipo %}?equipo={{ selected_equipo }}{% endif %}">Registrar movimiento</a>
-	</div>
-</div>
+{% include "partials/page_header_open.html" with title="Movimientos de equipo" description="Bitacora de altas, bajas, asignaciones y cambios de ubicacion. Solo lectura." %}
+	<a class="btn btn-outline-secondary" href="{% url 'movimientoequipo_list' %}">Historial general</a>
+	<a
+		class="btn btn-outline-secondary"
+		href="?export=csv{% for key, value in request.GET.items %}{% if key != 'export' and key != 'page' %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}"
+	>Exportar CSV</a>
+	<a class="btn btn-primary" href="{% url 'movimientoequipo_create' %}{% if selected_equipo %}?equipo={{ selected_equipo }}{% endif %}">Registrar movimiento</a>
+{% include "partials/page_header_close.html" %}
 
 <form class="filters" method="get">
 	<div>
@@ -97,8 +90,9 @@
 			</tr>
 			{% empty %}
 			<tr>
-				<td colspan="7" class="text-center text-muted py-4">
-					No hay movimientos{% if search_query or selected_tipo or selected_equipo %} con estos filtros{% endif %}.
+				<td colspan="7" class="text-center py-4">
+					{% url 'movimientoequipo_create' as empty_action_url %}
+					{% include "partials/empty_state.html" with title="Sin movimientos" description="No hay movimientos con los filtros actuales." action_url=empty_action_url action_label="Registrar movimiento" icon="bi-arrow-left-right" compact=1 %}
 				</td>
 			</tr>
 			{% endfor %}

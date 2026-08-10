@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}Auditoria · {{ object.titulo|truncatechars:40 }}{% endblock %}
+
+{% block content %}
+{% include "partials/page_header_open.html" with title=object.titulo description="Detalle del evento de auditoria." %}
+	<a class="btn btn-outline-secondary" href="{% url 'movimientoequipo_list' %}">Volver a auditoria</a>
+	{% if enlace_url %}
+	<a class="btn btn-primary" href="{{ enlace_url }}">Abrir relacionado</a>
+	{% endif %}
+{% include "partials/page_header_close.html" %}
+
+<section class="ticket-panel">
+	<div class="ticket-panel__header">
+		<h2 class="h5 mb-0">Evento #{{ object.pk }}</h2>
+		<span class="status-badge status-badge--nivel-{{ object.nivel }}">{{ object.get_nivel_display }}</span>
+	</div>
+	<dl class="row mb-0">
+		<dt class="col-sm-3">Fecha</dt>
+		<dd class="col-sm-9">{{ object.fecha|date:"Y-m-d H:i:s" }}</dd>
+		<dt class="col-sm-3">Modulo</dt>
+		<dd class="col-sm-9">{{ object.get_modulo_display }}</dd>
+		<dt class="col-sm-3">Accion</dt>
+		<dd class="col-sm-9">{{ object.get_accion_display }}</dd>
+		<dt class="col-sm-3">Usuario</dt>
+		<dd class="col-sm-9">
+			{% if object.usuario %}
+				{{ object.usuario.get_full_name|default:object.usuario.username }}
+				<small class="text-muted">({{ object.usuario.username }})</small>
+			{% else %}
+				<span class="text-muted">Sistema</span>
+			{% endif %}
+		</dd>
+		<dt class="col-sm-3">Origen</dt>
+		<dd class="col-sm-9">{% if object.es_automatico %}Automatico{% else %}Manual{% endif %}</dd>
+		<dt class="col-sm-3">Estado</dt>
+		<dd class="col-sm-9">{% if object.archivado %}Archivado{% if object.fecha_archivado %} · {{ object.fecha_archivado|date:"Y-m-d H:i" }}{% endif %}{% else %}Activo{% endif %}</dd>
+		<dt class="col-sm-3">Referencia</dt>
+		<dd class="col-sm-9">
+			{{ object.objeto_etiqueta|default:"—" }}
+			{% if object.objeto_tipo %}<br><small class="text-muted">{{ object.objeto_tipo }} #{{ object.objeto_id }}</small>{% endif %}
+		</dd>
+		<dt class="col-sm-3">Relacionado</dt>
+		<dd class="col-sm-9">
+			{{ object.entidad_relacionada_etiqueta|default:"—" }}
+			{% if object.entidad_relacionada_tipo %}<br><small class="text-muted">{{ object.entidad_relacionada_tipo }} #{{ object.entidad_relacionada_id }}</small>{% endif %}
+		</dd>
+	</dl>
+	{% if object.descripcion %}
+	<hr>
+	<p class="mb-1"><strong>Descripcion</strong></p>
+	<p class="mb-0">{{ object.descripcion }}</p>
+	{% endif %}
+	{% if object.metadata %}
+	<hr>
+	<p class="mb-1"><strong>Metadata</strong></p>
+	<pre class="small bg-light border rounded p-3 mb-0" style="white-space: pre-wrap;">{{ object.metadata }}</pre>
+	{% endif %}
+</section>
+{% endblock %}

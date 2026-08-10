@@ -38,7 +38,7 @@
     };
 
     // ---- Confirmacion destructiva ----
-    const showConfirm = ({ title, message, confirmLabel }) =>
+    const showConfirm = ({ title, message, confirmLabel, confirmClass = "btn-danger" }) =>
         new Promise((resolve) => {
             const overlay = document.createElement("div");
             overlay.className = "confirm-overlay";
@@ -48,7 +48,7 @@
                     <p>${message}</p>
                     <div class="confirm-dialog__actions">
                         <button type="button" class="btn btn-outline-secondary" data-confirm-cancel>Cancelar</button>
-                        <button type="button" class="btn btn-danger" data-confirm-ok>${confirmLabel}</button>
+                        <button type="button" class="btn ${confirmClass}" data-confirm-ok>${confirmLabel}</button>
                     </div>
                 </div>
             `;
@@ -168,6 +168,8 @@
     const COLLAPSE_KEY = "sidebar-collapsed";
     const FAV_KEY = "sidebar-favorites";
     const RECENT_KEY = "sidebar-recents";
+    const PREF_DENSITY_KEY = "pref-density";
+    const PREF_SIDEBAR_KEY = "pref-sidebar-default";
     const DEFAULT_FAVS = ["tickets", "equipos", "ordenes", "mantenimientos"];
     const RECENT_SKIP = new Set(["home", "calendario"]);
 
@@ -195,7 +197,13 @@
     };
 
     if (appShell && toggle && sidebar) {
-        const initialCollapsed = isMobile() ? true : localStorage.getItem(COLLAPSE_KEY) === "1";
+        const prefSidebar = localStorage.getItem(PREF_SIDEBAR_KEY) || "expanded";
+        const storedValue = localStorage.getItem(COLLAPSE_KEY);
+        const initialCollapsed = isMobile()
+            ? true
+            : storedValue !== null
+              ? storedValue === "1"
+              : prefSidebar === "collapsed";
         setSidebarCollapsed(initialCollapsed);
 
         toggle.addEventListener("click", () => {
@@ -549,7 +557,80 @@
         }
     }
 
-    // ---- Chips de filtros activos ----
+    // ---- Filtros colapsables (movil) + chips ----
+    const FILTERS_MQ = window.matchMedia("(max-width: 780px)");
+
+    const countActiveFilters = (form) => {
+        const fields = Array.from(
+            form.querySelectorAll("input[name], select[name], textarea[name]")
+        ).filter((el) => el.type !== "hidden" && el.type !== "submit" && el.type !== "button");
+
+        return fields.reduce((total, field) => {
+            if (field.tagName === "SELECT") {
+                const rawValue = field.value || "";
+                const opt = field.selectedOptions && field.selectedOptions[0];
+                const displayValue = (opt && opt.textContent ? opt.textContent : rawValue).trim();
+                const placeholderTexts = ["todos", "todas", "cualquier", "cualquiera", ""];
+                const defaultValue = field.dataset.chipDefault;
+                if (defaultValue !== undefined && rawValue === defaultValue) {
+                    return total;
+                }
+                if (!rawValue || placeholderTexts.includes(displayValue.toLowerCase())) {
+                    return total;
+                }
+                return total + 1;
+            }
+            return total + ((field.value || "").trim() ? 1 : 0);
+        }, 0);
+    };
+
+    const syncFiltersCollapse = (details, form, summaryMeta) => {
+        const activeCount = countActiveFilters(form);
+        summaryMeta.textContent = activeCount ? `${activeCount} activo${activeCount === 1 ? "" : "s"}` : "Sin filtros";
+        summaryMeta.hidden = false;
+        if (!FILTERS_MQ.matches) {
+            details.open = true;
+            return;
+        }
+        // En movil: abierto si ya hay filtros aplicados
+        details.open = activeCount > 0;
+    };
+
+    const initCollapsibleFilters = () => {
+        Array.from(document.querySelectorAll("form.filters")).forEach((form) => {
+            if (form.dataset.collapseReady === "1") {
+                return;
+            }
+            form.dataset.collapseReady = "1";
+
+            const shell = document.createElement("div");
+            shell.className = "filters-shell";
+
+            const details = document.createElement("details");
+            details.className = "filters-collapse";
+
+            const summary = document.createElement("summary");
+            summary.className = "filters-collapse__summary";
+            summary.innerHTML = `
+                <span class="filters-collapse__label">
+                    <i class="bi bi-funnel" aria-hidden="true"></i>
+                    Filtros
+                </span>
+                <span class="filters-collapse__meta"></span>
+                <i class="bi bi-chevron-down filters-collapse__chevron" aria-hidden="true"></i>
+            `;
+            const summaryMeta = summary.querySelector(".filters-collapse__meta");
+
+            form.parentNode.insertBefore(shell, form);
+            shell.appendChild(details);
+            details.appendChild(summary);
+            details.appendChild(form);
+
+            syncFiltersCollapse(details, form, summaryMeta);
+            FILTERS_MQ.addEventListener("change", () => syncFiltersCollapse(details, form, summaryMeta));
+        });
+    };
+
     const initFilterChips = () => {
         Array.from(document.querySelectorAll("form.filters")).forEach((form) => {
             if (form.dataset.chipsReady === "1") {
@@ -575,7 +656,6 @@
                     displayValue = (opt && opt.textContent ? opt.textContent : rawValue).trim();
                     const placeholderTexts = ["todos", "todas", "cualquier", "cualquiera", ""];
                     if (!rawValue || placeholderTexts.includes(displayValue.toLowerCase())) {
-                        // Si tiene default distinto de vacio (ej. estado=activo), igual mostramos chip
                         const defaultValue = field.dataset.chipDefault;
                         if (defaultValue !== undefined && rawValue === defaultValue) {
                             return;
@@ -639,9 +719,9 @@
             clearAll.textContent = "Limpiar todo";
             host.appendChild(clearAll);
 
-            form.insertAdjacentElement("afterend", host);
+            const shell = form.closest(".filters-shell");
+            (shell || form).insertAdjacentElement("afterend", host);
 
-            // Resaltar boton Limpiar cuando hay filtros
             const clearBtn = form.querySelector(".filters-actions a");
             if (clearBtn) {
                 clearBtn.classList.add("btn-outline-danger");
@@ -650,6 +730,262 @@
         });
     };
 
+    // ---- Salir sin guardar (forms sucios) ----
+    const initDirtyGuards = () => {
+        const guarded = [];
+
+        const isGuardForm = (form) => {
+            if (!(form instanceof HTMLFormElement)) {
+                return false;
+            }
+            if (form.matches(".filters, [data-skip-dirty], #csrf-token, [data-confirm-delete], .confirm-delete-form")) {
+                return false;
+            }
+            if ((form.getAttribute("method") || "get").toLowerCase() !== "post") {
+                return false;
+            }
+            if (/logout/i.test(form.getAttribute("action") || "")) {
+                return false;
+            }
+            if (form.classList.contains("stack-form") || form.hasAttribute("data-dirty-guard")) {
+                return true;
+            }
+            const fields = Array.from(form.elements).filter(
+                (el) =>
+                    el.name &&
+                    el.type !== "hidden" &&
+                    el.type !== "submit" &&
+                    el.type !== "button" &&
+                    el.type !== "reset"
+            );
+            return fields.length >= 2;
+        };
+
+        const snapshot = (form) => {
+            const data = new FormData(form);
+            return Array.from(data.entries())
+                .map(([key, value]) => `${key}=${typeof value === "string" ? value : value.name || ""}`)
+                .sort()
+                .join("&");
+        };
+
+        Array.from(document.querySelectorAll("form")).forEach((form) => {
+            if (!isGuardForm(form)) {
+                return;
+            }
+            const initial = snapshot(form);
+            const state = { form, initial, dirty: false, submitting: false };
+            guarded.push(state);
+
+            const markDirty = () => {
+                if (state.submitting) {
+                    return;
+                }
+                state.dirty = snapshot(form) !== state.initial;
+            };
+
+            form.addEventListener("input", markDirty);
+            form.addEventListener("change", markDirty);
+            form.addEventListener("submit", () => {
+                state.submitting = true;
+                state.dirty = false;
+            });
+        });
+
+        const anyDirty = () => guarded.some((item) => item.dirty && !item.submitting);
+
+        window.addEventListener("beforeunload", (event) => {
+            if (!anyDirty()) {
+                return;
+            }
+            event.preventDefault();
+            event.returnValue = "";
+        });
+
+        document.addEventListener("click", async (event) => {
+            const link = event.target.closest("a[href]");
+            if (!link || !anyDirty()) {
+                return;
+            }
+            if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) {
+                return;
+            }
+            if (link.target === "_blank" || link.hasAttribute("download")) {
+                return;
+            }
+            if (link.closest(".filters-shell, .filter-chips, .confirm-overlay, .toast-stack")) {
+                return;
+            }
+
+            const href = link.getAttribute("href") || "";
+            if (!href || href.startsWith("#") || href.startsWith("javascript:")) {
+                return;
+            }
+
+            // Misma pagina con solo query/hash: permitir (chips, filtros)
+            try {
+                const next = new URL(link.href, window.location.href);
+                if (
+                    next.origin === window.location.origin &&
+                    next.pathname === window.location.pathname
+                ) {
+                    return;
+                }
+            } catch (error) {
+                return;
+            }
+
+            event.preventDefault();
+            event.stopPropagation();
+            const confirmed = await showConfirm({
+                title: "Salir sin guardar",
+                message: "Hay cambios sin guardar. Si sales ahora, se perderan.",
+                confirmLabel: "Salir sin guardar",
+                confirmClass: "btn-warning",
+            });
+            if (!confirmed) {
+                return;
+            }
+            guarded.forEach((item) => {
+                item.dirty = false;
+            });
+            window.location = link.href;
+        }, true);
+    };
+
+    // ---- Topbar: notificaciones / preferencias / atajos ----
+    const initTopbarPanels = () => {
+        const bindPanel = (toggleId, panelId) => {
+            const toggleBtn = document.getElementById(toggleId);
+            const panel = document.getElementById(panelId);
+            if (!toggleBtn || !panel) {
+                return null;
+            }
+            const setOpen = (open) => {
+                panel.hidden = !open;
+                toggleBtn.setAttribute("aria-expanded", open ? "true" : "false");
+            };
+            toggleBtn.addEventListener("click", (event) => {
+                event.stopPropagation();
+                const willOpen = panel.hidden;
+                document.querySelectorAll(".topbar-panel").forEach((other) => {
+                    other.hidden = true;
+                });
+                document.querySelectorAll(".topbar-icon-btn[aria-expanded]").forEach((btn) => {
+                    btn.setAttribute("aria-expanded", "false");
+                });
+                setOpen(willOpen);
+            });
+            return { toggleBtn, panel, setOpen };
+        };
+
+        bindPanel("topbar-notify-toggle", "topbar-notify-panel");
+        bindPanel("topbar-prefs-toggle", "topbar-prefs-panel");
+
+        document.addEventListener("click", (event) => {
+            if (event.target.closest(".topbar-notify, .topbar-prefs")) {
+                return;
+            }
+            document.querySelectorAll(".topbar-panel").forEach((panel) => {
+                panel.hidden = true;
+            });
+            document.querySelectorAll(".topbar-icon-btn[aria-expanded]").forEach((btn) => {
+                btn.setAttribute("aria-expanded", "false");
+            });
+        });
+    };
+
+    const initPreferences = () => {
+        const densitySelect = document.getElementById("pref-density");
+        const sidebarSelect = document.getElementById("pref-sidebar-default");
+        const resetFavsBtn = document.getElementById("pref-reset-favorites");
+
+        const applyDensity = (value) => {
+            document.body.classList.toggle("density-compact", value === "compact");
+        };
+
+        const storedDensity = localStorage.getItem(PREF_DENSITY_KEY) || "comfortable";
+        applyDensity(storedDensity);
+        if (densitySelect) {
+            densitySelect.value = storedDensity;
+            densitySelect.addEventListener("change", () => {
+                localStorage.setItem(PREF_DENSITY_KEY, densitySelect.value);
+                applyDensity(densitySelect.value);
+            });
+        }
+
+        const storedSidebar = localStorage.getItem(PREF_SIDEBAR_KEY) || "expanded";
+        if (sidebarSelect) {
+            sidebarSelect.value = storedSidebar;
+            sidebarSelect.addEventListener("change", () => {
+                localStorage.setItem(PREF_SIDEBAR_KEY, sidebarSelect.value);
+                if (!isMobile() && typeof setSidebarCollapsed === "function") {
+                    const collapse = sidebarSelect.value === "collapsed";
+                    setSidebarCollapsed(collapse);
+                }
+            });
+        }
+
+        if (resetFavsBtn) {
+            resetFavsBtn.addEventListener("click", () => {
+                favoriteIds = DEFAULT_FAVS.filter((id) =>
+                    navLinks.some((link) => link.dataset.navId === id)
+                );
+                saveFavorites();
+                renderFavorites();
+                resetFavsBtn.textContent = "Favoritos restaurados";
+                window.setTimeout(() => {
+                    resetFavsBtn.textContent = "Restaurar favoritos por defecto";
+                }, 1800);
+            });
+        }
+    };
+
+    const initShortcutsPanel = () => {
+        const overlay = document.getElementById("shortcuts-overlay");
+        const openBtn = document.getElementById("topbar-shortcuts-toggle");
+        const closeBtn = document.getElementById("shortcuts-close");
+        if (!overlay) {
+            return;
+        }
+
+        const setOpen = (open) => {
+            overlay.hidden = !open;
+            document.body.classList.toggle("shortcuts-open", open);
+        };
+
+        openBtn?.addEventListener("click", () => setOpen(true));
+        closeBtn?.addEventListener("click", () => setOpen(false));
+        overlay.addEventListener("click", (event) => {
+            if (event.target === overlay) {
+                setOpen(false);
+            }
+        });
+
+        document.addEventListener("keydown", (event) => {
+            const target = event.target;
+            const inField =
+                target &&
+                (target.tagName === "INPUT" ||
+                    target.tagName === "TEXTAREA" ||
+                    target.tagName === "SELECT" ||
+                    target.isContentEditable);
+
+            if (event.key === "?" && !inField && !event.ctrlKey && !event.metaKey && !event.altKey) {
+                event.preventDefault();
+                setOpen(true);
+            }
+            if (event.key === "Escape" && !overlay.hidden) {
+                setOpen(false);
+            }
+        });
+    };
+
     initToasts();
+    initCollapsibleFilters();
     initFilterChips();
+    initDirtyGuards();
+    initTopbarPanels();
+    initPreferences();
+    initShortcutsPanel();
 })();

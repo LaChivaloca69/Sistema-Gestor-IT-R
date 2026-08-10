@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block title %}Eliminar cobertura{% endblock %}
+
+{% block content %}
+{% include "partials/page_header_open.html" with title="Eliminar cobertura" description="Esta accion no se puede deshacer." %}
+	<a class="btn btn-outline-secondary" href="{% url 'cobertura_list' %}">Volver</a>
+{% include "partials/page_header_close.html" %}
+
+<div class="card border-danger-subtle shadow-sm mx-auto" style="max-width: 640px;">
+	<div class="card-body p-4">
+		<p class="mb-4">
+			Eliminar la cobertura de <strong>{{ object.suplente.username }}</strong>
+			sobre <strong>{{ object.ausente.username }}</strong>
+			({{ object.fecha_inicio }} → {{ object.fecha_fin }})?
+		</p>
+		<form method="post" class="d-flex justify-content-end gap-2">
+			{% csrf_token %}
+			<a class="btn btn-outline-secondary" href="{% url 'cobertura_list' %}">Cancelar</a>
+			<button class="btn btn-danger" type="submit">Eliminar</button>
+		</form>
+	</div>
+</div>
+{% endblock %}

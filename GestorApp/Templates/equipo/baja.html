@@ -4,14 +4,10 @@
 {% block title %}Dar de baja {{ object.codigo_inventario }}{% endblock %}
 
 {% block content %}
-<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-	<div>
-		<p class="eyebrow mb-2">Inventario</p>
-		<h1 class="h3 mb-1">Dar de baja</h1>
-		<p class="text-muted mb-0">{{ object.codigo_inventario }} — baja logica (se conserva el historial).</p>
-	</div>
+{% include "partials/page_header_open.html" with title="Dar de baja" description="Baja logica: se conserva el historial del equipo." %}
 	<a class="btn btn-outline-secondary" href="{% url 'equipo_detail' object.pk %}">Cancelar</a>
-</div>
+{% include "partials/page_header_close.html" %}
+<p class="text-muted mb-3">{{ object.codigo_inventario }}</p>
 
 <div class="card shadow-sm border-0" style="max-width: 640px;">
 	<div class="card-body">

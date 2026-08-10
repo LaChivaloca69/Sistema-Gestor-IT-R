@@ -40,6 +40,91 @@
                 </a>
                 {% endif %}
             </div>
+
+            <div class="topbar-notify" id="topbar-notify">
+                <button
+                    type="button"
+                    class="topbar-icon-btn"
+                    id="topbar-notify-toggle"
+                    aria-expanded="false"
+                    aria-controls="topbar-notify-panel"
+                    title="Notificaciones"
+                >
+                    <i class="bi bi-bell" aria-hidden="true"></i>
+                    {% if nav_notifications_total %}
+                    <span class="topbar-icon-btn__badge">{{ nav_notifications_total }}</span>
+                    {% endif %}
+                </button>
+                <div class="topbar-panel topbar-notify__panel" id="topbar-notify-panel" hidden>
+                    <div class="topbar-panel__header">
+                        <strong>Avisos</strong>
+                        {% if nav_notifications_total %}
+                        <span class="topbar-panel__meta">{{ nav_notifications_total }}</span>
+                        {% endif %}
+                    </div>
+                    {% if nav_notifications %}
+                    <ul class="topbar-notify__list">
+                        {% for item in nav_notifications %}
+                        <li>
+                            <a class="topbar-notify__item topbar-notify__item--{{ item.tone }}" href="{{ item.url }}">
+                                <i class="bi {{ item.icon }}" aria-hidden="true"></i>
+                                <span>{{ item.label }}</span>
+                            </a>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="topbar-panel__empty">Sin avisos por ahora.</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="topbar-prefs" id="topbar-prefs">
+                <button
+                    type="button"
+                    class="topbar-icon-btn"
+                    id="topbar-prefs-toggle"
+                    aria-expanded="false"
+                    aria-controls="topbar-prefs-panel"
+                    title="Preferencias"
+                >
+                    <i class="bi bi-sliders" aria-hidden="true"></i>
+                </button>
+                <div class="topbar-panel topbar-prefs__panel" id="topbar-prefs-panel" hidden>
+                    <div class="topbar-panel__header">
+                        <strong>Preferencias</strong>
+                    </div>
+                    <label class="topbar-prefs__row">
+                        <span>Densidad de tablas</span>
+                        <select id="pref-density" class="form-select form-select-sm">
+                            <option value="comfortable">Comoda</option>
+                            <option value="compact">Compacta</option>
+                        </select>
+                    </label>
+                    <label class="topbar-prefs__row">
+                        <span>Sidebar al iniciar</span>
+                        <select id="pref-sidebar-default" class="form-select form-select-sm">
+                            <option value="expanded">Expandido</option>
+                            <option value="collapsed">Compacto (iconos)</option>
+                        </select>
+                    </label>
+                    <button type="button" class="btn btn-outline-secondary btn-sm w-100" id="pref-reset-favorites">
+                        Restaurar favoritos por defecto
+                    </button>
+                    <p class="topbar-prefs__hint">Las preferencias se guardan en este navegador.</p>
+                </div>
+            </div>
+
+            <button
+                type="button"
+                class="topbar-icon-btn"
+                id="topbar-shortcuts-toggle"
+                title="Atajos de teclado (?)"
+                aria-haspopup="dialog"
+            >
+                <i class="bi bi-keyboard" aria-hidden="true"></i>
+            </button>
+
             <span class="user-chip">{{ user.username }}{% if user_role %} · {{ user_role }}{% endif %}</span>
             <form method="post" action="{% url 'logout' %}">
                 {% csrf_token %}
@@ -51,6 +136,25 @@
             {% endif %}
         </div>
     </header>
+
+    {% if user.is_authenticated %}
+    <div class="shortcuts-overlay" id="shortcuts-overlay" hidden>
+        <div class="shortcuts-dialog" role="dialog" aria-modal="true" aria-labelledby="shortcuts-title">
+            <div class="shortcuts-dialog__header">
+                <h2 id="shortcuts-title">Atajos de teclado</h2>
+                <button type="button" class="shortcuts-dialog__close" id="shortcuts-close" aria-label="Cerrar">&times;</button>
+            </div>
+            <ul class="shortcuts-list">
+                <li><kbd>Ctrl</kbd> <kbd>K</kbd> o <kbd>/</kbd> <span>Buscar modulo (Ir a...)</span></li>
+                <li><kbd>?</kbd> <span>Mostrar este panel de atajos</span></li>
+                <li><kbd>Esc</kbd> <span>Cerrar paneles / drawer movil</span></li>
+                <li><span class="shortcuts-list__label">Estrella en el menu</span> <span>Fijar o quitar favoritos</span></li>
+                <li><span class="shortcuts-list__label">Salir de un form</span> <span>Avisa si hay cambios sin guardar</span></li>
+                <li><span class="shortcuts-list__label">Preferencias</span> <span>Densidad, sidebar y favoritos (icono sliders)</span></li>
+            </ul>
+        </div>
+    </div>
+    {% endif %}
 
     <div class="app-shell {% if not user.is_authenticated %}app-shell--auth{% endif %}" data-sidebar-default="expanded">
         {% if user.is_authenticated %}
@@ -112,6 +216,14 @@
                                 <span class="sidebar-link__text">Mis equipos</span>
                                 <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>
                             </a>
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'solicitud_equipo_list' or request.resolver_match.url_name == 'solicitud_equipo_detail' or request.resolver_match.url_name == 'solicitud_equipo_create' %}active{% endif %}" href="{% url 'solicitud_equipo_list' %}" data-nav-id="solicitudes-equipo" data-nav-label="Solicitudes equipo" title="Solicitudes de equipo{% if nav_badges.solicitudes %} · {{ nav_badges.solicitudes.title }}{% endif %}">
+                                <span class="sidebar-link__icon" aria-hidden="true"><i class="bi bi-clipboard-plus"></i></span>
+                                <span class="sidebar-link__text">Solicitudes</span>
+                                {% if nav_badges.solicitudes %}
+                                <span class="sidebar-badge sidebar-badge--{{ nav_badges.solicitudes.tone }}" title="{{ nav_badges.solicitudes.title }}">{{ nav_badges.solicitudes.count }}</span>
+                                {% endif %}
+                                <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>
+                            </a>
                         </div>
                     </section>
 
@@ -151,6 +263,11 @@
                             <a class="sidebar-link {% if request.resolver_match.url_name == 'answer_list' %}active{% endif %}" href="{% url 'answer_list' %}" data-nav-id="respuestas" data-nav-label="Respuestas answer" title="Respuestas">
                                 <span class="sidebar-link__icon" aria-hidden="true"><i class="bi bi-chat-left-text"></i></span>
                                 <span class="sidebar-link__text">Respuestas</span>
+                                <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>
+                            </a>
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'cobertura_list' or request.resolver_match.url_name == 'cobertura_create' or request.resolver_match.url_name == 'cobertura_update' %}active{% endif %}" href="{% url 'cobertura_list' %}" data-nav-id="coberturas" data-nav-label="Coberturas delegacion suplente" title="Coberturas">
+                                <span class="sidebar-link__icon" aria-hidden="true"><i class="bi bi-people"></i></span>
+                                <span class="sidebar-link__text">Coberturas</span>
                                 <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>
                             </a>
                             {% endif %}
@@ -240,9 +357,9 @@
                                 <span class="sidebar-link__text">Asignaciones</span>
                                 <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>
                             </a>
-                            <a class="sidebar-link {% if request.resolver_match.url_name == 'movimientoequipo_list' %}active{% endif %}" href="{% url 'movimientoequipo_list' %}" data-nav-id="historial" data-nav-label="Historial actividad sistema" title="Historial">
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'movimientoequipo_list' or request.resolver_match.url_name == 'historial_actividad_detail' %}active{% endif %}" href="{% url 'movimientoequipo_list' %}" data-nav-id="historial" data-nav-label="Auditoria historial actividad sistema" title="Auditoria">
                                 <span class="sidebar-link__icon" aria-hidden="true"><i class="bi bi-clock-history"></i></span>
-                                <span class="sidebar-link__text">Historial</span>
+                                <span class="sidebar-link__text">Auditoria</span>
                                 <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>
                             </a>
                         </div>
@@ -303,6 +420,11 @@
                             <a class="sidebar-link {% if request.resolver_match.url_name == 'historial_retencion_admin' %}active{% endif %}" href="{% url 'historial_retencion_admin' %}" data-nav-id="archivar" data-nav-label="Archivar purgar retencion historial" title="Archivar">
                                 <span class="sidebar-link__icon" aria-hidden="true"><i class="bi bi-archive"></i></span>
                                 <span class="sidebar-link__text">Archivar</span>
+                                <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>
+                            </a>
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'permisos_matriz' %}active{% endif %}" href="{% url 'permisos_matriz' %}" data-nav-id="matriz-permisos" data-nav-label="Matriz de permisos roles" title="Matriz de permisos">
+                                <span class="sidebar-link__icon" aria-hidden="true"><i class="bi bi-table"></i></span>
+                                <span class="sidebar-link__text">Matriz permisos</span>
                                 <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>
                             </a>
                         </div>

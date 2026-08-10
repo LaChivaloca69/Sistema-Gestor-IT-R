@@ -3,14 +3,9 @@
 {% block title %}Archivar / Purgar historial{% endblock %}
 
 {% block content %}
-<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-	<div>
-		<p class="eyebrow mb-2">Admin</p>
-		<h1 class="h3 mb-1">Retencion del historial</h1>
-		<p class="text-muted mb-0">Archiva eventos viejos o purgalos de forma permanente segun la politica configurada.</p>
-	</div>
+{% include "partials/page_header_open.html" with title="Retencion del historial" description="Archiva eventos viejos o purgalos de forma permanente segun la politica configurada." %}
 	<a class="btn btn-outline-secondary" href="{% url 'movimientoequipo_list' %}">Ver historial</a>
-</div>
+{% include "partials/page_header_close.html" %}
 
 <div class="row g-3 mb-4">
 	<div class="col-md-3">
@@ -71,6 +66,11 @@
 	<div class="card-body">
 		<p class="eyebrow mb-2">Ejecutar</p>
 		<p class="text-muted">Archivar solo oculta registros. Purgar los elimina de la base de datos y no se pueden recuperar.</p>
+		{% if background_jobs_sync %}
+		<p class="text-muted small">Modo sync activo (<code>BACKGROUND_JOBS_SYNC</code>): la accion corre en este request.</p>
+		{% else %}
+		<p class="text-muted small">Se encola en background (django-q). Si el worker no esta corriendo, se ejecuta en este request como respaldo.</p>
+		{% endif %}
 
 		<form method="post" class="stack-form" style="max-width: 520px;">
 			{% csrf_token %}
@@ -92,7 +92,7 @@
 			<small class="text-muted">Obligatorio solo si la accion incluye purga.</small>
 
 			<div class="d-flex flex-wrap gap-2 mt-3">
-				<button class="btn btn-primary" type="submit">Ejecutar retencion</button>
+				<button class="btn btn-primary" type="submit">Encolar / ejecutar retencion</button>
 				<a class="btn btn-outline-secondary" href="{% url 'movimientoequipo_list' %}?estado=archivado">Ver archivados</a>
 			</div>
 		</form>

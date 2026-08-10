@@ -3,21 +3,9 @@
 {% block title %}Ordenes de compra{% endblock %}
 
 {% block content %}
-
-<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-	<div>
-		<p class="eyebrow mb-2">Compras</p>
-		<h1 class="h3 mb-1">Ordenes de compra</h1>
-		<p class="text-muted mb-0">
-			{% if solo_propias %}
-			Solo ves y gestionas las ordenes elaboradas por ti.
-			{% else %}
-			Control y registro de ordenes de compra.
-			{% endif %}
-		</p>
-	</div>
+{% include "partials/page_header_open.html" with title="Ordenes de compra" description="Control y registro de ordenes de compra segun tu permiso." %}
 	<a class="btn btn-primary" href="{% url 'ordencompra_choose' %}">Nueva orden</a>
-</div>
+{% include "partials/page_header_close.html" %}
 
 <form class="filters" method="get">
 	<div>
@@ -108,9 +96,9 @@
 			</tr>
 			{% empty %}
 			<tr>
-				<td colspan="8" class="text-center text-muted py-4">
-					No hay ordenes.
-					<a href="{% url 'ordencompra_choose' %}">Crear la primera</a>
+				<td colspan="8" class="text-center py-4">
+					{% url 'ordencompra_choose' as empty_action_url %}
+					{% include "partials/empty_state.html" with title="Sin ordenes" description="Registra la primera orden de compra." action_url=empty_action_url action_label="Nueva orden" icon="bi-receipt" compact=1 %}
 				</td>
 			</tr>
 			{% endfor %}

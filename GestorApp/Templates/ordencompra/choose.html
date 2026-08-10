@@ -3,15 +3,9 @@
 {% block title %}Nueva orden de compra{% endblock %}
 
 {% block content %}
-
-<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-	<div>
-		<p class="eyebrow mb-2">Ordenes de compra</p>
-		<h1 class="h3 mb-1">Nueva orden de compra</h1>
-		<p class="text-muted mb-0">Elige como quieres registrar la orden.</p>
-	</div>
+{% include "partials/page_header_open.html" with title="Nueva orden de compra" description="Elige como quieres registrar la orden." %}
 	<a class="btn btn-outline-secondary" href="{% url 'ordencompra_list' %}">Volver</a>
-</div>
+{% include "partials/page_header_close.html" %}
 
 <div class="row g-3">
 	<div class="col-md-6">

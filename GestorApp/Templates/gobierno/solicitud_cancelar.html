@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block title %}Cancelar {{ object.folio }}{% endblock %}
+
+{% block content %}
+{% include "partials/page_header_open.html" with title="Cancelar solicitud" description="La solicitud quedara marcada como Cancelada." %}
+	<a class="btn btn-outline-secondary" href="{% url 'solicitud_equipo_detail' object.pk %}">Volver</a>
+{% include "partials/page_header_close.html" %}
+
+<div class="card shadow-sm border-0 mx-auto" style="max-width: 560px;">
+	<div class="card-body">
+		<p>Cancelar <strong>{{ object.folio }}</strong> — {{ object.titulo }}?</p>
+		<form method="post" class="d-flex justify-content-end gap-2">
+			{% csrf_token %}
+			<a class="btn btn-outline-secondary" href="{% url 'solicitud_equipo_detail' object.pk %}">No</a>
+			<button class="btn btn-danger" type="submit">Si, cancelar</button>
+		</form>
+	</div>
+</div>
+{% endblock %}

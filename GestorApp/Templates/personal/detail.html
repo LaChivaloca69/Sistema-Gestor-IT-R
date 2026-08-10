@@ -3,19 +3,18 @@
 {% block title %}Personal · {{ object.numero_empleado }}{% endblock %}
 
 {% block content %}
-<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-	<div>
-		<p class="eyebrow mb-2">Organizacion</p>
-		<h1 class="h3 mb-1">{{ object.nombre }} {{ object.apellido_paterno }}</h1>
-		<p class="text-muted mb-0">Consulta de personal{% if not can_manage_personal %} (solo lectura){% endif %}.</p>
-	</div>
-	<div class="d-flex gap-2">
-		<a class="btn btn-outline-secondary" href="{% url 'personal_list' %}">Volver</a>
-		{% if can_manage_personal %}
-		<a class="btn btn-primary" href="{% url 'personal_update' object.pk %}">Editar</a>
-		{% endif %}
-	</div>
-</div>
+{% with personal_title=object.nombre|add:" "|add:object.apellido_paterno %}
+{% if can_manage_personal %}
+{% include "partials/page_header_open.html" with title=personal_title description="Consulta y edicion del perfil de personal." %}
+{% else %}
+{% include "partials/page_header_open.html" with title=personal_title description="Consulta de personal (solo lectura)." %}
+{% endif %}
+{% endwith %}
+	<a class="btn btn-outline-secondary" href="{% url 'personal_list' %}">Volver</a>
+	{% if can_manage_personal %}
+	<a class="btn btn-primary" href="{% url 'personal_update' object.pk %}">Editar</a>
+	{% endif %}
+{% include "partials/page_header_close.html" %}
 
 <div class="row g-3">
 	<div class="col-md-6">

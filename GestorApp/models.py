@@ -8,6 +8,13 @@ from django.db import IntegrityError, models
 from django.db.models.signals import post_delete
 from django.dispatch import receiver
 from django.utils import timezone
+
+from .media_security import (
+    equipo_imagen_upload_to,
+    orden_pdf_upload_to,
+    plantilla_archivo_upload_to,
+    ticket_imagen_upload_to,
+)
 # ------------ MODELOS DE AREAS, PUESTOS Y PERSONAL ------------
 
 # Ubicacion
@@ -201,7 +208,7 @@ class Equipo(models.Model):
     # numero de pedimiento es un campo opcional que puede ser nulo o vacío
     Numero_Pedimiento = models.CharField(max_length=15, blank=True, null=True)
     descripcion_equipo = models.CharField(max_length=255, blank=True, null=True)
-    imagen = models.ImageField(upload_to='equipos', blank=True, null=True)
+    imagen = models.ImageField(upload_to=equipo_imagen_upload_to, blank=True, null=True)
     proveedor = models.ForeignKey(Proveedor, on_delete=models.SET_NULL, null=True, blank=True)
     origen_alta = models.CharField(
         max_length=20,
@@ -523,7 +530,7 @@ class TicketIT(models.Model):
     otro_tipo_equipo = models.CharField(max_length=120, blank=True, null=True)
     detalle = models.CharField(max_length=255, blank=True, null=True)
     descripcion = models.TextField()
-    imagen = models.ImageField(upload_to='support', blank=True, null=True)
+    imagen = models.ImageField(upload_to=ticket_imagen_upload_to, blank=True, null=True)
     status = models.CharField(max_length=20, choices=EstadoSupport.choices, default=EstadoSupport.ABIERTO)
 
     class Meta:
@@ -848,7 +855,7 @@ class PlantillaDocumento(models.Model):
     nombre = models.CharField(max_length=150)
     descripcion = models.CharField(max_length=255, blank=True, null=True)
     tipo_archivo = models.CharField(max_length=10, choices=TipoPlantillaDocumento.choices)
-    archivo = models.FileField(upload_to='plantillas_orden_compra')
+    archivo = models.FileField(upload_to=plantilla_archivo_upload_to)
     campos = models.JSONField(default=list, blank=True)
     activo = models.BooleanField(default=True)
     creado_en = models.DateTimeField(auto_now_add=True)
@@ -908,7 +915,7 @@ class OrdenCompra(models.Model):
         choices=EstadoOrdenCompra.choices,
         default=EstadoOrdenCompra.BORRADOR,
     )
-    archivo_pdf = models.FileField(upload_to='ordenes_compra', blank=True, null=True)
+    archivo_pdf = models.FileField(upload_to=orden_pdf_upload_to, blank=True, null=True)
     plantilla = models.ForeignKey(
         PlantillaDocumento,
         on_delete=models.SET_NULL,
@@ -1072,6 +1079,8 @@ class ModuloHistorial(models.TextChoices):
     ORDEN_COMPRA = "orden_compra", "Ordenes de compra"
     BITACORA = "bitacora", "Bitacora"
     SISTEMA = "sistema", "Sistema"
+    GOBIERNO = "gobierno", "Gobierno y roles"
+    SOLICITUD_EQUIPO = "solicitud_equipo", "Solicitudes de equipo"
 
 
 class AccionHistorial(models.TextChoices):
@@ -1137,4 +1146,158 @@ class HistorialActividad(models.Model):
 
     def __str__(self):
         return f"{self.get_modulo_display()} - {self.titulo}"
+
+
+# ------------ GOBIERNO: cobertura y solicitudes de equipo ------------
+
+class CoberturaTickets(models.Model):
+    """Delegacion temporal: el suplente atiende tickets del ausente."""
+
+    ausente = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="coberturas_como_ausente",
+        verbose_name="Tecnico ausente",
+    )
+    suplente = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="coberturas_como_suplente",
+        verbose_name="Suplente",
+    )
+    fecha_inicio = models.DateField()
+    fecha_fin = models.DateField()
+    activa = models.BooleanField(default=True)
+    motivo = models.CharField(max_length=255, blank=True)
+    creado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="coberturas_creadas",
+    )
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-fecha_inicio", "-pk"]
+        verbose_name = "Cobertura de tickets"
+        verbose_name_plural = "Coberturas de tickets"
+
+    def __str__(self):
+        return f"{self.suplente} cubre a {self.ausente} ({self.fecha_inicio} → {self.fecha_fin})"
+
+    def clean(self):
+        if self.ausente_id and self.suplente_id and self.ausente_id == self.suplente_id:
+            raise ValidationError("El ausente y el suplente deben ser personas distintas.")
+        if self.fecha_inicio and self.fecha_fin and self.fecha_fin < self.fecha_inicio:
+            raise ValidationError("La fecha fin no puede ser anterior al inicio.")
+
+    @property
+    def vigente_hoy(self):
+        today = timezone.localdate()
+        return bool(self.activa and self.fecha_inicio <= today <= self.fecha_fin)
+
+
+class EstadoSolicitudEquipo(models.TextChoices):
+    PENDIENTE = "Pendiente", "Pendiente"
+    EN_REVISION = "En revision", "En revision"
+    APROBADA = "Aprobada", "Aprobada"
+    RECHAZADA = "Rechazada", "Rechazada"
+    COMPLETADA = "Completada", "Completada"
+    CANCELADA = "Cancelada", "Cancelada"
+
+
+class UrgenciaSolicitudEquipo(models.TextChoices):
+    BAJA = "Baja", "Baja"
+    MEDIA = "Media", "Media"
+    ALTA = "Alta", "Alta"
+
+
+class SolicitudEquipo(models.Model):
+    FOLIO_PREFIX = "SOL-"
+    FOLIO_WIDTH = 6
+
+    folio = models.CharField(max_length=30, unique=True, blank=True)
+    solicitante = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="solicitudes_equipo",
+    )
+    personal = models.ForeignKey(
+        Personal,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="solicitudes_equipo",
+        help_text="Perfil de personal a quien se asignaria el equipo.",
+    )
+    categoria = models.ForeignKey(
+        CategoriaEquipo,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="solicitudes",
+    )
+    titulo = models.CharField(max_length=160)
+    justificacion = models.TextField()
+    urgencia = models.CharField(
+        max_length=10,
+        choices=UrgenciaSolicitudEquipo.choices,
+        default=UrgenciaSolicitudEquipo.MEDIA,
+    )
+    estado = models.CharField(
+        max_length=20,
+        choices=EstadoSolicitudEquipo.choices,
+        default=EstadoSolicitudEquipo.PENDIENTE,
+        db_index=True,
+    )
+    notas_solicitante = models.CharField(max_length=255, blank=True)
+    notas_it = models.TextField(blank=True)
+    revisado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="solicitudes_equipo_revisadas",
+    )
+    equipo = models.ForeignKey(
+        Equipo,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="solicitudes_origen",
+    )
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    fecha_actualizacion = models.DateTimeField(auto_now=True)
+    fecha_resolucion = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-fecha_creacion", "-pk"]
+        verbose_name = "Solicitud de equipo"
+        verbose_name_plural = "Solicitudes de equipo"
+
+    def __str__(self):
+        return f"{self.folio or 'SOL'} - {self.titulo}"
+
+    def save(self, *args, **kwargs):
+        creating = self.pk is None
+        super().save(*args, **kwargs)
+        if creating and not self.folio:
+            self.folio = f"{self.FOLIO_PREFIX}{self.pk:0{self.FOLIO_WIDTH}d}"
+            super().save(update_fields=["folio"])
+
+    @property
+    def puede_cancelar_solicitante(self):
+        return self.estado in {
+            EstadoSolicitudEquipo.PENDIENTE,
+            EstadoSolicitudEquipo.EN_REVISION,
+        }
+
+    @property
+    def puede_gestionar_it(self):
+        return self.estado in {
+            EstadoSolicitudEquipo.PENDIENTE,
+            EstadoSolicitudEquipo.EN_REVISION,
+            EstadoSolicitudEquipo.APROBADA,
+        }
 

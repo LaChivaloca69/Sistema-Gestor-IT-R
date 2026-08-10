@@ -3,14 +3,9 @@
 {% block title %}Seguimiento{% endblock %}
 
 {% block content %}
-<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-	<div>
-		<p class="eyebrow mb-2">Soporte</p>
-		<h1 class="h3 mb-1">Seguimiento de tickets</h1>
-		<p class="text-muted mb-0">Checks, avances y avisos de proximo seguimiento.</p>
-	</div>
+{% include "partials/page_header_open.html" with title="Seguimiento de tickets" description="Checks, avances y avisos de proximo seguimiento." %}
 	<a class="btn btn-primary" href="{% url 'seguimientoticket_create' %}">Nuevo seguimiento</a>
-</div>
+{% include "partials/page_header_close.html" %}
 
 {% if selected_alerta %}
 <div class="dash-alerts mb-3">
@@ -162,9 +157,9 @@
 			</tr>
 			{% empty %}
 			<tr>
-				<td colspan="9" class="text-center text-muted py-4">
-					No hay seguimientos.
-					<a href="{% url 'seguimientoticket_create' %}">Crear el primero</a>
+				<td colspan="9" class="text-center py-4">
+					{% url 'seguimientoticket_create' as empty_action_url %}
+					{% include "partials/empty_state.html" with title="Sin seguimientos" description="Registra el primer check de ticket." action_url=empty_action_url action_label="Nuevo seguimiento" icon="bi-list-check" compact=1 %}
 				</td>
 			</tr>
 			{% endfor %}

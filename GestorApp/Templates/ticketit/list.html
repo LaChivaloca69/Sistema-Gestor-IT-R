@@ -3,17 +3,32 @@
 {% block title %}Support{% endblock %}
 
 {% block content %}
-<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-	<div>
-		<p class="eyebrow mb-2">Soporte</p>
-		<h1 class="h3 mb-1">Tickets</h1>
-		<p class="text-muted mb-0">Gestion de soporte y requerimientos.</p>
-	</div>
-	<div>
-		<a class="btn btn-outline-secondary" href="{% url 'ticketit_dashboard' %}">Dashboard</a>
-		<a class="btn btn-primary" href="{% url 'ticketit_create' %}">Nuevo ticket</a>
+{% include "partials/page_header_open.html" with title="Tickets" description="Gestion de soporte y requerimientos." %}
+	<a class="btn btn-outline-secondary" href="{% url 'ticketit_dashboard' %}">Dashboard</a>
+	<a class="btn btn-primary" href="{% url 'ticketit_create' %}">Nuevo ticket</a>
+{% include "partials/page_header_close.html" %}
+
+{% if mis_coberturas %}
+<div class="dash-alerts mb-3">
+	<div class="dash-alert dash-alert--info">
+		<div>
+			<strong>Cubriendo a colegas</strong>
+			<p class="mb-0">
+				Hoy atiendes tickets de
+				{% for c in mis_coberturas %}
+					{{ c.ausente.get_full_name|default:c.ausente.username }}{% if not forloop.last %}, {% endif %}
+				{% endfor %}
+				(hasta
+				{% for c in mis_coberturas %}
+					{% if forloop.first %}{{ c.fecha_fin|date:"Y-m-d" }}{% endif %}
+				{% endfor %}).
+				En el filtro <em>Asignados a mi</em> aparecen tambien los suyos.
+			</p>
+		</div>
+		<a class="btn btn-sm btn-outline-secondary" href="{% url 'cobertura_list' %}">Ver coberturas</a>
 	</div>
 </div>
+{% endif %}
 
 {% if selected_alerta or selected_sin_seguimiento %}
 <div class="dash-alerts mb-3">
@@ -198,9 +213,9 @@
 			</tr>
 			{% empty %}
 			<tr>
-				<td colspan="11" class="text-center text-muted py-4">
-					No hay tickets.
-					<a href="{% url 'ticketit_create' %}">Crear el primero</a>
+				<td colspan="11" class="text-center py-4">
+					{% url 'ticketit_create' as empty_action_url %}
+					{% include "partials/empty_state.html" with title="Sin tickets" description="Crea el primero para empezar." action_url=empty_action_url action_label="Nuevo ticket" icon="bi-ticket-perforated" compact=1 %}
 				</td>
 			</tr>
 			{% endfor %}

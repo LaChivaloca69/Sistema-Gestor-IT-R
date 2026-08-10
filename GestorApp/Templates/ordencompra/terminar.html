@@ -4,17 +4,13 @@
 {% block title %}Terminar orden {{ object.folio_orden }}{% endblock %}
 
 {% block content %}
-<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-	<div>
-		<p class="eyebrow mb-2">Ordenes de compra</p>
-		<h1 class="h3 mb-1">Marcar como Terminado</h1>
-		<p class="text-muted mb-0">
-			Orden <strong>{{ object.folio_orden }}</strong>
-			· {{ object.get_origen_display }}
-		</p>
-	</div>
+{% include "partials/page_header_open.html" with title="Marcar como Terminado" description="Confirma el cierre de la orden y las lineas para inventario." %}
 	<a class="btn btn-outline-secondary" href="{% url 'ordencompra_update' object.pk %}">Volver</a>
-</div>
+{% include "partials/page_header_close.html" %}
+<p class="text-muted mb-3">
+	Orden <strong>{{ object.folio_orden }}</strong>
+	· {{ object.get_origen_display }}
+</p>
 
 {% if es_pdf %}
 <div class="alert alert-info">

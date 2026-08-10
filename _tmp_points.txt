@@ -1,0 +1,44 @@
+Con lo ya hecho (sidebar, breadcrumbs, home, paquetes A/B/C), estas son mejoras con más valor real para este Gestor IT:
+
+## Producto / operación
+
+1. **Alertas reales de SLA** — Hoy son solo panel. Email o Teams/WhatsApp cuando un ticket vence o un mantenimiento se atrasa.
+2. **Búsqueda global** — Además de “Ir a módulo”, buscar por folio de ticket, código de equipo, OC o empleado (`Ctrl+K` ampliado).
+3. **Acciones masivas** — En listas: asignar tickets, cambiar estado, exportar selección, archivar.
+4. **QR / etiqueta de equipo** — Generar QR al código de inventario para escanear y abrir el detalle (útil en piso).
+5. **Reportes exportables** — PDF/Excel de inventario, SLA, mantenimientos del mes (además del CSV puntual).
+6. **Calendario iCal / Outlook** — Suscripción a mantenimientos y checks.
+
+## UX pendiente
+
+7. **Unificar `confirm_delete`** — Aún usan eyebrow viejo; alinear con `page_header`.
+8. **Preferencias de usuario** — Densidad de tablas, sidebar siempre compacto, favoritos por defecto.
+9. **Panel de atajos** — Overlay `?` con Ctrl+K, favoritos, salir sin guardar.
+10. **Notificaciones in-app** — Campana con “3 SLA”, “2 mant. vencidos” (reutiliza `nav_badges`).
+
+## Técnico / calidad
+
+11. **Cache de KPIs y badges** — 30–60 s; el home y el menú hacen muchas queries por request.
+12. **Jobs en background** — Retención/archivo de historial y recordatorios con Celery o `django-q`.
+13. **Tests de humo** — Login → home → tickets → detalle → crear equipo.
+14. **Auditoría más clara** — Vista filtrable del historial por módulo/usuario (ya hay modelo).
+15. **Hardening de PDFs/media** — Validación de subidas, límites de tamaño, nombres seguros.
+
+## Roles y gobierno
+
+16. **Matriz de permisos visible** — Página admin “quién puede qué”.
+17. **Delegación / cobertura** — Asignar tickets de un técnico ausente.
+18. **Solicitud de equipo** — Flujo usuario → aprobación IT → alta/asignación.
+
+---
+
+### Si priorizas un siguiente bloque
+
+| Bloque | Incluye | Impacto |
+|--------|---------|---------|
+| **Alertas** | Email/Teams de SLA + campana in-app | Alto en operación diaria |
+| **Búsqueda global** | Folios/códigos en Ctrl+K | Alto, esfuerzo medio |
+| **QR + reportes** | Etiquetas y exports de gerencia | Alto para inventario |
+| **Rendimiento + tests** | Cache KPIs + smoke tests | Estabilidad a medio plazo |
+
+¿Quieres que arranquemos por alertas, búsqueda global, o rendimiento/tests?

@@ -3,21 +3,14 @@
 {% block title %}Equipos{% endblock %}
 
 {% block content %}
-<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-	<div>
-		<p class="eyebrow mb-2">Inventario</p>
-		<h1 class="h3 mb-1">Equipos</h1>
-		<p class="text-muted mb-0">Inventario unitario, estados y ubicacion.</p>
-	</div>
-	<div class="d-flex flex-wrap gap-2">
-		<a class="btn btn-outline-secondary" href="{% url 'equipo_dashboard' %}">Dashboard</a>
-		<a
-			class="btn btn-outline-secondary"
-			href="?export=csv{% for key, value in request.GET.items %}{% if key != 'export' and key != 'page' %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}"
-		>Exportar CSV</a>
-		<a class="btn btn-primary" href="{% url 'equipo_create' %}">Nuevo equipo</a>
-	</div>
-</div>
+{% include "partials/page_header_open.html" with title="Equipos" description="Inventario unitario, estados y ubicacion." %}
+	<a class="btn btn-outline-secondary" href="{% url 'equipo_dashboard' %}">Dashboard</a>
+	<a
+		class="btn btn-outline-secondary"
+		href="?export=csv{% for key, value in request.GET.items %}{% if key != 'export' and key != 'page' %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}"
+	>Exportar CSV</a>
+	<a class="btn btn-primary" href="{% url 'equipo_create' %}">Nuevo equipo</a>
+{% include "partials/page_header_close.html" %}
 
 {% if selected_alerta %}
 <div class="dash-alerts mb-3">
@@ -216,9 +209,9 @@
 			</tr>
 			{% empty %}
 			<tr>
-				<td colspan="10" class="text-center text-muted py-4">
-					No hay equipos{% if search_query or selected_estado or selected_categoria %} con estos filtros{% endif %}.
-					<a href="{% url 'equipo_create' %}">Crear el primero</a>
+				<td colspan="10" class="text-center py-4">
+					{% url 'equipo_create' as empty_action_url %}
+					{% include "partials/empty_state.html" with title="Sin equipos" description="Registra el primer equipo o ajusta los filtros." action_url=empty_action_url action_label="Nuevo equipo" icon="bi-pc-display" compact=1 %}
 				</td>
 			</tr>
 			{% endfor %}

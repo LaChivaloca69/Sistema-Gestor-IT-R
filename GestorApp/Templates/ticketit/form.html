@@ -4,20 +4,16 @@
 {% block title %}{% if object %}Editar Support{% else %}Nuevo Support{% endif %}{% endblock %}
 
 {% block content %}
-
-<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-	<div>
-		<p class="eyebrow mb-2">Soporte</p>
-		<h1 class="h3 mb-1">{% if object %}Editar Support{% else %}Nuevo Support{% endif %}</h1>
-		<p class="text-muted mb-0">Captura la informacion principal del soporte.</p>
-	</div>
-	<div class="d-flex flex-wrap gap-2">
-		{% if object %}
-			<a class="btn btn-outline-primary" href="{% url 'ticketit_detail' object.pk %}">Ver detalle</a>
-		{% endif %}
-		<a class="btn btn-outline-secondary" href="{% url 'ticketit_list' %}">Volver</a>
-	</div>
-</div>
+{% if object %}
+{% include "partials/page_header_open.html" with title="Editar Support" description="Captura la informacion principal del soporte." %}
+{% else %}
+{% include "partials/page_header_open.html" with title="Nuevo Support" description="Captura la informacion principal del soporte." %}
+{% endif %}
+	{% if object %}
+		<a class="btn btn-outline-primary" href="{% url 'ticketit_detail' object.pk %}">Ver detalle</a>
+	{% endif %}
+	<a class="btn btn-outline-secondary" href="{% url 'ticketit_list' %}">Volver</a>
+{% include "partials/page_header_close.html" %}
 
 {% if object %}
 <div class="d-flex flex-wrap align-items-center gap-2 mb-3">

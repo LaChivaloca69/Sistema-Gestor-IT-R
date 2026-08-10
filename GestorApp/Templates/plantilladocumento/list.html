@@ -3,14 +3,9 @@
 {% block title %}Plantillas{% endblock %}
 
 {% block content %}
-<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-	<div>
-		<p class="eyebrow mb-2">Compras</p>
-		<h1 class="h3 mb-1">Plantillas de orden de compra</h1>
-		<p class="text-muted mb-0">Plantillas Word, Excel o PDF reutilizables.</p>
-	</div>
+{% include "partials/page_header_open.html" with title="Plantillas de orden de compra" description="Plantillas Word, Excel o PDF reutilizables." %}
 	<a class="btn btn-primary" href="{% url 'plantilla_create' %}">Nueva plantilla</a>
-</div>
+{% include "partials/page_header_close.html" %}
 
 <div class="table-responsive">
 	<table class="table table-striped table-hover align-middle">
@@ -54,9 +49,9 @@
 			</tr>
 			{% empty %}
 			<tr>
-				<td colspan="7" class="text-center text-muted py-4">
-					No hay plantillas.
-					<a href="{% url 'plantilla_create' %}">Crear la primera</a>
+				<td colspan="7" class="text-center py-4">
+					{% url 'plantilla_create' as empty_action_url %}
+					{% include "partials/empty_state.html" with title="Sin plantillas" description="Sube la primera plantilla de orden de compra." action_url=empty_action_url action_label="Nueva plantilla" icon="bi-file-earmark-text" compact=1 %}
 				</td>
 			</tr>
 			{% endfor %}

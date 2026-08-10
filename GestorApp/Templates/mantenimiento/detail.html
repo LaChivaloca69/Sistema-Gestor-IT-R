@@ -3,38 +3,31 @@
 {% block title %}{{ object.folio_mantenimiento }}{% endblock %}
 
 {% block content %}
-<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
-	<div>
-		<p class="eyebrow mb-2">Operaciones</p>
-		<h1 class="h3 mb-1">{{ object.folio_mantenimiento }}</h1>
-		<p class="text-muted mb-0">{{ object.equipo }} · {{ object.tipo_mantenimiento }}</p>
-	</div>
-	<div class="d-flex flex-wrap gap-2">
-		<a class="btn btn-outline-secondary" href="{% url 'mantenimiento_list' %}">Volver</a>
-		<a class="btn btn-outline-primary" href="{% url 'mantenimiento_update' object.pk %}">Editar</a>
-		{% if object.puede_iniciar %}
-		<form method="post" action="{% url 'mantenimiento_iniciar' object.pk %}">
-			{% csrf_token %}
-			<button class="btn btn-primary" type="submit">Iniciar</button>
-		</form>
-		{% endif %}
-		{% if object.puede_completar %}
-		<a class="btn btn-primary" href="{% url 'agendamantenimiento_create' %}?mantenimiento={{ object.pk }}">Registrar cierre</a>
-		{% endif %}
-		{% if object.puede_cancelar %}
-		<form method="post" action="{% url 'mantenimiento_cancelar' object.pk %}">
-			{% csrf_token %}
-			<button class="btn btn-outline-danger" type="submit">Cancelar</button>
-		</form>
-		{% endif %}
-		{% if object.puede_reabrir %}
-		<form method="post" action="{% url 'mantenimiento_reabrir' object.pk %}">
-			{% csrf_token %}
-			<button class="btn btn-outline-warning" type="submit">Reabrir</button>
-		</form>
-		{% endif %}
-	</div>
-</div>
+{% include "partials/page_header_open.html" with title=object.folio_mantenimiento description="Detalle del mantenimiento programado o en curso." %}
+	<a class="btn btn-outline-secondary" href="{% url 'mantenimiento_list' %}">Volver</a>
+	<a class="btn btn-outline-primary" href="{% url 'mantenimiento_update' object.pk %}">Editar</a>
+	{% if object.puede_iniciar %}
+	<form method="post" action="{% url 'mantenimiento_iniciar' object.pk %}">
+		{% csrf_token %}
+		<button class="btn btn-primary" type="submit">Iniciar</button>
+	</form>
+	{% endif %}
+	{% if object.puede_completar %}
+	<a class="btn btn-primary" href="{% url 'agendamantenimiento_create' %}?mantenimiento={{ object.pk }}">Registrar cierre</a>
+	{% endif %}
+	{% if object.puede_cancelar %}
+	<form method="post" action="{% url 'mantenimiento_cancelar' object.pk %}">
+		{% csrf_token %}
+		<button class="btn btn-outline-danger" type="submit">Cancelar</button>
+	</form>
+	{% endif %}
+	{% if object.puede_reabrir %}
+	<form method="post" action="{% url 'mantenimiento_reabrir' object.pk %}">
+		{% csrf_token %}
+		<button class="btn btn-outline-warning" type="submit">Reabrir</button>
+	</form>
+	{% endif %}
+{% include "partials/page_header_close.html" %}
 
 <p class="text-muted small mb-3">
 	Flujo:

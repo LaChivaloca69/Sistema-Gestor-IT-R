@@ -9,14 +9,9 @@
 	{% url 'seguimientoticket_list' as back_url %}
 {% endif %}
 
-<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-	<div>
-		<p class="eyebrow mb-2">Confirmacion</p>
-		<h1 class="h3 mb-1">Eliminar seguimiento</h1>
-		<p class="text-muted mb-0">Esta accion no se puede deshacer.</p>
-	</div>
+{% include "partials/page_header_open.html" with title="Eliminar seguimiento" description="Esta accion no se puede deshacer." %}
 	<a class="btn btn-outline-secondary" href="{{ back_url }}">Volver</a>
-</div>
+{% include "partials/page_header_close.html" %}
 
 <div class="card shadow-sm border-0">
 	<div class="card-body">

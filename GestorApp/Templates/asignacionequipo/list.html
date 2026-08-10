@@ -3,14 +3,9 @@
 {% block title %}Asignaciones de equipo{% endblock %}
 
 {% block content %}
-<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-	<div>
-		<p class="eyebrow mb-2">Operaciones</p>
-		<h1 class="h3 mb-1">Asignaciones de equipo</h1>
-		<p class="text-muted mb-0">Gestiona las asignaciones de equipo a personal.</p>
-	</div>
+{% include "partials/page_header_open.html" with title="Asignaciones de equipo" description="Gestiona las asignaciones de equipo a personal." %}
 	<a class="btn btn-primary" href="{% url 'asignacionequipo_create' %}">Asignar equipo</a>
-</div>
+{% include "partials/page_header_close.html" %}
 
 <form class="filters" method="get">
 	<div>
@@ -65,9 +60,9 @@
 			</tr>
 			{% empty %}
 			<tr>
-				<td colspan="6" class="text-center text-muted py-4">
-					No hay asignaciones.
-					<a href="{% url 'asignacionequipo_create' %}">Crear la primera</a>
+				<td colspan="6" class="text-center py-4">
+					{% url 'asignacionequipo_create' as empty_action_url %}
+					{% include "partials/empty_state.html" with title="Sin asignaciones" description="Asigna el primer equipo a un usuario." action_url=empty_action_url action_label="Asignar equipo" icon="bi-person-check" compact=1 %}
 				</td>
 			</tr>
 			{% endfor %}

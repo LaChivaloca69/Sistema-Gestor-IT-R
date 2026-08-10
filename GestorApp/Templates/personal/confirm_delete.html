@@ -3,11 +3,11 @@
 {% block title %}Eliminar Personal{% endblock %}
 
 {% block content %}
-<h1>Eliminar Personal</h1>
+{% include "partials/page_header_open.html" with title="Eliminar personal" description="Esta accion no se puede deshacer." %}
+	<a class="btn btn-outline-secondary" href="{% url 'personal_list' %}">Volver</a>
+{% include "partials/page_header_close.html" %}
+
 <p>Estas seguro que deseas eliminar "{{ object }}"?</p>
-<div class="actions">
-	<a class="btn" href="{% url 'personal_list' %}">Volver</a>
-</div>
 <form method="post">
 	{% csrf_token %}
 	<button class="btn btn-danger" type="submit">Eliminar</button>

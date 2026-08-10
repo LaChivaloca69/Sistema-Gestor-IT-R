@@ -3,19 +3,12 @@
 {% block title %}Movimiento {{ object.pk }}{% endblock %}
 
 {% block content %}
-<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-	<div>
-		<p class="eyebrow mb-2">Inventario · Auditoria</p>
-		<h1 class="h3 mb-1">Movimiento de equipo</h1>
-		<p class="text-muted mb-0">Registro de solo lectura. No se edita ni elimina.</p>
-	</div>
-	<div class="d-flex flex-wrap gap-2">
-		{% if object.equipo_id %}
-		<a class="btn btn-outline-secondary" href="{% url 'equipo_detail' object.equipo_id %}">Ver equipo</a>
-		{% endif %}
-		<a class="btn btn-outline-secondary" href="{% url 'movimientoequipo_registros' %}">Movimientos</a>
-	</div>
-</div>
+{% include "partials/page_header_open.html" with title="Movimiento de equipo" description="Registro de solo lectura. No se edita ni elimina." %}
+	{% if object.equipo_id %}
+	<a class="btn btn-outline-secondary" href="{% url 'equipo_detail' object.equipo_id %}">Ver equipo</a>
+	{% endif %}
+	<a class="btn btn-outline-secondary" href="{% url 'movimientoequipo_registros' %}">Movimientos</a>
+{% include "partials/page_header_close.html" %}
 
 <div class="dash-alerts mb-3">
 	<div class="dash-alert dash-alert--warn">

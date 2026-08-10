@@ -1,6 +1,6 @@
 from .roles import get_user_role, is_administrador, is_operativo, is_tecnico
 from .breadcrumbs import build_breadcrumbs
-from .nav_badges import build_nav_badges
+from .nav_badges import build_nav_badges, build_nav_notifications
 
 
 def roles(request):
@@ -19,5 +19,17 @@ def breadcrumbs(request):
 
 def nav_badges(request):
     user = getattr(request, "user", None)
-    return {"nav_badges": build_nav_badges(user) if user else {}}
+    if not user:
+        return {
+            "nav_badges": {},
+            "nav_notifications": [],
+            "nav_notifications_total": 0,
+        }
+    badges = build_nav_badges(user)
+    notifications, total = build_nav_notifications(user, badges=badges)
+    return {
+        "nav_badges": badges,
+        "nav_notifications": notifications,
+        "nav_notifications_total": total,
+    }
 

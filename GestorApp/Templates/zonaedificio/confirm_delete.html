@@ -3,10 +3,12 @@
 {% block title %}Eliminar Zona de edificio{% endblock %}
 
 {% block content %}
+{% include "partials/page_header_open.html" with title="Eliminar Zona de edificio" description="Esta accion no se puede deshacer." %}
+	<a class="btn btn-outline-secondary" href="{% url 'zonaedificio_list' %}">Volver</a>
+{% include "partials/page_header_close.html" %}
+
 <div class="card border-danger-subtle shadow-sm mx-auto" style="max-width: 640px;">
 	<div class="card-body p-4">
-		<p class="eyebrow mb-2">Confirmacion</p>
-		<h1 class="h3 mb-3">Eliminar Zona de edificio</h1>
 		<p class="mb-4">Estas seguro que deseas eliminar <strong>"{{ object }}"</strong>?</p>
 		<div class="d-flex justify-content-end gap-2">
 			<a class="btn btn-outline-secondary" href="{% url 'zonaedificio_list' %}">Cancelar</a>
