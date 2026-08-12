@@ -170,6 +170,7 @@
     const RECENT_KEY = "sidebar-recents";
     const PREF_DENSITY_KEY = "pref-density";
     const PREF_SIDEBAR_KEY = "pref-sidebar-default";
+    const PREF_THEME_KEY = "pref-theme";
     const DEFAULT_FAVS = ["tickets", "equipos", "ordenes", "mantenimientos"];
     const RECENT_SKIP = new Set(["home", "calendario"]);
 
@@ -898,11 +899,31 @@
     const initPreferences = () => {
         const densitySelect = document.getElementById("pref-density");
         const sidebarSelect = document.getElementById("pref-sidebar-default");
+        const themeSelect = document.getElementById("pref-theme");
         const resetFavsBtn = document.getElementById("pref-reset-favorites");
 
         const applyDensity = (value) => {
             document.body.classList.toggle("density-compact", value === "compact");
         };
+
+        const applyTheme = (value) => {
+            const dark = value === "dark";
+            document.documentElement.classList.toggle("theme-dark", dark);
+            document.body.classList.toggle("theme-dark", dark);
+            document.documentElement.setAttribute("data-bs-theme", dark ? "dark" : "light");
+            document.body.setAttribute("data-bs-theme", dark ? "dark" : "light");
+            document.dispatchEvent(new CustomEvent("gestor:themechange", { detail: { theme: dark ? "dark" : "light" } }));
+        };
+
+        const storedTheme = localStorage.getItem(PREF_THEME_KEY) || "light";
+        applyTheme(storedTheme);
+        if (themeSelect) {
+            themeSelect.value = storedTheme;
+            themeSelect.addEventListener("change", () => {
+                localStorage.setItem(PREF_THEME_KEY, themeSelect.value);
+                applyTheme(themeSelect.value);
+            });
+        }
 
         const storedDensity = localStorage.getItem(PREF_DENSITY_KEY) || "comfortable";
         applyDensity(storedDensity);

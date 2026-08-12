@@ -5,10 +5,26 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Gestor IT{% endblock %}</title>
+    <script>
+    (function () {
+        try {
+            if (localStorage.getItem("pref-theme") === "dark") {
+                document.documentElement.classList.add("theme-dark");
+                document.documentElement.setAttribute("data-bs-theme", "dark");
+            } else {
+                document.documentElement.setAttribute("data-bs-theme", "light");
+            }
+        } catch (err) { /* ignore */ }
+    })();
+    </script>
     {% bootstrap_css %}
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <link rel="stylesheet" href="{% static 'GestorApp/css/app.css' %}">
+    <link rel="stylesheet" href="{% static 'GestorApp/css/app.css' %}?v=ui85">
     {% block extra_css %}{% endblock %}
+    <link rel="stylesheet" href="{% static 'GestorApp/css/theme-dark.css' %}?v=dark4">
 </head>
 <body class="app-body">
     <form id="csrf-token" class="d-none">
@@ -95,6 +111,13 @@
                         <strong>Preferencias</strong>
                     </div>
                     <label class="topbar-prefs__row">
+                        <span>Apariencia</span>
+                        <select id="pref-theme" class="form-select form-select-sm">
+                            <option value="light">Clara</option>
+                            <option value="dark">Oscura</option>
+                        </select>
+                    </label>
+                    <label class="topbar-prefs__row">
                         <span>Densidad de tablas</span>
                         <select id="pref-density" class="form-select form-select-sm">
                             <option value="comfortable">Comoda</option>
@@ -150,7 +173,7 @@
                 <li><kbd>Esc</kbd> <span>Cerrar paneles / drawer movil</span></li>
                 <li><span class="shortcuts-list__label">Estrella en el menu</span> <span>Fijar o quitar favoritos</span></li>
                 <li><span class="shortcuts-list__label">Salir de un form</span> <span>Avisa si hay cambios sin guardar</span></li>
-                <li><span class="shortcuts-list__label">Preferencias</span> <span>Densidad, sidebar y favoritos (icono sliders)</span></li>
+                <li><span class="shortcuts-list__label">Preferencias</span> <span>Tema, densidad, sidebar y favoritos (icono sliders)</span></li>
             </ul>
         </div>
     </div>
@@ -457,6 +480,6 @@
 
     {% block extra_js %}{% endblock %}
     {% bootstrap_javascript %}
-    <script src="{% static 'GestorApp/js/app.js' %}"></script>
+    <script src="{% static 'GestorApp/js/app.js' %}?v=theme2"></script>
 </body>
 </html>

@@ -15,14 +15,6 @@
 		<h1 class="h3 mb-1">Hola, {{ user.get_full_name|default:user.username }}</h1>
 		<p class="text-muted mb-0">Resumen de lo que necesita atencion hoy.</p>
 	</div>
-	<div class="dash-header__actions">
-		<a class="btn btn-primary" href="{% url 'ticketit_create' %}">Nuevo ticket</a>
-		{% if is_admin_dashboard %}
-		<a class="btn btn-outline-secondary" href="{% url 'movimientoequipo_list' %}">Ver historial</a>
-		{% else %}
-		<a class="btn btn-outline-secondary" href="#calendario">Calendario</a>
-		{% endif %}
-	</div>
 </section>
 
 <section class="kpi-grid">
@@ -61,60 +53,7 @@
 	{% endif %}
 </section>
 
-{% if has_attention_alerts %}
-<section class="dash-alerts dash-alerts--compact" aria-label="Avisos operativos">
-	{% if dashboard_counts.tickets_sla_vencidos %}
-	<a class="dash-alert-chip dash-alert-chip--danger" href="{% url 'ticketit_list' %}?alerta=sla">
-		<strong>{{ dashboard_counts.tickets_sla_vencidos }}</strong> fuera de SLA
-	</a>
-	{% endif %}
-	{% if dashboard_counts.tickets_sin_seguimiento %}
-	<a class="dash-alert-chip dash-alert-chip--warn" href="{% url 'ticketit_list' %}?sin_seguimiento=1">
-		<strong>{{ dashboard_counts.tickets_sin_seguimiento }}</strong> sin seguimiento
-	</a>
-	{% endif %}
-	{% if is_admin_dashboard and equipos_sin_ubicacion_count %}
-	<a class="dash-alert-chip dash-alert-chip--warn" href="{% url 'equipo_list' %}?alerta=sin_ubicacion">
-		<strong>{{ equipos_sin_ubicacion_count }}</strong> sin ubicacion
-	</a>
-	{% endif %}
-	{% if is_admin_dashboard and equipos_mant_largo_count %}
-	<a class="dash-alert-chip dash-alert-chip--warn" href="{% url 'equipo_list' %}?alerta=mant_largo">
-		<strong>{{ equipos_mant_largo_count }}</strong> mant. prolongado
-	</a>
-	{% endif %}
-	{% if is_admin_dashboard and asignaciones_antiguas_count %}
-	<a class="dash-alert-chip dash-alert-chip--warn" href="{% url 'equipo_list' %}?alerta=asignacion_antigua">
-		<strong>{{ asignaciones_antiguas_count }}</strong> asig. antiguas
-	</a>
-	{% endif %}
-	{% if is_admin_dashboard and mantenimientos_vencidos_count %}
-	<a class="dash-alert-chip dash-alert-chip--danger" href="{% url 'mantenimiento_list' %}?alerta=vencidos">
-		<strong>{{ mantenimientos_vencidos_count }}</strong> mant. vencidos
-	</a>
-	{% endif %}
-	{% if is_admin_dashboard and mantenimientos_por_vencer_count %}
-	<a class="dash-alert-chip dash-alert-chip--warn" href="{% url 'mantenimiento_list' %}?alerta=proximos">
-		<strong>{{ mantenimientos_por_vencer_count }}</strong> mant. por vencer
-	</a>
-	{% endif %}
-	{% if is_admin_dashboard and mantenimientos_ciclos_count %}
-	<a class="dash-alert-chip dash-alert-chip--warn" href="{% url 'mantenimiento_list' %}?alerta=ciclos">
-		<strong>{{ mantenimientos_ciclos_count }}</strong> ciclos pendientes
-	</a>
-	{% endif %}
-	{% if is_admin_dashboard and seguimientos_vencidos_count %}
-	<a class="dash-alert-chip dash-alert-chip--danger" href="{% url 'seguimientoticket_list' %}?alerta=vencidos">
-		<strong>{{ seguimientos_vencidos_count }}</strong> checks vencidos
-	</a>
-	{% endif %}
-	{% if is_admin_dashboard and seguimientos_por_vencer_count %}
-	<a class="dash-alert-chip dash-alert-chip--warn" href="{% url 'seguimientoticket_list' %}?alerta=proximos">
-		<strong>{{ seguimientos_por_vencer_count }}</strong> checks por vencer
-	</a>
-	{% endif %}
-</section>
-{% else %}
+{% if not has_attention_alerts %}
 <section class="dash-ok" aria-label="Estado operativo">
 	<i class="bi bi-check-circle" aria-hidden="true"></i>
 	<div>
@@ -124,51 +63,46 @@
 </section>
 {% endif %}
 
-<section class="home-toolbar">
-	<div class="section-block section-block--flush home-toolbar__priorities">
-		<div class="section-block__header">
-			<div>
-				<h2>Prioridad de tickets</h2>
-				<p>Focos de atencion por urgencia.</p>
-			</div>
-			<a class="btn btn-outline-secondary btn-sm" href="{% url 'ticketit_dashboard' %}">Dashboard</a>
-		</div>
-		<div class="ops-stat-list ops-stat-list--grid">
-			{% for item in ticket_dashboard.por_prioridad %}
-			<a class="ops-stat-row" href="{% url 'ticketit_list' %}?prioridad={{ item.value }}">
-				<span class="status-badge status-badge--prio-{{ item.value|slugify }}">{{ item.label }}</span>
-				<strong>{{ item.count }}</strong>
-			</a>
-			{% endfor %}
+<section class="section-block">
+	<div class="section-block__header">
+		<div>
+			<h2>Prioridad de tickets</h2>
+			<p>Focos de atencion por urgencia.</p>
 		</div>
 	</div>
-
-	<div class="section-block section-block--flush home-toolbar__quick">
-		<div class="section-block__header">
-			<div>
-				<h2>Accesos rapidos</h2>
-				<p>Modulos segun tu rol.</p>
-			</div>
-		</div>
-		<div class="quick-grid quick-grid--compact">
-			{% for link in quick_links %}
-			<a class="quick-card" href="{% url link.url_name %}{{ link.anchor|default:'' }}">
-				<span class="quick-card__icon"><i class="bi {{ link.icon|default:'bi-box-arrow-up-right' }}" aria-hidden="true"></i></span>
-				<strong>{{ link.label }}</strong>
-				<small>{{ link.hint }}</small>
-			</a>
-			{% endfor %}
-		</div>
+	<div class="ops-stat-list ops-stat-list--grid">
+		{% for item in ticket_dashboard.por_prioridad %}
+		<a class="ops-stat-row" href="{% url 'ticketit_list' %}?prioridad={{ item.value }}">
+			<span class="status-badge status-badge--prio-{{ item.value|slugify }}">{{ item.label }}</span>
+			<strong>{{ item.count }}</strong>
+		</a>
+		{% endfor %}
 	</div>
 </section>
 
-<section class="section-block" id="calendario">
+<section class="section-block" id="calendario"
+	data-calendar-default-scope="{{ calendar_default_scope|default:'all' }}">
 	<div class="section-block__header">
 		<div>
 			<h2>Calendario operativo</h2>
-			<p>Ventana de {{ calendar_past_days }} dias atras a {{ calendar_future_days }} adelante.</p>
+			<p>
+				Ventana de {{ calendar_past_days }} dias atras a {{ calendar_future_days }} adelante.
+				{% if is_admin_dashboard %}
+				Tickets abiertos se muestran en su <strong>fecha limite SLA</strong>; los checks en la fecha del <strong>proximo seguimiento</strong>.
+				{% else %}
+				Tus tickets se muestran segun su fecha operativa (limite SLA o alta).
+				{% endif %}
+			</p>
 		</div>
 		<div class="calendar-legend">
+			{% if is_admin_dashboard %}
+			<button type="button" class="calendar-chip calendar-chip--mine" data-calendar-scope="mine" aria-pressed="false">
+				Mis asignados{% if calendar_counts.mine %} ({{ calendar_counts.mine }}){% endif %}
+			</button>
+			<button type="button" class="calendar-chip calendar-chip--all" data-calendar-scope="all" aria-pressed="false">
+				Todos{% if calendar_counts.all %} ({{ calendar_counts.all }}){% endif %}
+			</button>
+			{% endif %}
 			<button type="button" class="calendar-chip calendar-chip--tickets" data-calendar-filter="ticket" aria-pressed="false">Tickets{% if calendar_counts.ticket %} ({{ calendar_counts.ticket }}){% endif %}</button>
 			<button type="button" class="calendar-chip calendar-chip--maintenance" data-calendar-filter="mantenimiento" aria-pressed="false">Mantenimientos{% if calendar_counts.mantenimiento %} ({{ calendar_counts.mantenimiento }}){% endif %}</button>
 			<button type="button" class="calendar-chip calendar-chip--checks" data-calendar-filter="seguimiento_ticket" aria-pressed="false">Checks{% if calendar_counts.seguimiento_ticket %} ({{ calendar_counts.seguimiento_ticket }}){% endif %}</button>
@@ -176,7 +110,7 @@
 			<button type="button" class="calendar-chip calendar-chip--ciclo" data-calendar-filter="ciclo" aria-pressed="false">Proximos ciclos{% if calendar_counts.ciclo %} ({{ calendar_counts.ciclo }}){% endif %}</button>
 			<button type="button" class="calendar-chip calendar-chip--movimiento" data-calendar-filter="movimiento" aria-pressed="false">Movimientos{% if calendar_counts.movimiento %} ({{ calendar_counts.movimiento }}){% endif %}</button>
 			{% endif %}
-			<button type="button" class="calendar-chip calendar-chip--clear" data-calendar-filter-clear disabled>Limpiar</button>
+			<button type="button" class="calendar-chip calendar-chip--clear" data-calendar-filter-clear disabled>Limpiar tipo</button>
 		</div>
 	</div>
 	{{ calendar_events|json_script:"home-calendar-events" }}
@@ -187,24 +121,19 @@
 		<div class="calendar-sidebar">
 			<div class="notice-card notice-card--accent">
 				<p><strong>Filtros y urgencia</strong></p>
-				<p>Usa los chips para aislar un tipo. Rojo = vencido · Ambar = por vencer.</p>
+				<p>
+					{% if is_admin_dashboard %}
+					<strong>Mis asignados</strong> = tickets tuyos (y de coberturas), mantenimientos a tu cargo y checks relacionados.
+					{% endif %}
+					Rojo = vencido · Ambar = por vencer.
+				</p>
 				<ul class="calendar-urgency-legend" aria-label="Leyenda de urgencia">
 					<li><span class="calendar-dot calendar-dot--vencido" aria-hidden="true"></span> Vencido{% if calendar_counts.vencido %} ({{ calendar_counts.vencido }}){% endif %}</li>
 					<li><span class="calendar-dot calendar-dot--por-vencer" aria-hidden="true"></span> Por vencer{% if calendar_counts.por_vencer %} ({{ calendar_counts.por_vencer }}){% endif %}</li>
 				</ul>
-			</div>
-			<div class="notice-card">
-				<p><strong>Resumen rapido</strong></p>
-				<ul class="calendar-summary">
-					<li>Tickets activos: {{ dashboard_counts.tickets_abiertos }}</li>
-					{% if is_admin_dashboard %}
-					<li>Mantenimientos por atender: {{ dashboard_counts.mantenimientos_atencion }}</li>
-					<li>Checks por atender: {{ dashboard_counts.seguimientos_atencion }}</li>
-					<li>Proximos ciclos: {{ dashboard_counts.mantenimientos_ciclos }}</li>
-					{% else %}
-					<li>Tus tickets en calendario: {{ calendar_counts.ticket }}</li>
-					{% endif %}
-				</ul>
+				{% if is_admin_dashboard and calendar_coberturas_hoy %}
+				<p class="mb-0 mt-2"><strong>Coberturas hoy:</strong> {{ calendar_coberturas_hoy }} (incluidas en Mis asignados).</p>
+				{% endif %}
 			</div>
 		</div>
 	</div>
@@ -509,6 +438,7 @@
 (function () {
 	const calendarElement = document.getElementById("home-calendar");
 	const dataElement = document.getElementById("home-calendar-events");
+	const calendarSection = document.getElementById("calendario");
 	const modal = document.getElementById("calendar-event-modal");
 	const modalType = document.getElementById("calendar-event-type");
 	const modalUrgency = document.getElementById("calendar-event-urgency");
@@ -517,10 +447,27 @@
 	const modalDetails = document.getElementById("calendar-event-details");
 	const modalLink = document.getElementById("calendar-event-link");
 	const filterButtons = Array.from(document.querySelectorAll("[data-calendar-filter]"));
+	const scopeButtons = Array.from(document.querySelectorAll("[data-calendar-scope]"));
 	const clearFilterButton = document.querySelector("[data-calendar-filter-clear]");
+	const SCOPE_STORAGE_KEY = "gestor_calendar_scope";
+	const defaultScope =
+		(calendarSection && calendarSection.dataset.calendarDefaultScope) || "all";
 	let activeFilter = null;
+	let activeScope = defaultScope;
 	if (!calendarElement || !dataElement || !modal || typeof FullCalendar === "undefined") {
 		return;
+	}
+
+	try {
+		const stored = window.localStorage.getItem(SCOPE_STORAGE_KEY);
+		if (stored === "mine" || stored === "all") {
+			activeScope = stored;
+		}
+	} catch (err) {
+		/* ignore storage errors */
+	}
+	if (!scopeButtons.length) {
+		activeScope = "all";
 	}
 
 	const allEvents = JSON.parse(dataElement.textContent || "[]");
@@ -537,16 +484,27 @@
 	};
 
 	const getVisibleEvents = () => {
-		if (!activeFilter) {
-			return allEvents;
+		let list = allEvents;
+		if (activeScope === "mine") {
+			list = list.filter((event) => Boolean((event.extendedProps || {}).mine));
 		}
-		const allowedTypes = calendarFilterGroups[activeFilter] || [activeFilter];
-		return allEvents.filter((event) => allowedTypes.includes((event.extendedProps || {}).caseType));
+		if (activeFilter) {
+			const allowedTypes = calendarFilterGroups[activeFilter] || [activeFilter];
+			list = list.filter((event) =>
+				allowedTypes.includes((event.extendedProps || {}).caseType)
+			);
+		}
+		return list;
 	};
 
 	const syncFilterState = () => {
 		filterButtons.forEach((button) => {
 			const isActive = button.dataset.calendarFilter === activeFilter;
+			button.classList.toggle("is-active", isActive);
+			button.setAttribute("aria-pressed", String(isActive));
+		});
+		scopeButtons.forEach((button) => {
+			const isActive = button.dataset.calendarScope === activeScope;
 			button.classList.toggle("is-active", isActive);
 			button.setAttribute("aria-pressed", String(isActive));
 		});
@@ -557,6 +515,20 @@
 
 	const applyFilter = (nextFilter) => {
 		activeFilter = nextFilter === activeFilter ? null : nextFilter;
+		syncFilterState();
+		calendar.refetchEvents();
+	};
+
+	const applyScope = (nextScope) => {
+		if (!nextScope || nextScope === activeScope) {
+			return;
+		}
+		activeScope = nextScope;
+		try {
+			window.localStorage.setItem(SCOPE_STORAGE_KEY, activeScope);
+		} catch (err) {
+			/* ignore */
+		}
 		syncFilterState();
 		calendar.refetchEvents();
 	};
@@ -650,6 +622,9 @@
 
 	filterButtons.forEach((button) => {
 		button.addEventListener("click", () => applyFilter(button.dataset.calendarFilter || null));
+	});
+	scopeButtons.forEach((button) => {
+		button.addEventListener("click", () => applyScope(button.dataset.calendarScope || "all"));
 	});
 	if (clearFilterButton) {
 		clearFilterButton.addEventListener("click", () => applyFilter(null));

@@ -1,101 +1,72 @@
+"""Forms de tickets, seguimientos, bitácora y answers."""
 from datetime import datetime
+from decimal import Decimal
 
 from django import forms
 from django.contrib.auth import get_user_model
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from .models import (
+from .. import document_engine
+from ..cobertura import operativo_user_choices
+from ..models import (
+    AccionHistorial,
+    AgendaMantenimiento,
     Answer,
+    Area,
     AsignacionEquipo,
+    Bitacora,
     CategoriaEquipo,
-    EstadoSupport,
+    CoberturaTickets,
+    DetalleOrdenCompra,
+    Edificio,
+    Equipo,
     EstadoAsignacion,
+    EstadoEquipo,
+    EstadoMantenimiento,
+    EstadoOrdenCompra,
+    EstadoSolicitudEquipo,
+    EstadoSupport,
+    IvaOpcion,
+    Mantenimiento,
+    MovimientoEquipo,
+    OrdenCompra,
+    OrigenAltaEquipo,
     Personal,
+    PlantillaDocumento,
+    Proveedor,
+    Puesto,
     SeguimientoTicket,
+    SolicitudEquipo,
     TicketIT,
+    TipoPlantillaDocumento,
+    TipoProveedor,
     Ubicacion,
+    UrgenciaSolicitudEquipo,
     ZonaEdificio,
 )
+from ..roles import (
+    ROLE_ADMIN,
+    ROLE_CHOICES,
+    ROLE_TECNICO,
+    ROLE_USUARIO,
+    get_user_role,
+    is_admin_user,
+    is_operativo,
+    operativo_users_queryset,
+    set_user_role,
+)
+from .common import (  # noqa: F401 — reexportado para vistas
+    _get_personal_active_assignment,
+    _get_user_personal,
+    get_subtipo_ticket_choices,
+    get_tipo_equipo_queryset,
+)
 
-
-def get_subtipo_ticket_choices(tipo_ticket):
-    opciones_por_tipo = {
-        # "HELPDESK": [("SUBTIPO_1", "Subtipo 1"), ("SUBTIPO_2", "Subtipo 2")],
-        "ADMINISTRACION": [("AAF Compartir Archivos", "AAF COMPARTIR ARCHIVOS"), ("Intranet", "INTRANET"), ("Backup/Restore", "BACKUP/RESTORE"), ("Barracuda SPAM FIREWALL", "BARRACUDA SPAM FIREWALL"), 
-                           ("Cadency", "CADENCY"), ("CER", "CER"), ("Impresoras Kónica", "IMPRESORAS KONICA"), ("Administracion LAN", "ADMINISTRACION LAN"), ("Microsoft 365", "MICROSOFT 365"), 
-                           ("Microsoft Teams", "MICROSOFT TEAMS"), ("Mitel", "MITEL"), ("Problemas de Password", "PROBLEMAS DE PASSWORD (DESBLOQUEAR)"), ("Aplicaciones del Teléfono", "APLICACIONES DEL TELEFONO"), 
-                           ("Solicitud de Proyecto", "SOLICITUD DE PROYECTO"), ("Petición de Compra", "PETICION DE COMPRA (HARDWARE/SOFTWARE)"), ("QlikView", "QLICKVIEW"), 
-                           ("DAIKIN CORNERSTONE", "DAIKIN CORNERSTONE"), ("SAP", "SAP"), ("SAP GUIXT", "SAP GUIXT"), ("Seguridad", "SEGURIDAD"), ("Servidores", "SERVIDORES"), ("SharePoint", "SHAREPOINT"), 
-                           ("Trustwave", "TRUSTWAVE"), ("Videoconferencia", "VIDEOCONFERENCIA"), ("Correo de Voz", "CORREO DE VOZ"), ("VPN", "VPN"), ("WINDOWS 10", "WINDOWS 10"), ("WINDOWS SERVER", "WINDOWS SERVER"), 
-                           ("WIRELESS ACCESS POINTS", "WIRELESS ACCES POINTS"), ("Otro", "OTRO")],
-        "BPCS": [("BPCS SEGURIDAD", "BPCS SEGURIDAD"), ("BPCS CAMBIOS", "BPCS CAMBIOS"), ("BPCS PROBLEMAS CON ORDENES", "BPCS PROBLEMAS CON ORDENES"), ("BPCS PROBLEMAS CON IMPRESIONES", "BPCS PROBLEMAS CON IMPRESIONES"), ("OTRO", "OTRO")],
-        "HARDWARE": [("Alarma de seguridad", "ALARMA DE SEGURIDAD"), ("Camaras de Seguridad", "CAMARAS DE SEGURIDAD"), ("Telefono de escritorio", "TELEFONO DE ESCRITORIO"), ("Desktop", "DESKTOP"), 
-                           ("Laptop", "LAPTOP"), ("Mantenimiento", "MANTENIMIENTO"), ("Monitor", "MONITOR"), ("Impresora", "IMPRESORA"), ("Petición de Compra", "PETICION DE COMPRA (HARDWARE/SOFTWARE)"), 
-                           ("Escaner RF", "ESCANER RF"), ("Escaner 1D/2D", "ESCANER 1D/2D"), ("Tablet", "TABLET"), ("Checador", "CHECADOR"), 
-                           ("Reloj", "RELOJ"), ("WIRELESS ACCESS POINTS", "WIRELESS ACCES POINTS"), ("Problemas con equipo", "PROBLEMAS CON EQUIPO"), ("Otro", "OTRO")],
-        "HELPDESK": [("Alarma de seguridad", "ALARMA DE SEGURIDAD"), ("AAF Compartir Archivos", "AAF COMPARTIR ARCHIVOS"), ("ADOBE", "ADOBE"), ("AUTOCAD Software", "AUTOCAD SOFTWARE"), 
-                           ("TRESS Software", "TRESS SOFTWARE"), ("CONTRAQ Software", "CONTRAQ SOFTWARE"), ("Backup/Restore", "BACKUP/RESTORE"), ("Import Software", "IXPORT SOFTWARE"), ("Barracuda SPAM FIREWALL", "BARRACUDA SPAM FIREWALL"), 
-                           ("Copiadora/Equipo Multifuncional", "COPIADORA/EQUIPO MULTIFUNCIONAL"), ("Desktop", "DESKTOP"), ("Hard Drive", "HARD DRIVE"), ("Teclado/Mouse", "TECLADO/MOUSE"), 
-                           ("Laptop", "LAPTOP"), ("Problemas de Password", "PROBLEMAS DE PASSWORD (DESBLOQUEAR)"), ("Impresora", "IMPRESORA"), ("Impresiones", "IMPRESIONES"), 
-                           ("Escaner RF", "ESCANER RF"), ("Escaner 1D/2D", "ESCANER 1D/2D"), ("Videoconferencia", "VIDEO CONFERENCIA"), ("Windows 10", "WINDOWS 10"), ("Internet", "INTERNET"), 
-                           ("Otro", "OTRO")],
-        "TELEFONIA": [("Configuracion", "CONFIGURACION (NUEVO/TERMINACION/CAMBIO)"), ("Telefono Celular", "TELEFONO CELULAR"), ("Tarjeta AT&T", "TARJETA AT&T"), ("Telefono De Escritorio", "TELEFONO DE ESCRITORIO"), 
-                      ("FAX", "FAX"), ("Comunicacion Mitel", "COMUNICACION MITEL"), ("Actualizacion Directorio Telefonico", "ACTUALIZACION DIRECTORIO TELEFONICO"), ("Reemplazo de telefono", "REEMPLAZO DE TELEFONO"), ("Problemas con llamadas", "PROBLEMAS CON LLAMADAS"), 
-                      ("Correo de Voz", "CORREO DE VOZ"), ("Otro", "OTRO")],
-        "SOFTWARE": [("Tienda Web para Empleados", "TIENDA WEB PARA EMPLEADOS"), ("AAF Compartir Archivos", "AAF COMPARTIR ARCHIVOS"), ("Adobe", "ADOBE"), ("Bug/Error en Aplicacion", "BUG/ERROR EN APLICACION"), 
-                           ("Problemas de Datos Aplicacion", "PROBLEMAS DE DATOS APLICACION"), ("AS/400", "AS/400"), ("AUTOCAD Software", "AUTOCAD SOFTWARE"), ("TRESS Software", "TRESS SOFTWARE"), ("CONTRAQ Software", "CONTRAQ SOFTWARE"), 
-                           ("IXPORT SOFTWARE", "IXPORT SOFTWARE"), ("BARRACUDA SPAM FIREWALL", "BARRACUDA SPAM FIREWALL"), ("BPCS ACCESO A CLIENTES", "BPCS ACCESO A CLIENTES"), ("Cadency", "CADENCY"), 
-                           ("CONFIGIT", "CONFIGIT"), ("Portal de Clientes", "PORTAL DE CLIENTES"), ("BPCS", "BPCS"), ("Servicios de Ingenieria", "SERVICIOS DE INGENIERIA"), 
-                           ("FEDEX SHIP MANAGER", "FEDEX SHIP MANAGER"), ("JAVA", "JAVA"), ("Mantenimiento", "MANTENIMIENTO"), ("Microsoft 365", "MICROSOFT 365"), ("Microsoft Excel", "MICROSOFT EXCEL"), ("Microsoft Office", "MICROSOFT OFFICE"), 
-                           ("Microsoft One Note", "MICROSOFT ONE NOTE"), ("Microsoft Power Point", "MICROSOFT POWER POINT"), ("Microsoft Outlook", "MICROSOFT OUTLOOK"), ("Microsoft Project", "MICROSOFT PROJECT"), ("Microsoft Teams", "MICROSOFT TEAMS"), 
-                           ("Microsoft Visio", "MICROSOFT VISIO"), ("Microsoft Word", "MICROSOFT WORD"),("Minitab", "MINITAB"), ("Nueva Aplicacion/Otro", "NUEVA APLICACION/OTRO"), ("Aplicaciones del Telefono", "APLICACIONES DEL TELEFONO"), ("Policies Tech", "POLICIES TECH"), 
-                           ("Impresiones", "IMPRESIONES"), ("QLICKVIEW", "QLICKVIEW"), ("Daikin Cornerstone", "DAIKIN CORNERSTONE"), ("SAP", "SAP"), ("SAP Seguridad", "SAP SEGURIDAD"), ("SAP Mantenimiento de Datos", "SAP MANTENIMIENTO DE DATOS"), ("SAP Forms", "SAP FORMS"), 
-                           ("SAP GUIXT", "SAP GUIXT"), ("SAP Interfaces", "SAP INTERFACES"), ("SAP Reports", "SAP REPORTS"), ("Camaras de Seguridad", "CAMARAS DE SEGURIDAD"), ("SHAREPOINT", "SHAREPOINT"), ("SMOTHIE MAMBO", "SMOPTHIE MAMBO"), 
-                           ("Trustwave", "TRUSTWAVE"), ("Ups Worldship", "UPS WORLDSHIP"), ("FTP", "FTP"), ("VPN", "VPN"), ("Otro", "OTRO")],
-        "MANTENIMIENTO": [
-            ("Preventivo", "PREVENTIVO"),
-            ("Correctivo", "CORRECTIVO"),
-            ("Equipo asignado", "EQUIPO ASIGNADO"),
-            ("Solicitud general", "SOLICITUD GENERAL"),
-            ("Otro", "OTRO"),
-        ],
-    }
-    opciones = opciones_por_tipo.get(tipo_ticket, [])
-    return [("", "---------")] + list(opciones)
-
-
-def get_tipo_equipo_queryset(current_value=None):
-    qs = CategoriaEquipo.objects.filter(activo=True).order_by("nombre_categoria")
-    if current_value and current_value.pk:
-        qs = (CategoriaEquipo.objects.filter(pk=current_value.pk) | qs).distinct()
-    return qs
-
-
-from .roles import is_admin_user, is_operativo, operativo_users_queryset  # noqa: E402
-
-
-def _get_user_personal(user):
-    if not user or not getattr(user, "is_authenticated", False):
-        return None
-    try:
-        return user.personal_profile
-    except Personal.DoesNotExist:
-        return None
-
-
-def _get_personal_active_assignment(personal):
-    if not personal:
-        return None
-    return (
-        AsignacionEquipo.objects.select_related("equipo__categoria")
-        .filter(personal=personal, estado_asignacion=EstadoAsignacion.ACTIVA)
-        .order_by("-fecha_asignacion")
-        .first()
-    )
 
 
 class TicketITForm(forms.ModelForm):
@@ -205,9 +176,11 @@ class TicketITForm(forms.ModelForm):
                 self.fields["tipo_equipo"].help_text = "Favor de comprobar que el tipo de equipo sea correcto."
 
     def clean_imagen(self):
-        from .media_security import validate_image_upload
+        from ..media_security import validate_image_upload
 
         return validate_image_upload(self.cleaned_data.get("imagen"))
+
+    def _parse_client_datetime(self, value):
         if not value:
             return None
 
@@ -248,35 +221,6 @@ class TicketITForm(forms.ModelForm):
             self.save_m2m()
         return instance
 
-
-class UbicacionForm(forms.ModelForm):
-    class Meta:
-        model = Ubicacion
-        fields = "__all__"
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        edificio_id = None
-        if self.data.get("edificio"):
-            edificio_id = self.data.get("edificio")
-        elif self.instance and self.instance.pk:
-            edificio_id = self.instance.edificio_id
-
-        if edificio_id:
-            self.fields["zona"].queryset = ZonaEdificio.objects.filter(
-                edificio_id=edificio_id,
-                activo=True,
-            ).order_by("nombre_zona")
-        else:
-            self.fields["zona"].queryset = ZonaEdificio.objects.none()
-
-    def clean(self):
-        cleaned_data = super().clean()
-        edificio = cleaned_data.get("edificio")
-        zona = cleaned_data.get("zona")
-        if edificio and zona and zona.edificio_id != edificio.id:
-            self.add_error("zona", "La zona debe pertenecer al edificio seleccionado.")
-        return cleaned_data
 
 
 class SeguimientoTicketForm(forms.ModelForm):
@@ -376,54 +320,67 @@ class SeguimientoTicketForm(forms.ModelForm):
         return instance
 
 
+
+
+# =========== Bitacora views =============
+class BitacoraForm(forms.ModelForm):
+    class Meta:
+        model = Bitacora
+        fields = "__all__"
+        labels = {
+            "folio_bitacora": "Folio de bitacora",
+            "fecha_bitacora": "Fecha de bitacora",
+            "Situacion": "Situacion",
+            "descripcion_situacion": "Descripcion de la situacion",
+        }
+        help_texts = {
+            "descripcion_bitacora": "Descripcion",
+            "Situacion": "Problema o situacion que se presenta.",
+        }
+        widgets = {
+            "fecha_bitacora": forms.DateTimeInput(attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M"),
+            "descripcion_situacion": forms.Textarea(attrs={"rows": 4}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        fecha_bitacora = self.fields.get("fecha_bitacora")
+        if fecha_bitacora:
+            fecha_bitacora.widget = forms.DateTimeInput(
+                attrs={"type": "datetime-local"},
+                format="%Y-%m-%dT%H:%M",
+            )
+            fecha_bitacora.input_formats = ["%Y-%m-%dT%H:%M"]
+
+
+
+# =========== Answer views =============
 class AnswerForm(forms.ModelForm):
     class Meta:
         model = Answer
-        fields = [
-            "bitacora",
-            "fecha_answer",
-            "solucion",
-            "descripcion_solucion",
-        ]
+        fields = "__all__"
         labels = {
-            "bitacora": "Bitácora",
-            "fecha_answer": "Fecha de respuesta",
-            "solucion": "Solución",
-            "descripcion_solucion": "Descripción de la solución",
+            "folio_answer": "Folio",
+            "fecha_answer": "Fecha",
+            "solucion": "Solucion",
+            "descripcion_solucion": "Descripcion de la solucion",
+        }
+        help_texts = {
+            "descripcion_answer": "Descripcion",
+            "descripcion_solucion": "Descripcion de la solucion",
+        }
+        widgets = {
+            "fecha_answer": forms.DateTimeInput(attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M"),
+            "descripcion_solucion": forms.Textarea(attrs={"rows": 4}),
         }
 
-
-class UserRegisterForm(UserCreationForm):
-    numero_empleado = forms.CharField(max_length=30, label="Numero de empleado")
-    nombre = forms.CharField(max_length=100, label="Nombre")
-    apellido_paterno = forms.CharField(max_length=100, label="Apellido paterno")
-    apellido_materno = forms.CharField(max_length=100, label="Apellido materno", required=False)
-
-    class Meta:
-        model = User
-        fields = ["username", "password1", "password2"]
-
-    def clean_numero_empleado(self):
-        numero_empleado = self.cleaned_data.get("numero_empleado", "").strip()
-        if Personal.objects.filter(numero_empleado__iexact=numero_empleado).exists():
-            raise forms.ValidationError("El numero de empleado ya esta registrado.")
-        return numero_empleado
-
-    def save(self, commit=True):
-        from .roles import ROLE_USUARIO, set_user_role
-
-        if not commit:
-            return super().save(commit=False)
-
-        with transaction.atomic():
-            user = super().save(commit=True)
-            set_user_role(user, ROLE_USUARIO)
-            Personal.objects.create(
-                user=user,
-                numero_empleado=self.cleaned_data["numero_empleado"],
-                nombre=self.cleaned_data["nombre"],
-                apellido_paterno=self.cleaned_data["apellido_paterno"],
-                apellido_materno=self.cleaned_data.get("apellido_materno") or None,
-                admin_requested=False,
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        fecha_answer = self.fields.get("fecha_answer")
+        if fecha_answer:
+            fecha_answer.widget = forms.DateTimeInput(
+                attrs={"type": "datetime-local"},
+                format="%Y-%m-%dT%H:%M",
             )
-        return user
+            fecha_answer.input_formats = ["%Y-%m-%dT%H:%M"]
+
