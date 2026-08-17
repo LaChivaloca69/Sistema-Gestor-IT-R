@@ -1,6 +1,8 @@
 <header class="page-header">
 	<div class="page-header__copy">
-		<h1 class="page-header__title">{{ title }}</h1>
-		{% if description %}<p class="page-header__desc">{{ description }}</p>{% endif %}
+		<h1 class="page-header__title">
+			{{ title }}{% if description and not description_inline %} {% include "partials/info_hint.html" with text=description %}{% endif %}
+		</h1>
+		{% if description and description_inline %}<p class="page-header__desc">{{ description }}</p>{% endif %}
 	</div>
 	<div class="page-header__actions">

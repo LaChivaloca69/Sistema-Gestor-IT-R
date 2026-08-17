@@ -12,19 +12,15 @@
 	<a class="btn btn-outline-secondary" href="{% url 'plantilla_list' %}">Volver</a>
 {% include "partials/page_header_close.html" %}
 
-<div class="card shadow-sm border-0">
-	<div class="card-body">
-		<form method="post" enctype="multipart/form-data" class="stack-form">
+<form method="post" enctype="multipart/form-data">
 			{% csrf_token %}
 			{{ form.non_field_errors }}
-			{% bootstrap_form form %}
-			<div class="d-flex justify-content-end gap-2 mt-3">
+			{% include "partials/form_fieldset.html" with legend="Plantilla" %}
+			<div class="actions">
 				<a class="btn btn-outline-secondary" href="{% url 'plantilla_list' %}">Cancelar</a>
 				<button class="btn btn-primary" type="submit">Guardar</button>
 			</div>
 		</form>
-	</div>
-</div>
 
 {% if object and object.campos %}
 <div class="card shadow-sm border-0 mt-3">

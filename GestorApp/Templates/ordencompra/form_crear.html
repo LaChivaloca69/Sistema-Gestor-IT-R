@@ -128,8 +128,8 @@
 	{{ formset.management_form }}
 
 	<div class="oc-layout">
-		<div class="card shadow-sm border-0">
-			<div class="card-body">
+		<fieldset class="form-fieldset--block">
+			<legend>Orden de compra</legend>
 				<div class="row g-3">
 					<div class="col-12">
 						<label class="form-label" for="{{ form.plantilla.id_for_label }}">{{ form.plantilla.label }}</label>
@@ -257,12 +257,11 @@
 					</div>
 				</div>
 
-				<div class="d-flex justify-content-end gap-2 mt-4">
+				<div class="actions">
 					<a class="btn btn-outline-secondary" href="{% url 'ordencompra_list' %}">Cancelar</a>
 					<button class="btn btn-primary" type="submit">Guardar y generar PDF</button>
 				</div>
-			</div>
-		</div>
+		</fieldset>
 
 		<aside class="oc-preview">
 			<div class="d-flex justify-content-between align-items-start gap-2 mb-2">

@@ -12,8 +12,7 @@
 <section class="dash-header">
 	<div>
 		<p class="eyebrow mb-2">Panel operativo</p>
-		<h1 class="h3 mb-1">Hola, {{ user.get_full_name|default:user.username }}</h1>
-		<p class="text-muted mb-0">Resumen de lo que necesita atencion hoy.</p>
+		<h1 class="h3 mb-0">Hola, {{ user.get_full_name|default:user.username }}</h1>
 	</div>
 </section>
 
@@ -62,7 +61,7 @@
 	</div>
 </section>
 {% endif %}
-
+<!--
 <section class="section-block">
 	<div class="section-block__header">
 		<div>
@@ -79,20 +78,22 @@
 		{% endfor %}
 	</div>
 </section>
-
+-->
 <section class="section-block" id="calendario"
 	data-calendar-default-scope="{{ calendar_default_scope|default:'all' }}">
 	<div class="section-block__header">
 		<div>
-			<h2>Calendario operativo</h2>
-			<p>
-				Ventana de {{ calendar_past_days }} dias atras a {{ calendar_future_days }} adelante.
-				{% if is_admin_dashboard %}
-				Tickets abiertos se muestran en su <strong>fecha limite SLA</strong>; los checks en la fecha del <strong>proximo seguimiento</strong>.
-				{% else %}
-				Tus tickets se muestran segun su fecha operativa (limite SLA o alta).
-				{% endif %}
-			</p>
+			<h2>
+				Calendario operativo
+				{% include "partials/info_hint_open.html" %}
+					Ventana de {{ calendar_past_days }} dias atras a {{ calendar_future_days }} adelante.
+					{% if is_admin_dashboard %}
+					Tickets abiertos se muestran en su fecha limite SLA; los checks en la fecha del proximo seguimiento.
+					{% else %}
+					Tus tickets se muestran segun su fecha operativa (limite SLA o alta).
+					{% endif %}
+				{% include "partials/info_hint_close.html" %}
+			</h2>
 		</div>
 		<div class="calendar-legend">
 			{% if is_admin_dashboard %}
@@ -158,8 +159,7 @@
 	<div class="section-block dash-panel">
 		<div class="section-block__header">
 			<div>
-				<h2>Tickets activos</h2>
-				<p>Ultimos abiertos o en proceso.</p>
+				<h2>Tickets activos {% include "partials/info_hint.html" with text="Ultimos abiertos o en proceso." %}</h2>
 			</div>
 			<a class="btn btn-outline-secondary btn-sm" href="{% url 'ticketit_list' %}">Ver todos</a>
 		</div>
@@ -191,8 +191,10 @@
 	<div class="section-block dash-panel">
 		<div class="section-block__header">
 			<div>
-				<h2>Seguimientos por atender</h2>
-				<p>Vencidos y proximos {{ seguimientos_alerta_dias }} dias.</p>
+				<h2>
+					Seguimientos por atender
+					{% include "partials/info_hint_open.html" %}Vencidos y proximos {{ seguimientos_alerta_dias }} dias.{% include "partials/info_hint_close.html" %}
+				</h2>
 			</div>
 			<a class="btn btn-outline-secondary btn-sm" href="{% url 'seguimientoticket_list' %}?alerta=atencion">Ver todos</a>
 		</div>
@@ -232,8 +234,7 @@
 	<div class="section-block dash-panel">
 		<div class="section-block__header">
 			<div>
-				<h2>Mantenimientos proximos</h2>
-				<p>Proximos 30 dias.</p>
+				<h2>Mantenimientos proximos {% include "partials/info_hint.html" with text="Proximos 30 dias." %}</h2>
 			</div>
 			<a class="btn btn-outline-secondary btn-sm" href="{% url 'mantenimiento_list' %}">Ver todos</a>
 		</div>
@@ -268,7 +269,7 @@
 	<summary class="home-details__summary">
 		<span>
 			<strong>Inventario y mantenimientos</strong>
-			<small>Listas de atencion operativa</small>
+			{% include "partials/info_hint.html" with text="Listas de atencion operativa" %}
 		</span>
 		<i class="bi bi-chevron-down" aria-hidden="true"></i>
 	</summary>
@@ -276,8 +277,7 @@
 		<section class="section-block">
 			<div class="section-block__header">
 				<div>
-					<h2>Inventario por atender</h2>
-					<p>Sin ubicacion, mantenimiento prolongado y asignaciones antiguas.</p>
+					<h2>Inventario por atender {% include "partials/info_hint.html" with text="Sin ubicacion, mantenimiento prolongado y asignaciones antiguas." %}</h2>
 				</div>
 				<a class="btn btn-outline-secondary btn-sm" href="{% url 'equipo_dashboard' %}">Dashboard</a>
 			</div>
@@ -324,8 +324,10 @@
 		<section class="section-block">
 			<div class="section-block__header">
 				<div>
-					<h2>Mantenimientos por atender</h2>
-					<p>Vencidos, proximos {{ mantenimientos_alerta_dias }} dias y ciclos pendientes.</p>
+					<h2>
+						Mantenimientos por atender
+						{% include "partials/info_hint_open.html" %}Vencidos, proximos {{ mantenimientos_alerta_dias }} dias y ciclos pendientes.{% include "partials/info_hint_close.html" %}
+					</h2>
 				</div>
 				<a class="btn btn-outline-secondary btn-sm" href="{% url 'mantenimiento_dashboard' %}">Dashboard</a>
 			</div>
@@ -380,8 +382,7 @@
 <section class="section-block">
 	<div class="section-block__header">
 		<div>
-			<h2>Actividad reciente</h2>
-			<p>Ultimos movimientos del sistema.</p>
+			<h2>Actividad reciente {% include "partials/info_hint.html" with text="Ultimos movimientos del sistema." %}</h2>
 		</div>
 		<a class="btn btn-outline-secondary btn-sm" href="{% url 'movimientoequipo_list' %}">Ver historial</a>
 	</div>

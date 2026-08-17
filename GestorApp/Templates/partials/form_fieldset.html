@@ -1,0 +1,16 @@
+{% with f=bound_form|default:form %}
+<fieldset>
+	<legend>{{ legend|default:"Datos" }}</legend>
+	{% for field in f.hidden_fields %}{{ field }}{% endfor %}
+	{% for field in f.visible_fields %}
+	<div class="form-row{% if field.field.required %} field-required{% endif %}{% if field.errors %} field-error{% endif %}" id="row-{{ field.name }}">
+		<p>
+			{{ field.label_tag }}
+			{{ field }}
+			{{ field.errors }}
+			{% if field.help_text %}<small class="helptext">{{ field.help_text }}</small>{% endif %}
+		</p>
+	</div>
+	{% endfor %}
+</fieldset>
+{% endwith %}

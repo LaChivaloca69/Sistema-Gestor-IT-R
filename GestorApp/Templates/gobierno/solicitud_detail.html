@@ -4,7 +4,7 @@
 {% block title %}{{ object.folio }}{% endblock %}
 
 {% block content %}
-{% include "partials/page_header_open.html" with title=object.folio description=object.titulo %}
+{% include "partials/page_header_open.html" with title=object.folio description=object.titulo description_inline=1 %}
 	<a class="btn btn-outline-secondary" href="{% url 'solicitud_equipo_list' %}">Volver</a>
 	{% if can_cancel %}
 	<a class="btn btn-outline-danger" href="{% url 'solicitud_equipo_cancelar' object.pk %}">Cancelar solicitud</a>
@@ -55,10 +55,12 @@
 		<div class="ticket-panel__header">
 			<h2 class="h5 mb-0">Revision IT</h2>
 		</div>
-		<form method="post" action="{% url 'solicitud_equipo_revisar' object.pk %}" class="stack-form">
+		<form method="post" action="{% url 'solicitud_equipo_revisar' object.pk %}">
 			{% csrf_token %}
-			{% bootstrap_form revision_form %}
-			<button class="btn btn-primary" type="submit">Guardar revision</button>
+			{% include "partials/form_fieldset.html" with bound_form=revision_form legend="Revision IT" %}
+			<div class="actions">
+				<button class="btn btn-primary" type="submit">Guardar revision</button>
+			</div>
 		</form>
 		<p class="text-muted small mt-3 mb-0">
 			Al <strong>completar</strong> (o aprobar con equipo seleccionado) se intenta asignar el equipo disponible al personal de la solicitud.

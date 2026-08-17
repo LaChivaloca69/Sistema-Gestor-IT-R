@@ -22,13 +22,11 @@
 </div>
 {% endif %}
 
-<div class="card shadow-sm border-0">
-	<div class="card-body">
-		<form method="post" class="stack-form">
+<form method="post">
 			{% csrf_token %}
 			{{ form.non_field_errors }}
-			{% bootstrap_form form %}
-			<div class="d-flex justify-content-end gap-2 mt-3">
+			{% include "partials/form_fieldset.html" with legend="Programacion" %}
+			<div class="actions">
 				{% if object %}
 					<a class="btn btn-outline-secondary" href="{% url 'mantenimiento_detail' object.pk %}">Cancelar</a>
 				{% else %}
@@ -37,8 +35,6 @@
 				<button class="btn btn-primary" type="submit">Guardar</button>
 			</div>
 		</form>
-	</div>
-</div>
 
 <script>
 	(function () {
@@ -47,7 +43,7 @@
 		if (!tecnicoSelect || !proveedorSelect) {
 			return;
 		}
-		var proveedorWrap = proveedorSelect.closest("p") || proveedorSelect.parentElement;
+		var proveedorWrap = proveedorSelect.closest(".mb-3") || proveedorSelect.closest("p") || proveedorSelect.parentElement;
 
 		function toggleProveedor() {
 			var show = tecnicoSelect.value === "Proveedores";

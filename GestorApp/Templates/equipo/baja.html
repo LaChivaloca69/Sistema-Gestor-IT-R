@@ -9,20 +9,16 @@
 {% include "partials/page_header_close.html" %}
 <p class="text-muted mb-3">{{ object.codigo_inventario }}</p>
 
-<div class="card shadow-sm border-0" style="max-width: 640px;">
-	<div class="card-body">
-		<p class="text-muted">
+	<form method="post">
+		{% csrf_token %}
+		<p class="text-muted mb-3">
 			El equipo pasara a estado <strong>Baja</strong>, se marcara inactivo y se cerraran asignaciones activas.
 			No se borra el registro.
 		</p>
-		<form method="post" class="stack-form">
-			{% csrf_token %}
-			{% bootstrap_form form %}
-			<div class="d-flex justify-content-end gap-2 mt-3">
-				<a class="btn btn-outline-secondary" href="{% url 'equipo_detail' object.pk %}">Cancelar</a>
-				<button class="btn btn-danger" type="submit">Confirmar baja</button>
-			</div>
-		</form>
-	</div>
-</div>
+		{% include "partials/form_fieldset.html" with legend="Baja" %}
+		<div class="actions">
+			<a class="btn btn-outline-secondary" href="{% url 'equipo_detail' object.pk %}">Cancelar</a>
+			<button class="btn btn-danger" type="submit">Confirmar baja</button>
+		</div>
+	</form>
 {% endblock %}

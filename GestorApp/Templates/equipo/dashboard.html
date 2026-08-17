@@ -58,8 +58,7 @@
 	<div class="section-block dash-panel">
 		<div class="section-block__header">
 			<div>
-				<h2>Por estado</h2>
-				<p>Distribucion del inventario.</p>
+				<h2>Por estado {% include "partials/info_hint.html" with text="Distribucion del inventario." %}</h2>
 			</div>
 		</div>
 		<div class="ops-stat-list">
@@ -75,8 +74,7 @@
 	<div class="section-block dash-panel">
 		<div class="section-block__header">
 			<div>
-				<h2>Por categoria</h2>
-				<p>Top categorias.</p>
+				<h2>Por categoria {% include "partials/info_hint.html" with text="Top categorias." %}</h2>
 			</div>
 		</div>
 		<div class="ops-stat-list">
@@ -95,8 +93,7 @@
 <section class="section-block mb-4">
 	<div class="section-block__header">
 		<div>
-			<h2>Por ubicacion</h2>
-			<p>Concentracion fisica de equipos.</p>
+			<h2>Por ubicacion {% include "partials/info_hint.html" with text="Concentracion fisica de equipos." %}</h2>
 		</div>
 	</div>
 	<div class="table-responsive">
@@ -133,8 +130,7 @@
 	<div class="section-block dash-panel">
 		<div class="section-block__header">
 			<div>
-				<h2>Sin ubicacion</h2>
-				<p>Activos que requieren lugar fisico.</p>
+				<h2>Sin ubicacion {% include "partials/info_hint.html" with text="Activos que requieren lugar fisico." %}</h2>
 			</div>
 			<a class="btn btn-outline-secondary btn-sm" href="{% url 'equipo_list' %}?alerta=sin_ubicacion">Ver todos</a>
 		</div>
@@ -165,8 +161,10 @@
 	<div class="section-block dash-panel">
 		<div class="section-block__header">
 			<div>
-				<h2>Mant. prolongado</h2>
-				<p>Mas de {{ equipo_dashboard.mant_largo_dias }} dias en mantenimiento.</p>
+				<h2>
+					Mant. prolongado
+					{% include "partials/info_hint_open.html" %}Mas de {{ equipo_dashboard.mant_largo_dias }} dias en mantenimiento.{% include "partials/info_hint_close.html" %}
+				</h2>
 			</div>
 			<a class="btn btn-outline-secondary btn-sm" href="{% url 'equipo_list' %}?alerta=mant_largo">Ver todos</a>
 		</div>
@@ -198,8 +196,10 @@
 <section class="section-block mb-4">
 	<div class="section-block__header">
 		<div>
-			<h2>Asignaciones antiguas</h2>
-			<p>Activas mas de {{ equipo_dashboard.asignacion_alerta_dias }} dias.</p>
+			<h2>
+				Asignaciones antiguas
+				{% include "partials/info_hint_open.html" %}Activas mas de {{ equipo_dashboard.asignacion_alerta_dias }} dias.{% include "partials/info_hint_close.html" %}
+			</h2>
 		</div>
 		<a class="btn btn-outline-secondary btn-sm" href="{% url 'equipo_list' %}?alerta=asignacion_antigua">Ver todos</a>
 	</div>

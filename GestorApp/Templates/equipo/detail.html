@@ -163,8 +163,7 @@
 <section class="section-block mt-4">
 	<div class="section-block__header">
 		<div>
-			<h2>Movimientos recientes</h2>
-			<p>Ultimos cambios de alta, ubicacion, asignacion o mantenimiento.</p>
+			<h2>Movimientos recientes {% include "partials/info_hint.html" with text="Ultimos cambios de alta, ubicacion, asignacion o mantenimiento." %}</h2>
 		</div>
 		<a class="btn btn-outline-secondary btn-sm" href="{% url 'movimientoequipo_registros' %}?equipo={{ object.pk }}">Ver movimientos</a>
 	</div>
@@ -200,8 +199,7 @@
 	<div class="section-block dash-panel">
 		<div class="section-block__header">
 			<div>
-				<h2>Mantenimientos</h2>
-				<p>Historial del equipo.</p>
+				<h2>Mantenimientos {% include "partials/info_hint.html" with text="Historial del equipo." %}</h2>
 			</div>
 			<a class="btn btn-outline-secondary btn-sm" href="{% url 'mantenimiento_list' %}?equipo={{ object.pk }}">Ver</a>
 		</div>
@@ -234,8 +232,7 @@
 	<div class="section-block dash-panel">
 		<div class="section-block__header">
 			<div>
-				<h2>Tickets</h2>
-				<p>Soporte ligado a este equipo.</p>
+				<h2>Tickets {% include "partials/info_hint.html" with text="Soporte ligado a este equipo." %}</h2>
 			</div>
 			<a class="btn btn-outline-secondary btn-sm" href="{% url 'ticketit_list' %}?equipo={{ object.pk }}">Ver</a>
 		</div>
@@ -268,8 +265,7 @@
 <section class="section-block mt-4">
 	<div class="section-block__header">
 		<div>
-			<h2>Historial de asignaciones</h2>
-			<p>Activas, devueltas y extraviadas.</p>
+			<h2>Historial de asignaciones {% include "partials/info_hint.html" with text="Activas, devueltas y extraviadas." %}</h2>
 		</div>
 	</div>
 	<div class="table-responsive">

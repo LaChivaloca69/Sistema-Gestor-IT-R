@@ -15,17 +15,13 @@
 <p class="text-muted mb-3">Codigo interno: <strong>{{ object.codigo_interno }}</strong> (asignado automaticamente).</p>
 {% endif %}
 
-<div class="card shadow-sm border-o">
-	<div class="card-body">
-		<form method="post" Class="stack-form">
-			{% csrf_token %}
-			{{ form.non_field_errors }}
-			{% bootstrap_form form %}
-			<div class="d-flex justify-content-end gap-2 mt-3">
-				<a class="btn btn-outline-secondary" href="{% url 'proveedor_list' %}">Cancelar</a>
-				<button class="btn btn-primary" type="submit">Guardar</button>
-			</div>
-		</form>
+<form method="post">
+	{% csrf_token %}
+	{{ form.non_field_errors }}
+	{% include "partials/form_fieldset.html" with legend="Datos" %}
+	<div class="actions">
+		<a class="btn btn-outline-secondary" href="{% url 'proveedor_list' %}">Cancelar</a>
+		<button class="btn btn-primary" type="submit">Guardar</button>
 	</div>
-</div>
+</form>
 {% endblock %}

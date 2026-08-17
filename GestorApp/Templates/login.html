@@ -7,8 +7,7 @@
 <div class="auth-card">
 	<div class="auth-card__header">
 		<p class="eyebrow">Acceso</p>
-		<h1>Iniciar sesion</h1>
-		<p>Ingresa con tu cuenta para administrar el sistema.</p>
+		<h1>Iniciar sesion {% include "partials/info_hint.html" with text="Ingresa con tu cuenta para administrar el sistema." %}</h1>
 	</div>
 	<form method="post" class="stack-form">
 		{% csrf_token %}

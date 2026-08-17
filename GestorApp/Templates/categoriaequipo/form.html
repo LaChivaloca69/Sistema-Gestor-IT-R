@@ -12,18 +12,14 @@
 	<a class="btn btn-outline-secondary" href="{% url 'categoriaequipo_list' %}">Volver</a>
 {% include "partials/page_header_close.html" %}
 
-<div class="card shadow-sm border-0">
-	<div class="card-body">
-		<form method="post" class="stack-form">
-			{% csrf_token %}
-			{{ form.non_field_errors }}
-			{% bootstrap_form form %}
-			<div class="d-flex justify-content-end gap-2 mt-3">
-				<a class="btn btn-outline-secondary" href="{% url 'categoriaequipo_list' %}">Cancelar</a>
-				<button class="btn btn-primary" type="submit">Guardar</button>
-			</div>
-		</form>
+<form method="post">
+	{% csrf_token %}
+	{{ form.non_field_errors }}
+	{% include "partials/form_fieldset.html" with legend="Datos" %}
+	<div class="actions">
+		<a class="btn btn-outline-secondary" href="{% url 'categoriaequipo_list' %}">Cancelar</a>
+		<button class="btn btn-primary" type="submit">Guardar</button>
 	</div>
-</div>
+</form>
 
 {% endblock %}

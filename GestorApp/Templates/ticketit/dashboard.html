@@ -34,8 +34,7 @@
 <section class="section-block mb-4">
 	<div class="section-block__header">
 		<div>
-			<h2>SLA por prioridad</h2>
-			<p>Tiempo objetivo desde la creacion del ticket.</p>
+			<h2>SLA por prioridad {% include "partials/info_hint.html" with text="Tiempo objetivo desde la creacion del ticket." %}</h2>
 		</div>
 	</div>
 	<div class="table-responsive">
@@ -68,8 +67,7 @@
 	<div class="section-block dash-panel">
 		<div class="section-block__header">
 			<div>
-				<h2>Por estado</h2>
-				<p>Tickets abiertos / en atencion.</p>
+				<h2>Por estado {% include "partials/info_hint.html" with text="Tickets abiertos / en atencion." %}</h2>
 			</div>
 		</div>
 		<div class="ops-stat-list">
@@ -87,8 +85,7 @@
 	<div class="section-block dash-panel">
 		<div class="section-block__header">
 			<div>
-				<h2>Por tipo</h2>
-				<p>Distribucion de tickets activos.</p>
+				<h2>Por tipo {% include "partials/info_hint.html" with text="Distribucion de tickets activos." %}</h2>
 			</div>
 		</div>
 		<div class="ops-stat-list">
@@ -108,8 +105,7 @@
 	<div class="section-block dash-panel">
 		<div class="section-block__header">
 			<div>
-				<h2>SLA vencidos</h2>
-				<p>Requieren atencion inmediata.</p>
+				<h2>SLA vencidos {% include "partials/info_hint.html" with text="Requieren atencion inmediata." %}</h2>
 			</div>
 			<a class="btn btn-outline-secondary btn-sm" href="{% url 'ticketit_list' %}?alerta=sla">Ver todos</a>
 		</div>
@@ -142,8 +138,7 @@
 	<div class="section-block dash-panel">
 		<div class="section-block__header">
 			<div>
-				<h2>Sin seguimiento</h2>
-				<p>Activos sin ningun check.</p>
+				<h2>Sin seguimiento {% include "partials/info_hint.html" with text="Activos sin ningun check." %}</h2>
 			</div>
 			<a class="btn btn-outline-secondary btn-sm" href="{% url 'ticketit_list' %}?sin_seguimiento=1">Ver todos</a>
 		</div>

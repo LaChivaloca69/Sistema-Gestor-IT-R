@@ -54,8 +54,7 @@
 	<div class="section-block dash-panel">
 		<div class="section-block__header">
 			<div>
-				<h2>Por estado</h2>
-				<p>Distribucion de todos los mantenimientos.</p>
+				<h2>Por estado {% include "partials/info_hint.html" with text="Distribucion de todos los mantenimientos." %}</h2>
 			</div>
 		</div>
 		<div class="ops-stat-list">
@@ -71,8 +70,7 @@
 	<div class="section-block dash-panel">
 		<div class="section-block__header">
 			<div>
-				<h2>Por tipo (activos)</h2>
-				<p>Preventivo, correctivo y predictivo abiertos.</p>
+				<h2>Por tipo (activos) {% include "partials/info_hint.html" with text="Preventivo, correctivo y predictivo abiertos." %}</h2>
 			</div>
 		</div>
 		<div class="ops-stat-list">
@@ -91,8 +89,7 @@
 <section class="section-block mb-4">
 	<div class="section-block__header">
 		<div>
-			<h2>Equipos con mas mantenimientos</h2>
-			<p>Historico acumulado.</p>
+			<h2>Equipos con mas mantenimientos {% include "partials/info_hint.html" with text="Historico acumulado." %}</h2>
 		</div>
 	</div>
 	<div class="table-responsive">
@@ -125,8 +122,7 @@
 	<div class="section-block dash-panel">
 		<div class="section-block__header">
 			<div>
-				<h2>Vencidos</h2>
-				<p>Requieren iniciar o cerrar.</p>
+				<h2>Vencidos {% include "partials/info_hint.html" with text="Requieren iniciar o cerrar." %}</h2>
 			</div>
 			<a class="btn btn-outline-secondary btn-sm" href="{% url 'mantenimiento_list' %}?alerta=vencidos">Ver todos</a>
 		</div>
@@ -157,8 +153,7 @@
 	<div class="section-block dash-panel">
 		<div class="section-block__header">
 			<div>
-				<h2>Proximos ciclos</h2>
-				<p>Cierres con proxima fecha pendiente.</p>
+				<h2>Proximos ciclos {% include "partials/info_hint.html" with text="Cierres con proxima fecha pendiente." %}</h2>
 			</div>
 			<a class="btn btn-outline-secondary btn-sm" href="{% url 'mantenimiento_list' %}?alerta=ciclo">Ver todos</a>
 		</div>

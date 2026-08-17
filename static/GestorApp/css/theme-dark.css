@@ -74,6 +74,27 @@ html[data-bs-theme="dark"] body.app-body {
     color: var(--app-text) !important;
 }
 
+html.theme-dark .topbar {
+    background: linear-gradient(
+        135deg,
+        rgba(15, 23, 42, 0.72),
+        rgba(21, 34, 56, 0.68) 55%,
+        rgba(15, 118, 110, 0.62)
+    );
+    box-shadow:
+        0 10px 28px rgba(15, 23, 42, 0.16),
+        0 2px 8px rgba(15, 23, 42, 0.08);
+}
+
+html.theme-dark form fieldset {
+    background: var(--app-surface-alt);
+    border-color: var(--app-border);
+}
+
+html.theme-dark form fieldset legend {
+    color: var(--app-primary);
+}
+
 /* Superficies de la app */
 html.theme-dark .content-card,
 html.theme-dark .sidebar__inner,
@@ -233,6 +254,20 @@ html.theme-dark .page-header__title,
 html.theme-dark strong,
 html.theme-dark .sidebar__title {
     color: #e8eef7 !important;
+}
+
+html.theme-dark .info-hint__mark {
+    color: #fff !important;
+}
+
+html.theme-dark .info-hint__bubble {
+    background: #e8eef7 !important;
+    color: #132238 !important;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4);
+}
+
+html.theme-dark .info-hint__bubble::before {
+    border-bottom-color: #e8eef7;
 }
 
 /* Tablas de listados */

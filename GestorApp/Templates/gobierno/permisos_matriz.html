@@ -3,14 +3,9 @@
 {% block title %}Matriz de permisos{% endblock %}
 
 {% block content %}
-{% include "partials/page_header_open.html" with title="Matriz de permisos" description="Quien puede que en Gestor IT, segun el rol de negocio." %}
+{% include "partials/page_header_open.html" with title="Matriz de permisos" description="Quien puede que en Gestor IT, segun el rol de negocio. Roles: Usuario, Tecnico IT y Administrador (prioridad Admin > Tecnico > Usuario). Esta matriz documenta el comportamiento actual; no modifica permisos." %}
 	<a class="btn btn-outline-secondary" href="{% url 'home' %}">Volver</a>
 {% include "partials/page_header_close.html" %}
-
-<p class="text-muted mb-3">
-	Roles: <strong>Usuario</strong>, <strong>Tecnico IT</strong> y <strong>Administrador</strong>
-	(prioridad Admin &gt; Tecnico &gt; Usuario). Esta matriz documenta el comportamiento actual; no modifica permisos.
-</p>
 
 {% for group in groups %}
 <section class="section-block mb-3">

@@ -24,13 +24,11 @@
 </div>
 {% endif %}
 
-<div class="card shadow-sm border-0">
-	<div class="card-body">
-		<form method="post" class="stack-form">
+<form method="post">
 			{% csrf_token %}
 			{{ form.non_field_errors }}
-			{% bootstrap_form form %}
-			<div class="d-flex justify-content-end gap-2 mt-3">
+			{% include "partials/form_fieldset.html" with legend="Cierre" %}
+			<div class="actions">
 				{% if mantenimiento %}
 					<a class="btn btn-outline-secondary" href="{% url 'mantenimiento_detail' mantenimiento.pk %}">Cancelar</a>
 				{% else %}
@@ -39,6 +37,4 @@
 				<button class="btn btn-primary" type="submit">Guardar cierre</button>
 			</div>
 		</form>
-	</div>
-</div>
 {% endblock %}

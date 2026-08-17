@@ -7,8 +7,7 @@
 <div class="auth-card">
     <div class="auth-card__header">
         <p class="eyebrow">Registro</p>
-        <h1>Crear usuario</h1>
-        <p>Genera una cuenta para entrar al panel.</p>
+        <h1>Crear usuario {% include "partials/info_hint.html" with text="Genera una cuenta para entrar al panel." %}</h1>
     </div>
     <form method="post" class="stack-form">
         {% csrf_token %}

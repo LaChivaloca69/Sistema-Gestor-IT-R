@@ -11,16 +11,12 @@
 	{{ object.codigo_inventario }} · actual: {{ object.ubicacion|default:"Sin ubicacion" }}
 </p>
 
-<div class="card shadow-sm border-0" style="max-width: 640px;">
-	<div class="card-body">
-		<form method="post" class="stack-form">
-			{% csrf_token %}
-			{% bootstrap_form form %}
-			<div class="d-flex justify-content-end gap-2 mt-3">
-				<a class="btn btn-outline-secondary" href="{% url 'equipo_detail' object.pk %}">Cancelar</a>
-				<button class="btn btn-primary" type="submit">Guardar ubicacion</button>
-			</div>
-		</form>
-	</div>
-</div>
+<form method="post">
+		{% csrf_token %}
+		{% include "partials/form_fieldset.html" with legend="Ubicacion" %}
+		<div class="actions">
+			<a class="btn btn-outline-secondary" href="{% url 'equipo_detail' object.pk %}">Cancelar</a>
+			<button class="btn btn-primary" type="submit">Guardar ubicacion</button>
+		</div>
+	</form>
 {% endblock %}
