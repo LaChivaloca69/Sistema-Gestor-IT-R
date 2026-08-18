@@ -635,9 +635,78 @@ def seguimientoticket_delete(request, pk):
         return redirect("seguimientoticket_list")
     return render(request, "seguimientoticket/confirm_delete.html", {"object": seguimiento})
 
+BITACORA_LIST_PAGE_SIZE = 20
+ANSWER_LIST_PAGE_SIZE = 20
+
+
 def bitacora_list(request):
-    items = Bitacora.objects.all()
-    return render(request, "bitacora/list.html", {"items": items})
+    items = Bitacora.objects.annotate(answers_count=Count("answers")).order_by(
+        "-fecha_bitacora", "-pk"
+    )
+    search_query = (request.GET.get("q") or "").strip()
+    if search_query:
+        items = items.filter(
+            Q(folio_bitacora__icontains=search_query)
+            | Q(situacion__icontains=search_query)
+            | Q(descripcion_situacion__icontains=search_query)
+        )
+
+    paginator = Paginator(items, BITACORA_LIST_PAGE_SIZE)
+    page_obj = paginator.get_page(request.GET.get("page"))
+    return render(
+        request,
+        "bitacora/list.html",
+        {
+            "items": page_obj,
+            "page_obj": page_obj,
+            "search_query": search_query,
+            "is_admin_user": is_admin_user(request.user),
+        },
+    )
+
+
+def bitacora_detail(request, pk):
+    bitacora = get_object_or_404(Bitacora, pk=pk)
+    can_manage = is_operativo(request.user)
+    can_delete = is_admin_user(request.user) and bitacora.puede_eliminar
+    answer_form = None
+
+    if can_manage and request.method == "POST" and request.POST.get("form_type") == "answer":
+        answer_form = AnswerForm(
+            request.POST,
+            bitacora=bitacora,
+            request_user=request.user,
+        )
+        if answer_form.is_valid():
+            answer = answer_form.save()
+            historial.registrar_creacion(
+                request,
+                modulo=ModuloHistorial.BITACORA,
+                titulo=f"Respuesta en {bitacora.folio_bitacora}",
+                objeto=answer,
+                entidad_relacionada=bitacora,
+                enlace_nombre="bitacora_detail",
+                enlace_pk=bitacora.pk,
+            )
+            messages.success(request, "Respuesta registrada correctamente.")
+            return redirect("bitacora_detail", pk=bitacora.pk)
+
+    if can_manage and answer_form is None:
+        answer_form = AnswerForm(bitacora=bitacora, request_user=request.user)
+
+    answers = bitacora.answers.select_related("usuario").order_by("-fecha_answer", "-pk")
+    return render(
+        request,
+        "bitacora/detail.html",
+        {
+            "object": bitacora,
+            "answers": answers,
+            "answer_form": answer_form,
+            "can_manage": can_manage,
+            "can_delete": can_delete,
+            "can_delete_answer": is_admin_user(request.user),
+        },
+    )
 
 
 def bitacora_create(request):
@@ -650,10 +719,11 @@ def bitacora_create(request):
                 modulo=ModuloHistorial.BITACORA,
                 titulo=f"Bitacora creada: {bitacora.folio_bitacora}",
                 objeto=bitacora,
-                enlace_nombre="bitacora_update",
+                enlace_nombre="bitacora_detail",
+                enlace_pk=bitacora.pk,
             )
             messages.success(request, "Bitacora creada correctamente.")
-            return redirect("bitacora_list")
+            return redirect("bitacora_detail", pk=bitacora.pk)
     else:
         form = BitacoraForm()
     return render(request, "bitacora/form.html", {"form": form})
@@ -671,10 +741,11 @@ def bitacora_update(request, pk):
                 titulo=f"Bitacora actualizada: {bitacora.folio_bitacora}",
                 objeto=bitacora,
                 form=form,
-                enlace_nombre="bitacora_update",
+                enlace_nombre="bitacora_detail",
+                enlace_pk=bitacora.pk,
             )
             messages.success(request, "Bitacora actualizada correctamente.")
-            return redirect("bitacora_list")
+            return redirect("bitacora_detail", pk=bitacora.pk)
     else:
         form = BitacoraForm(instance=bitacora)
     return render(request, "bitacora/form.html", {"form": form, "object": bitacora})
@@ -683,6 +754,12 @@ def bitacora_update(request, pk):
 def bitacora_delete(request, pk):
     bitacora = get_object_or_404(Bitacora, pk=pk)
     if request.method == "POST":
+        if not bitacora.puede_eliminar:
+            messages.error(
+                request,
+                "No se puede eliminar la bitacora porque tiene respuestas. Elimina las respuestas primero.",
+            )
+            return redirect("bitacora_detail", pk=pk)
         historial.registrar_eliminacion(
             request,
             modulo=ModuloHistorial.BITACORA,
@@ -694,43 +771,133 @@ def bitacora_delete(request, pk):
         return redirect("bitacora_list")
     return render(request, "bitacora/confirm_delete.html", {"object": bitacora})
 
+
 def answer_list(request):
-    items = Answer.objects.all()
-    return render(request, "answer/list.html", {"items": items})
+    items = Answer.objects.select_related("bitacora", "usuario").order_by(
+        "-fecha_answer", "-pk"
+    )
+    search_query = (request.GET.get("q") or "").strip()
+    selected_scope = request.GET.get("scope", "")
+    if search_query:
+        items = items.filter(
+            Q(folio_answer__icontains=search_query)
+            | Q(solucion__icontains=search_query)
+            | Q(descripcion_solucion__icontains=search_query)
+            | Q(bitacora__folio_bitacora__icontains=search_query)
+            | Q(bitacora__situacion__icontains=search_query)
+            | Q(usuario__username__icontains=search_query)
+        )
+    if selected_scope == "mios":
+        items = items.filter(usuario=request.user)
+
+    paginator = Paginator(items, ANSWER_LIST_PAGE_SIZE)
+    page_obj = paginator.get_page(request.GET.get("page"))
+    return render(
+        request,
+        "answer/list.html",
+        {
+            "items": page_obj,
+            "page_obj": page_obj,
+            "search_query": search_query,
+            "selected_scope": selected_scope,
+        },
+    )
 
 
 def answer_create(request):
+    bitacora = None
+    bitacora_id = request.GET.get("bitacora") or request.POST.get("bitacora")
+    if bitacora_id and str(bitacora_id).isdigit():
+        bitacora = Bitacora.objects.filter(pk=int(bitacora_id)).first()
+
     if request.method == "POST":
-        form = AnswerForm(request.POST)
+        form = AnswerForm(
+            request.POST,
+            bitacora=bitacora,
+            request_user=request.user,
+        )
         if form.is_valid():
-            form.save()
-            messages.success(request, "Answer creado correctamente.")
+            answer = form.save()
+            historial.registrar_creacion(
+                request,
+                modulo=ModuloHistorial.BITACORA,
+                titulo=f"Respuesta en {answer.folio_answer or answer.bitacora}",
+                objeto=answer,
+                entidad_relacionada=answer.bitacora,
+                enlace_nombre="bitacora_detail",
+                enlace_pk=answer.bitacora_id,
+            )
+            messages.success(request, "Respuesta creada correctamente.")
+            if answer.bitacora_id:
+                return redirect("bitacora_detail", pk=answer.bitacora_id)
             return redirect("answer_list")
     else:
-        form = AnswerForm()
-    return render(request, "answer/form.html", {"form": form})
+        form = AnswerForm(bitacora=bitacora, request_user=request.user)
+    return render(
+        request,
+        "answer/form.html",
+        {"form": form, "bitacora": bitacora},
+    )
 
 
 def answer_update(request, pk):
-    answer = get_object_or_404(Answer, pk=pk)
+    answer = get_object_or_404(Answer.objects.select_related("bitacora"), pk=pk)
     if request.method == "POST":
-        form = AnswerForm(request.POST, instance=answer)
+        form = AnswerForm(
+            request.POST,
+            instance=answer,
+            bitacora=answer.bitacora,
+            request_user=request.user,
+        )
         if form.is_valid():
-            form.save()
-            messages.success(request, "Answer actualizado correctamente.")
+            answer = form.save()
+            historial.registrar_actualizacion(
+                request,
+                modulo=ModuloHistorial.BITACORA,
+                titulo=f"Respuesta actualizada: {answer.folio_answer or answer.pk}",
+                objeto=answer,
+                form=form,
+                entidad_relacionada=answer.bitacora,
+                enlace_nombre="bitacora_detail",
+                enlace_pk=answer.bitacora_id,
+            )
+            messages.success(request, "Respuesta actualizada correctamente.")
+            if answer.bitacora_id:
+                return redirect("bitacora_detail", pk=answer.bitacora_id)
             return redirect("answer_list")
     else:
-        form = AnswerForm(instance=answer)
-    return render(request, "answer/form.html", {"form": form, "object": answer})
+        form = AnswerForm(
+            instance=answer,
+            bitacora=answer.bitacora,
+            request_user=request.user,
+        )
+    return render(
+        request,
+        "answer/form.html",
+        {"form": form, "object": answer, "bitacora": answer.bitacora},
+    )
 
 
 def answer_delete(request, pk):
     answer = get_object_or_404(Answer, pk=pk)
+    bitacora_pk = answer.bitacora_id
     if request.method == "POST":
+        historial.registrar_eliminacion(
+            request,
+            modulo=ModuloHistorial.BITACORA,
+            titulo=f"Respuesta eliminada: {answer.folio_answer or answer.pk}",
+            objeto=answer,
+        )
         answer.delete()
-        messages.success(request, "Answer eliminado correctamente.")
+        messages.success(request, "Respuesta eliminada correctamente.")
+        if bitacora_pk and request.GET.get("next") == "bitacora":
+            return redirect("bitacora_detail", pk=bitacora_pk)
         return redirect("answer_list")
-    return render(request, "answer/confirm_delete.html", {"object": answer})
+    return render(
+        request,
+        "answer/confirm_delete.html",
+        {"object": answer, "bitacora": answer.bitacora},
+    )
 
 
 # =========== PlantillaDocumento views =============

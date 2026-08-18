@@ -150,7 +150,7 @@
 				{% csrf_token %}
 				<input type="hidden" name="form_type" value="seguimiento">
 				{{ seguimiento_form.non_field_errors }}
-				{% include "partials/form_fieldset.html" with bound_form=seguimiento_form legend="Seguimiento" %}
+				{% include "partials/form_fieldset.html" with form=seguimiento_form legend="Seguimiento" %}
 				<div class="actions">
 					<button class="btn btn-primary" type="submit">Guardar seguimiento</button>
 				</div>

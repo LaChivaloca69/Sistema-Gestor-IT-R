@@ -5,10 +5,13 @@
 
 {% block content %}
 {% if object %}
-{% include "partials/page_header_open.html" with title="Editar bitacora" description="Captura la informacion principal de la bitacora." %}
+{% include "partials/page_header_open.html" with title="Editar bitacora" description="Actualiza la situacion registrada." %}
 {% else %}
-{% include "partials/page_header_open.html" with title="Nueva bitacora" description="Captura la informacion principal de la bitacora." %}
+{% include "partials/page_header_open.html" with title="Nueva bitacora" description="El folio se asigna automaticamente (BIT-000001)." %}
 {% endif %}
+	{% if object %}
+		<a class="btn btn-outline-primary" href="{% url 'bitacora_detail' object.pk %}">Ver detalle</a>
+	{% endif %}
 	<a class="btn btn-outline-secondary" href="{% url 'bitacora_list' %}">Volver</a>
 {% include "partials/page_header_close.html" %}
 
@@ -17,7 +20,11 @@
 	{{ form.non_field_errors }}
 	{% include "partials/form_fieldset.html" with legend="Datos" %}
 	<div class="actions">
-		<a class="btn btn-outline-secondary" href="{% url 'bitacora_list' %}">Cancelar</a>
+		{% if object %}
+			<a class="btn btn-outline-secondary" href="{% url 'bitacora_detail' object.pk %}">Cancelar</a>
+		{% else %}
+			<a class="btn btn-outline-secondary" href="{% url 'bitacora_list' %}">Cancelar</a>
+		{% endif %}
 		<button class="btn btn-primary" type="submit">Guardar</button>
 	</div>
 </form>

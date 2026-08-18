@@ -4,19 +4,25 @@
 
 {% block content %}
 {% include "partials/page_header_open.html" with title="Eliminar bitacora" description="Esta accion no se puede deshacer." %}
-	<a class="btn btn-outline-secondary" href="{% url 'bitacora_list' %}">Volver</a>
+	<a class="btn btn-outline-secondary" href="{% url 'bitacora_detail' object.pk %}">Volver</a>
 {% include "partials/page_header_close.html" %}
 
-<div class="card border-danger-subtle shadow-sm mx-auto" style="max-width: 640px;">
-	<div class="card-body p-4">
-		<p class="mb-4">Estas seguro que deseas eliminar <strong>"{{ object }}"</strong>?</p>
-		<div class="d-flex justify-content-end gap-2">
-			<a class="btn btn-outline-secondary" href="{% url 'bitacora_list' %}">Cancelar</a>
-			<form method="post" class="d-inline">
-				{% csrf_token %}
-				<button class="btn btn-danger" type="submit">Eliminar</button>
-			</form>
-		</div>
+<div class="card shadow-sm border-0">
+	<div class="card-body">
+		{% if object.tiene_respuestas %}
+		<p class="mb-4">
+			No se puede eliminar <strong>{{ object.folio_bitacora }}</strong> porque tiene respuestas.
+			Elimina las respuestas primero.
+		</p>
+		<a class="btn btn-outline-secondary" href="{% url 'bitacora_detail' object.pk %}">Volver a la bitacora</a>
+		{% else %}
+		<p class="mb-4">Estas seguro que deseas eliminar <strong>{{ object.folio_bitacora }}</strong>?</p>
+		<form method="post" class="d-flex flex-wrap gap-2">
+			{% csrf_token %}
+			<a class="btn btn-outline-secondary" href="{% url 'bitacora_detail' object.pk %}">Cancelar</a>
+			<button class="btn btn-danger" type="submit">Eliminar</button>
+		</form>
+		{% endif %}
 	</div>
 </div>
 {% endblock %}

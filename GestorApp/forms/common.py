@@ -128,13 +128,22 @@ def _get_user_personal(user):
 
 
 
-def _get_personal_active_assignment(personal):
+def _get_personal_active_assignments(personal):
     if not personal:
-        return None
+        return AsignacionEquipo.objects.none()
     return (
         AsignacionEquipo.objects.select_related("equipo__categoria")
         .filter(personal=personal, estado_asignacion=EstadoAsignacion.ACTIVA)
         .order_by("-fecha_asignacion")
-        .first()
     )
+
+
+def _get_personal_active_assignment(personal):
+    return _get_personal_active_assignments(personal).first()
+
+
+def _get_personal_active_equipos(personal):
+    return Equipo.objects.filter(
+        pk__in=_get_personal_active_assignments(personal).values("equipo_id")
+    ).order_by("codigo_inventario")
 

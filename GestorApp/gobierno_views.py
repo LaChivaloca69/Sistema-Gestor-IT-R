@@ -11,6 +11,7 @@ from . import historial
 from .cobertura import coberturas_activas_para_suplente
 from .gobierno_forms import (
     CoberturaTicketsForm,
+    SeguimientoSolicitudEquipoForm,
     SolicitudEquipoForm,
     SolicitudEquipoRevisionForm,
 )
@@ -22,11 +23,12 @@ from .models import (
     EstadoSolicitudEquipo,
     ModuloHistorial,
     Personal,
+    SeguimientoSolicitudEquipo,
     SolicitudEquipo,
     TipoMovimiento,
 )
 from .permissions_matrix import matrix_for_template
-from .roles import admin_required, is_operativo, operativo_required
+from .roles import admin_required, is_admin_user, is_operativo, operativo_required
 
 
 # ---- Matriz de permisos ----
@@ -216,11 +218,48 @@ def solicitud_equipo_create(request):
 
 @login_required
 def solicitud_equipo_detail(request, pk):
-    obj = get_object_or_404(_solicitudes_qs_for(request.user), pk=pk)
-    can_manage = is_operativo(request.user) and obj.puede_gestionar_it
+    obj = get_object_or_404(
+        _solicitudes_qs_for(request.user).prefetch_related("seguimientos__usuario"),
+        pk=pk,
+    )
+    is_staff_user = is_operativo(request.user)
+    can_manage = is_staff_user and obj.puede_gestionar_it
+    can_add_seguimiento = can_manage
     revision_form = None
+    seguimiento_form = None
+
+    if can_add_seguimiento and request.method == "POST" and request.POST.get("form_type") == "seguimiento":
+        seguimiento_form = SeguimientoSolicitudEquipoForm(
+            request.POST,
+            solicitud=obj,
+            request_user=request.user,
+        )
+        if seguimiento_form.is_valid():
+            seguimiento = seguimiento_form.save()
+            historial.registrar_historial(
+                request=request,
+                modulo=ModuloHistorial.SOLICITUD_EQUIPO,
+                accion=AccionHistorial.CREACION,
+                titulo=f"Seguimiento en {obj.folio}",
+                objeto=seguimiento,
+                entidad_relacionada=obj,
+                enlace_nombre="solicitud_equipo_detail",
+                enlace_pk=obj.pk,
+            )
+            messages.success(request, "Seguimiento registrado correctamente.")
+            return redirect("solicitud_equipo_detail", pk=obj.pk)
+
     if can_manage:
         revision_form = SolicitudEquipoRevisionForm(solicitud=obj)
+    if can_add_seguimiento and seguimiento_form is None:
+        seguimiento_form = SeguimientoSolicitudEquipoForm(
+            solicitud=obj,
+            request_user=request.user,
+        )
+
+    seguimientos = obj.seguimientos.select_related("usuario").order_by(
+        "-fecha_check", "-pk"
+    )
 
     return render(
         request,
@@ -228,11 +267,16 @@ def solicitud_equipo_detail(request, pk):
         {
             "object": obj,
             "can_manage": can_manage,
+            "can_add_seguimiento": can_add_seguimiento,
+            "can_manage_flow": is_staff_user,
+            "can_delete_seguimiento": is_admin_user(request.user),
             "can_cancel": (
                 obj.solicitante_id == request.user.id and obj.puede_cancelar_solicitante
             ),
             "revision_form": revision_form,
-            "is_staff_user": is_operativo(request.user),
+            "seguimiento_form": seguimiento_form,
+            "seguimientos": seguimientos,
+            "is_staff_user": is_staff_user,
         },
     )
 
@@ -347,7 +391,12 @@ def solicitud_equipo_revisar(request, pk):
         enlace_nombre="solicitud_equipo_detail",
         enlace_pk=obj.pk,
     )
-    messages.success(request, f"Solicitud actualizada a {obj.estado}.")
+    messages.success(
+        request,
+        "Solicitud cerrada."
+        if obj.estado == EstadoSolicitudEquipo.COMPLETADA
+        else f"Solicitud actualizada a {obj.estado}.",
+    )
     if assign_msg:
         messages.success(request, assign_msg)
     return redirect("solicitud_equipo_detail", pk=pk)
@@ -383,4 +432,73 @@ def solicitud_equipo_cancelar(request, pk):
         request,
         "gobierno/solicitud_cancelar.html",
         {"object": obj},
+    )
+
+
+@operativo_required
+def seguimiento_solicitud_update(request, pk):
+    seguimiento = get_object_or_404(
+        SeguimientoSolicitudEquipo.objects.select_related("solicitud", "usuario"),
+        pk=pk,
+    )
+    solicitud = seguimiento.solicitud
+    if request.method == "POST":
+        form = SeguimientoSolicitudEquipoForm(
+            request.POST,
+            instance=seguimiento,
+            solicitud=solicitud,
+            request_user=request.user,
+        )
+        if form.is_valid():
+            form.save()
+            historial.registrar_historial(
+                request=request,
+                modulo=ModuloHistorial.SOLICITUD_EQUIPO,
+                accion=AccionHistorial.ACTUALIZACION,
+                titulo=f"Seguimiento actualizado en {solicitud.folio}",
+                objeto=seguimiento,
+                entidad_relacionada=solicitud,
+                enlace_nombre="solicitud_equipo_detail",
+                enlace_pk=solicitud.pk,
+            )
+            messages.success(request, "Seguimiento actualizado correctamente.")
+            return redirect("solicitud_equipo_detail", pk=solicitud.pk)
+    else:
+        form = SeguimientoSolicitudEquipoForm(
+            instance=seguimiento,
+            solicitud=solicitud,
+            request_user=request.user,
+        )
+    return render(
+        request,
+        "gobierno/seguimiento_solicitud_form.html",
+        {"form": form, "object": seguimiento, "solicitud": solicitud},
+    )
+
+
+@admin_required
+def seguimiento_solicitud_delete(request, pk):
+    seguimiento = get_object_or_404(
+        SeguimientoSolicitudEquipo.objects.select_related("solicitud"),
+        pk=pk,
+    )
+    solicitud = seguimiento.solicitud
+    if request.method == "POST":
+        historial.registrar_historial(
+            request=request,
+            modulo=ModuloHistorial.SOLICITUD_EQUIPO,
+            accion=AccionHistorial.ELIMINACION,
+            titulo=f"Seguimiento eliminado en {solicitud.folio}",
+            objeto=seguimiento,
+            entidad_relacionada=solicitud,
+            enlace_nombre="solicitud_equipo_detail",
+            enlace_pk=solicitud.pk,
+        )
+        seguimiento.delete()
+        messages.success(request, "Seguimiento eliminado correctamente.")
+        return redirect("solicitud_equipo_detail", pk=solicitud.pk)
+    return render(
+        request,
+        "gobierno/seguimiento_solicitud_confirm_delete.html",
+        {"object": seguimiento, "solicitud": solicitud},
     )

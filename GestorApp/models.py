@@ -760,7 +760,10 @@ class SeguimientoTicket(models.Model):
 
 
 class Bitacora(models.Model):
-    folio_bitacora = models.CharField(max_length=30, unique=True)
+    FOLIO_PREFIX = 'BIT-'
+    FOLIO_WIDTH = 6
+
+    folio_bitacora = models.CharField(max_length=30, unique=True, blank=True)
     fecha_bitacora = models.DateTimeField(default=timezone.now)
     situacion = models.CharField(max_length=180)
     descripcion_situacion = models.TextField()
@@ -768,30 +771,74 @@ class Bitacora(models.Model):
     class Meta:
         verbose_name = 'Bitacora'
         verbose_name_plural = 'Bitacora'
+        ordering = ['-fecha_bitacora', '-pk']
+
+    @classmethod
+    def _next_folio_bitacora(cls):
+        folios = cls.objects.filter(
+            folio_bitacora__startswith=cls.FOLIO_PREFIX
+        ).order_by('-folio_bitacora').values_list('folio_bitacora', flat=True)
+
+        for folio in folios:
+            suffix = folio[len(cls.FOLIO_PREFIX):]
+            if suffix.isdigit():
+                next_number = int(suffix) + 1
+                return f'{cls.FOLIO_PREFIX}{next_number:0{cls.FOLIO_WIDTH}d}'
+
+        return f'{cls.FOLIO_PREFIX}{1:0{cls.FOLIO_WIDTH}d}'
+
+    @property
+    def tiene_respuestas(self):
+        return self.answers.exists()
+
+    @property
+    def puede_eliminar(self):
+        return not self.tiene_respuestas
 
     def clean(self):
-        if self.folio_bitacora and not self.folio_bitacora.upper().startswith('BIT-'):
-            raise ValidationError({'folio_bitacora': 'El folio de Bitacora debe iniciar con BIT-.'})
+        if self.folio_bitacora:
+            folio = self.folio_bitacora.upper()
+            if not folio.startswith('BIT-'):
+                raise ValidationError({'folio_bitacora': 'El folio de Bitacora debe iniciar con BIT-.'})
 
     def save(self, *args, **kwargs):
         if self.folio_bitacora:
             self.folio_bitacora = self.folio_bitacora.upper()
-        super().save(*args, **kwargs)
+            super().save(*args, **kwargs)
+            return
+
+        for _ in range(3):
+            self.folio_bitacora = self._next_folio_bitacora()
+            try:
+                super().save(*args, **kwargs)
+                return
+            except IntegrityError:
+                self.folio_bitacora = None
+
+        raise IntegrityError('No se pudo generar un folio unico para Bitacora.')
 
     def __str__(self):
-        return self.folio_bitacora
+        return self.folio_bitacora or 'BIT-'
 
 
 class Answer(models.Model):
     bitacora = models.ForeignKey(Bitacora, on_delete=models.CASCADE, related_name='answers')
-    folio_answer = models.CharField(max_length=30)
+    folio_answer = models.CharField(max_length=30, blank=True)
     fecha_answer = models.DateTimeField(default=timezone.now)
     solucion = models.CharField(max_length=180)
     descripcion_solucion = models.TextField()
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='answers_bitacora',
+    )
 
     class Meta:
         verbose_name = 'Answer'
         verbose_name_plural = 'Answer'
+        ordering = ['-fecha_answer', '-pk']
 
     def clean(self):
         if self.folio_answer and not self.folio_answer.upper().startswith('BIT-'):
@@ -807,7 +854,7 @@ class Answer(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f'{self.folio_answer} - {self.solucion}'
+        return f'{self.folio_answer or "BIT-"} - {self.solucion}'
 
 
 # ------------ MODELOS DE ORDENES DE COMPRA ------------
@@ -1300,4 +1347,59 @@ class SolicitudEquipo(models.Model):
             EstadoSolicitudEquipo.EN_REVISION,
             EstadoSolicitudEquipo.APROBADA,
         }
+
+    @property
+    def esta_cerrada(self):
+        return self.estado in {
+            EstadoSolicitudEquipo.RECHAZADA,
+            EstadoSolicitudEquipo.COMPLETADA,
+            EstadoSolicitudEquipo.CANCELADA,
+        }
+
+
+class SeguimientoSolicitudEquipo(models.Model):
+    solicitud = models.ForeignKey(
+        SolicitudEquipo,
+        on_delete=models.CASCADE,
+        related_name="seguimientos",
+    )
+    fecha_check = models.DateTimeField(default=timezone.now)
+    avance_realizado = models.TextField(blank=True, null=True)
+    pendiente = models.TextField(blank=True, null=True)
+    proximo_paso = models.TextField(blank=True, null=True)
+    fecha_proximo_seguimiento = models.DateField(blank=True, null=True)
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="seguimientos_solicitud_equipo",
+    )
+    solucion = models.TextField(blank=True, default="")
+    observacion = models.TextField(blank=True, null=True)
+    ya_terminado = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["-fecha_check", "-pk"]
+        verbose_name = "Seguimiento de solicitud"
+        verbose_name_plural = "Seguimientos de solicitud"
+
+    def __str__(self):
+        folio = self.solicitud.folio if self.solicitud_id else "SOL"
+        return f"{folio} · {self.fecha_check}"
+
+    def clean(self):
+        if self.ya_terminado and not (self.solucion or "").strip():
+            raise ValidationError(
+                {"solucion": "Indica la solucion al concluir el seguimiento."}
+            )
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        if (
+            self.solicitud_id
+            and self.solicitud.estado == EstadoSolicitudEquipo.PENDIENTE
+        ):
+            self.solicitud.estado = EstadoSolicitudEquipo.EN_REVISION
+            self.solicitud.save(update_fields=["estado", "fecha_actualizacion"])
 

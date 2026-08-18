@@ -2,8 +2,23 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
-from GestorApp.models import CategoriaEquipo, HistorialActividad, ModuloHistorial, TicketIT
-from GestorApp.roles import ROLE_ADMIN, ROLE_TECNICO, ensure_role_groups, set_user_role
+from GestorApp.models import (
+    Answer,
+    AsignacionEquipo,
+    Bitacora,
+    CategoriaEquipo,
+    Equipo,
+    EstadoAsignacion,
+    EstadoEquipo,
+    EstadoSolicitudEquipo,
+    HistorialActividad,
+    ModuloHistorial,
+    Personal,
+    SeguimientoSolicitudEquipo,
+    SolicitudEquipo,
+    TicketIT,
+)
+from GestorApp.roles import ROLE_ADMIN, ROLE_TECNICO, ROLE_USUARIO, ensure_role_groups, set_user_role
 from GestorApp import historial as historial_mod
 
 
@@ -191,3 +206,282 @@ class MediaHardeningTests(TestCase):
         with override_settings(MEDIA_UPLOAD={"image_max_bytes": 50}):
             with self.assertRaises(ValidationError):
                 validate_image_upload(uploaded)
+
+
+class TicketCreateEquipoChoicesTests(TestCase):
+    def setUp(self):
+        ensure_role_groups()
+        self.password = "StrongPass123!"
+        self.user = User.objects.create_user(
+            username="ticket_user",
+            password=self.password,
+        )
+        set_user_role(self.user, ROLE_USUARIO)
+        self.personal = Personal.objects.create(
+            numero_empleado="EMP-T01",
+            user=self.user,
+            nombre="Ticket",
+            apellido_paterno="User",
+        )
+        self.categoria = CategoriaEquipo.objects.create(nombre_categoria="Laptop")
+        self.equipo_asignado = Equipo.objects.create(
+            codigo_inventario="INV-ASIG-001",
+            categoria=self.categoria,
+            estado_equipo=EstadoEquipo.ASIGNADO,
+        )
+        self.equipo_ajeno = Equipo.objects.create(
+            codigo_inventario="INV-OTRO-002",
+            categoria=self.categoria,
+        )
+        AsignacionEquipo.objects.create(
+            equipo=self.equipo_asignado,
+            personal=self.personal,
+            estado_asignacion=EstadoAsignacion.ACTIVA,
+        )
+
+    def _payload(self, equipo=""):
+        return {
+            "requerimiento": "No enciende",
+            "descripcion": "El equipo no responde al boton de encendido.",
+            "tipo_ticket": "HELPDESK",
+            "prioridad": "Media",
+            "equipo": equipo,
+        }
+
+    def test_create_form_lists_only_assigned_equipment_and_otro(self):
+        self.client.login(username="ticket_user", password=self.password)
+        response = self.client.get(reverse("ticketit_create"))
+        self.assertEqual(response.status_code, 200)
+        form = response.context["form"]
+        pks = set(form.fields["equipo"].queryset.values_list("pk", flat=True))
+        self.assertEqual(pks, {self.equipo_asignado.pk})
+        self.assertEqual(form.fields["equipo"].empty_label, "Otro equipo")
+        self.assertContains(response, "Otro equipo")
+        self.assertContains(response, "INV-ASIG-001")
+        self.assertNotContains(response, "INV-OTRO-002")
+
+    def test_create_ticket_with_assigned_equipment(self):
+        self.client.login(username="ticket_user", password=self.password)
+        response = self.client.post(
+            reverse("ticketit_create"),
+            self._payload(equipo=str(self.equipo_asignado.pk)),
+        )
+        self.assertEqual(response.status_code, 302)
+        ticket = TicketIT.objects.get()
+        self.assertEqual(ticket.equipo_id, self.equipo_asignado.pk)
+
+    def test_create_ticket_with_otro_equipo(self):
+        self.client.login(username="ticket_user", password=self.password)
+        response = self.client.post(
+            reverse("ticketit_create"),
+            self._payload(equipo=""),
+        )
+        self.assertEqual(response.status_code, 302)
+        ticket = TicketIT.objects.get()
+        self.assertIsNone(ticket.equipo_id)
+
+    def test_create_rejects_unassigned_equipment(self):
+        self.client.login(username="ticket_user", password=self.password)
+        response = self.client.post(
+            reverse("ticketit_create"),
+            self._payload(equipo=str(self.equipo_ajeno.pk)),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(TicketIT.objects.exists())
+        self.assertTrue(response.context["form"].errors.get("equipo"))
+
+    def test_admin_create_form_lists_all_equipment(self):
+        admin = User.objects.create_user(username="ticket_admin", password=self.password)
+        set_user_role(admin, ROLE_ADMIN)
+        self.client.login(username="ticket_admin", password=self.password)
+        response = self.client.get(reverse("ticketit_create"))
+        self.assertEqual(response.status_code, 200)
+        form = response.context["form"]
+        pks = set(form.fields["equipo"].queryset.values_list("pk", flat=True))
+        self.assertEqual(pks, {self.equipo_asignado.pk, self.equipo_ajeno.pk})
+        self.assertEqual(form.fields["equipo"].empty_label, "Otro equipo")
+        self.assertContains(response, "INV-ASIG-001")
+        self.assertContains(response, "INV-OTRO-002")
+        self.assertContains(response, "Otro equipo")
+
+    def test_admin_can_create_ticket_with_any_equipment(self):
+        admin = User.objects.create_user(username="ticket_admin", password=self.password)
+        set_user_role(admin, ROLE_ADMIN)
+        self.client.login(username="ticket_admin", password=self.password)
+        response = self.client.post(
+            reverse("ticketit_create"),
+            self._payload(equipo=str(self.equipo_ajeno.pk)),
+        )
+        self.assertEqual(response.status_code, 302)
+        ticket = TicketIT.objects.get()
+        self.assertEqual(ticket.equipo_id, self.equipo_ajeno.pk)
+
+    def test_tecnico_create_form_lists_all_equipment(self):
+        tecnico = User.objects.create_user(username="ticket_tech", password=self.password)
+        set_user_role(tecnico, ROLE_TECNICO)
+        self.client.login(username="ticket_tech", password=self.password)
+        response = self.client.get(reverse("ticketit_create"))
+        self.assertEqual(response.status_code, 200)
+        form = response.context["form"]
+        pks = set(form.fields["equipo"].queryset.values_list("pk", flat=True))
+        self.assertEqual(pks, {self.equipo_asignado.pk, self.equipo_ajeno.pk})
+        self.assertContains(response, "INV-OTRO-002")
+        self.assertContains(response, "Otro equipo")
+
+    def test_tecnico_can_create_ticket_with_any_equipment(self):
+        tecnico = User.objects.create_user(username="ticket_tech", password=self.password)
+        set_user_role(tecnico, ROLE_TECNICO)
+        self.client.login(username="ticket_tech", password=self.password)
+        response = self.client.post(
+            reverse("ticketit_create"),
+            self._payload(equipo=str(self.equipo_ajeno.pk)),
+        )
+        self.assertEqual(response.status_code, 302)
+        ticket = TicketIT.objects.get()
+        self.assertEqual(ticket.equipo_id, self.equipo_ajeno.pk)
+
+
+class SolicitudEquipoSeguimientoTests(TestCase):
+    def setUp(self):
+        ensure_role_groups()
+        self.password = "StrongPass123!"
+        self.user = User.objects.create_user(username="sol_user", password=self.password)
+        set_user_role(self.user, ROLE_USUARIO)
+        self.tech = User.objects.create_user(username="sol_tech", password=self.password)
+        set_user_role(self.tech, ROLE_TECNICO)
+        self.admin = User.objects.create_user(username="sol_admin", password=self.password)
+        set_user_role(self.admin, ROLE_ADMIN)
+        self.solicitud = SolicitudEquipo.objects.create(
+            solicitante=self.user,
+            titulo="Laptop de reemplazo",
+            justificacion="El equipo actual ya no enciende.",
+        )
+
+    def test_solicitante_sees_followups_but_cannot_add(self):
+        SeguimientoSolicitudEquipo.objects.create(
+            solicitud=self.solicitud,
+            usuario=self.tech,
+            avance_realizado="Se reviso inventario.",
+        )
+        self.client.login(username="sol_user", password=self.password)
+        response = self.client.get(
+            reverse("solicitud_equipo_detail", args=[self.solicitud.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Se reviso inventario.")
+        self.assertContains(response, "Seguimientos")
+        self.assertNotContains(response, "Agregar seguimiento")
+        self.assertNotContains(response, "Cerrar solicitud")
+
+        response = self.client.post(
+            reverse("solicitud_equipo_detail", args=[self.solicitud.pk]),
+            {
+                "form_type": "seguimiento",
+                "avance_realizado": "Intento del solicitante",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(
+            SeguimientoSolicitudEquipo.objects.filter(
+                avance_realizado="Intento del solicitante"
+            ).exists()
+        )
+
+    def test_tecnico_can_add_seguimiento_and_moves_to_en_revision(self):
+        self.assertEqual(self.solicitud.estado, EstadoSolicitudEquipo.PENDIENTE)
+        self.client.login(username="sol_tech", password=self.password)
+        response = self.client.get(
+            reverse("solicitud_equipo_detail", args=[self.solicitud.pk])
+        )
+        self.assertContains(response, "Agregar seguimiento")
+        self.assertContains(response, "Cerrar solicitud")
+        self.assertNotContains(response, "Completar (asignado)")
+
+        response = self.client.post(
+            reverse("solicitud_equipo_detail", args=[self.solicitud.pk]),
+            {
+                "form_type": "seguimiento",
+                "avance_realizado": "Buscando equipo compatible",
+                "usuario": str(self.tech.pk),
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.solicitud.refresh_from_db()
+        self.assertEqual(self.solicitud.estado, EstadoSolicitudEquipo.EN_REVISION)
+        self.assertTrue(
+            self.solicitud.seguimientos.filter(
+                avance_realizado="Buscando equipo compatible"
+            ).exists()
+        )
+
+    def test_admin_can_close_solicitud(self):
+        self.client.login(username="sol_admin", password=self.password)
+        response = self.client.post(
+            reverse("solicitud_equipo_revisar", args=[self.solicitud.pk]),
+            {"estado": EstadoSolicitudEquipo.COMPLETADA},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.solicitud.refresh_from_db()
+        self.assertEqual(self.solicitud.estado, EstadoSolicitudEquipo.COMPLETADA)
+
+
+class BitacoraAnswerFlowTests(TestCase):
+    def setUp(self):
+        ensure_role_groups()
+        self.password = "StrongPass123!"
+        self.tech = User.objects.create_user(username="bit_tech", password=self.password)
+        set_user_role(self.tech, ROLE_TECNICO)
+        self.admin = User.objects.create_user(username="bit_admin", password=self.password)
+        set_user_role(self.admin, ROLE_ADMIN)
+
+    def test_create_bitacora_opens_detail_and_accepts_answer(self):
+        self.client.login(username="bit_tech", password=self.password)
+        create = self.client.post(
+            reverse("bitacora_create"),
+            {
+                "situacion": "Falla de impresora en recepcion",
+                "descripcion_situacion": "No imprime desde esta manana.",
+            },
+        )
+        self.assertEqual(create.status_code, 302)
+        bitacora = Bitacora.objects.get()
+        self.assertTrue(bitacora.folio_bitacora.startswith("BIT-"))
+        self.assertEqual(create.url, reverse("bitacora_detail", args=[bitacora.pk]))
+
+        detail = self.client.get(reverse("bitacora_detail", args=[bitacora.pk]))
+        self.assertEqual(detail.status_code, 200)
+        self.assertContains(detail, "Agregar respuesta")
+        self.assertContains(detail, bitacora.situacion)
+
+        add = self.client.post(
+            reverse("bitacora_detail", args=[bitacora.pk]),
+            {
+                "form_type": "answer",
+                "solucion": "Se reinicio el spooler",
+                "descripcion_solucion": "Quedo operativa.",
+                "usuario": str(self.tech.pk),
+            },
+        )
+        self.assertEqual(add.status_code, 302)
+        self.assertTrue(Answer.objects.filter(bitacora=bitacora, solucion="Se reinicio el spooler").exists())
+
+        answers = self.client.get(reverse("answer_list"))
+        self.assertEqual(answers.status_code, 200)
+        self.assertContains(answers, bitacora.folio_bitacora)
+        self.assertContains(answers, "Se reinicio el spooler")
+
+    def test_cannot_delete_bitacora_with_answers(self):
+        bitacora = Bitacora.objects.create(
+            situacion="Incidente de red",
+            descripcion_situacion="Sin acceso a SAP.",
+        )
+        Answer.objects.create(
+            bitacora=bitacora,
+            solucion="Se restauro el enlace",
+            descripcion_solucion="OK",
+            usuario=self.tech,
+        )
+        self.client.login(username="bit_admin", password=self.password)
+        response = self.client.post(reverse("bitacora_delete", args=[bitacora.pk]))
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(Bitacora.objects.filter(pk=bitacora.pk).exists())

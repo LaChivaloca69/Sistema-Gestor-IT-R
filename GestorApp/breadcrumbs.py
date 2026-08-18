@@ -20,6 +20,7 @@ _MODULE = {
     "seguimientoticket_delete": ("Soporte", None, "Eliminar seguimiento", "seguimientoticket_list"),
     "bitacora_list": ("Soporte", None, "Bitacora", None),
     "bitacora_create": ("Soporte", None, "Nueva bitacora", "bitacora_list"),
+    "bitacora_detail": ("Soporte", None, "Detalle", "bitacora_list"),
     "bitacora_update": ("Soporte", None, "Editar bitacora", "bitacora_list"),
     "bitacora_delete": ("Soporte", None, "Eliminar bitacora", "bitacora_list"),
     "answer_list": ("Soporte", None, "Respuestas", None),
@@ -121,13 +122,19 @@ _MODULE = {
     "solicitud_equipo_detail": ("Inventario", None, "Detalle", "solicitud_equipo_list"),
     "solicitud_equipo_cancelar": ("Inventario", None, "Cancelar", "solicitud_equipo_list"),
     "solicitud_equipo_revisar": ("Inventario", None, "Revisar", "solicitud_equipo_list"),
+    "seguimiento_solicitud_update": ("Inventario", None, "Editar seguimiento", "solicitud_equipo_list"),
+    "seguimiento_solicitud_delete": ("Inventario", None, "Eliminar seguimiento", "solicitud_equipo_list"),
 }
 
 _SKIP = {"login", "logout", "signup", "home"}
 
 # url_name -> (Model, attr_or_callable)
 _DETAIL_RESOLVERS = {
-    "ticketit_detail": ("GestorApp.models.TicketIT", "folio_ticket"),
+    "bitacora_detail": ("GestorApp.models.Bitacora", "folio_bitacora"),
+    "bitacora_update": ("GestorApp.models.Bitacora", "folio_bitacora"),
+    "bitacora_delete": ("GestorApp.models.Bitacora", "folio_bitacora"),
+    "answer_update": ("GestorApp.models.Answer", "__str__"),
+    "answer_delete": ("GestorApp.models.Answer", "__str__"),
     "ticketit_update": ("GestorApp.models.TicketIT", "folio_ticket"),
     "ticketit_delete": ("GestorApp.models.TicketIT", "folio_ticket"),
     "equipo_detail": ("GestorApp.models.Equipo", "codigo_inventario"),
@@ -151,6 +158,8 @@ _DETAIL_RESOLVERS = {
     "solicitud_equipo_detail": ("GestorApp.models.SolicitudEquipo", "folio"),
     "solicitud_equipo_cancelar": ("GestorApp.models.SolicitudEquipo", "folio"),
     "solicitud_equipo_revisar": ("GestorApp.models.SolicitudEquipo", "folio"),
+    "seguimiento_solicitud_update": ("GestorApp.models.SeguimientoSolicitudEquipo", "__str__"),
+    "seguimiento_solicitud_delete": ("GestorApp.models.SeguimientoSolicitudEquipo", "__str__"),
     "cobertura_update": ("GestorApp.models.CoberturaTickets", "__str__"),
     "historial_actividad_detail": ("GestorApp.models.HistorialActividad", "titulo"),
 }

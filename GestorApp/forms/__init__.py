@@ -32,6 +32,7 @@ from .compras import (
 )
 from .gobierno import (
     CoberturaTicketsForm,
+    SeguimientoSolicitudEquipoForm,
     SolicitudEquipoForm,
     SolicitudEquipoRevisionForm,
 )
@@ -61,6 +62,7 @@ __all__ = [
     "PlantillaDocumentoForm",
     "ProveedorForm",
     "PuestoForm",
+    "SeguimientoSolicitudEquipoForm",
     "SeguimientoTicketForm",
     "SolicitudEquipoForm",
     "SolicitudEquipoRevisionForm",

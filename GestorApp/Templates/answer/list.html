@@ -3,32 +3,68 @@
 {% block title %}Respuestas{% endblock %}
 
 {% block content %}
-{% include "partials/page_header_open.html" with title="Respuestas de bitacora" description="Soluciones asociadas a bitacoras." %}
+{% include "partials/page_header_open.html" with title="Respuestas de bitacora" description="Son el seguimiento de cada bitacora: soluciones registradas sobre una situacion." %}
 	<a class="btn btn-primary" href="{% url 'answer_create' %}">Nueva respuesta</a>
 {% include "partials/page_header_close.html" %}
+
+<form class="filters" method="get">
+	<div>
+		<label for="filter_search">Buscar</label>
+		<input
+			id="filter_search"
+			name="q"
+			type="search"
+			value="{{ search_query }}"
+			placeholder="Folio, solucion, bitacora, usuario"
+			data-chip-label="Busqueda"
+		/>
+	</div>
+	<div>
+		<label for="filter_scope">Vista</label>
+		<select id="filter_scope" name="scope" data-chip-label="Vista">
+			<option value="" {% if not selected_scope %}selected{% endif %}>Todas</option>
+			<option value="mios" {% if selected_scope == "mios" %}selected{% endif %}>Mis respuestas</option>
+		</select>
+	</div>
+	<div class="filters-actions">
+		<button class="btn btn-primary" type="submit">Filtrar</button>
+		<a class="btn btn-outline-secondary" href="{% url 'answer_list' %}">Limpiar</a>
+	</div>
+</form>
 
 <div class="table-responsive">
 	<table class="table table-striped table-hover align-middle">
 		<thead class="table-light">
 			<tr>
 				<th>Bitacora</th>
-				<th>Folio</th>
 				<th>Fecha</th>
 				<th>Solucion</th>
+				<th>Usuario</th>
 				<th class="text-nowrap">Acciones</th>
 			</tr>
 		</thead>
 		<tbody>
 			{% for item in items %}
-			<tr class="table-row-click" data-href="{% url 'answer_update' item.pk %}">
-				<td><strong>{{ item.bitacora }}</strong></td>
-				<td>{{ item.folio_answer }}</td>
+			<tr class="table-row-click" data-href="{% url 'bitacora_detail' item.bitacora_id %}">
+				<td><strong>{{ item.bitacora.folio_bitacora }}</strong></td>
 				<td>{{ item.fecha_answer }}</td>
-				<td>{{ item.solucion }}</td>
+				<td>{{ item.solucion|truncatechars:48 }}</td>
+				<td>{{ item.usuario|default:"-" }}</td>
 				<td>
-					{% url 'answer_update' item.pk as update_url %}
-					{% url 'answer_delete' item.pk as delete_url %}
-					{% include "partials/row_actions.html" with update_url=update_url delete_url=delete_url %}
+					<div class="row-actions">
+						<a class="btn btn-primary btn-sm" href="{% url 'bitacora_detail' item.bitacora_id %}">Bitacora</a>
+						<div class="dropdown">
+							<button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">⋯</button>
+							<ul class="dropdown-menu dropdown-menu-end">
+								<li><a class="dropdown-item" href="{% url 'answer_update' item.pk %}">Editar respuesta</a></li>
+								<li><a class="dropdown-item" href="{% url 'bitacora_detail' item.bitacora_id %}">Ver bitacora</a></li>
+								{% if is_admin_role %}
+								<li><hr class="dropdown-divider"></li>
+								<li><a class="dropdown-item text-danger" href="{% url 'answer_delete' item.pk %}">Eliminar</a></li>
+								{% endif %}
+							</ul>
+						</div>
+					</div>
 				</td>
 			</tr>
 			{% empty %}
@@ -42,4 +78,21 @@
 		</tbody>
 	</table>
 </div>
+
+{% if page_obj.paginator.num_pages > 1 %}
+<nav class="list-pagination" aria-label="Paginacion de respuestas">
+	<div class="text-muted small">
+		Pagina {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+		· {{ page_obj.paginator.count }} respuestas
+	</div>
+	<div class="d-flex flex-wrap gap-2">
+		{% if page_obj.has_previous %}
+			<a class="btn btn-outline-secondary btn-sm" href="?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">Anterior</a>
+		{% endif %}
+		{% if page_obj.has_next %}
+			<a class="btn btn-outline-secondary btn-sm" href="?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">Siguiente</a>
+		{% endif %}
+	</div>
+</nav>
+{% endif %}
 {% endblock %}

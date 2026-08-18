@@ -1,22 +1,26 @@
 {% extends "base.html" %}
 
-{% block title %}Eliminar Answer{% endblock %}
+{% block title %}Eliminar respuesta{% endblock %}
 
 {% block content %}
-{% include "partials/page_header_open.html" with title="Eliminar answer" description="Esta accion no se puede deshacer." %}
-	<a class="btn btn-outline-secondary" href="{% url 'answer_list' %}">Volver</a>
+{% if request.GET.next == "bitacora" and object.bitacora_id %}
+	{% url 'bitacora_detail' object.bitacora_id as back_url %}
+{% else %}
+	{% url 'answer_list' as back_url %}
+{% endif %}
+
+{% include "partials/page_header_open.html" with title="Eliminar respuesta" description="Esta accion no se puede deshacer." %}
+	<a class="btn btn-outline-secondary" href="{{ back_url }}">Volver</a>
 {% include "partials/page_header_close.html" %}
 
-<div class="card border-danger-subtle shadow-sm mx-auto" style="max-width: 640px;">
-	<div class="card-body p-4">
-		<p class="mb-4">Estas seguro que deseas eliminar <strong>"{{ object }}"</strong>?</p>
-		<div class="d-flex justify-content-end gap-2">
-			<a class="btn btn-outline-secondary" href="{% url 'answer_list' %}">Cancelar</a>
-			<form method="post" class="d-inline">
-				{% csrf_token %}
-				<button class="btn btn-danger" type="submit">Eliminar</button>
-			</form>
-		</div>
+<div class="card shadow-sm border-0">
+	<div class="card-body">
+		<p class="mb-4">Estas seguro que deseas eliminar la respuesta de <strong>{{ object.bitacora.folio_bitacora }}</strong>?</p>
+		<form method="post" action="{% if request.GET.next == 'bitacora' %}?next=bitacora{% endif %}" class="d-flex flex-wrap gap-2">
+			{% csrf_token %}
+			<a class="btn btn-outline-secondary" href="{{ back_url }}">Cancelar</a>
+			<button class="btn btn-danger" type="submit">Eliminar</button>
+		</form>
 	</div>
 </div>
 {% endblock %}

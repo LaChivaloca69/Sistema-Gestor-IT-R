@@ -11,6 +11,10 @@
 	{% endif %}
 {% include "partials/page_header_close.html" %}
 
+{% if not can_manage_flow %}
+<p class="text-muted small mb-3">Solo puedes consultar esta solicitud y sus seguimientos. La atencion la registra IT.</p>
+{% endif %}
+
 <div class="ticket-detail-layout">
 	<section class="ticket-panel">
 		<div class="ticket-panel__header">
@@ -48,24 +52,90 @@
 		<p class="mb-1"><strong>Notas IT</strong></p>
 		<p class="text-muted">{{ object.notas_it }}</p>
 		{% endif %}
-	</section>
 
-	{% if can_manage and revision_form %}
-	<section class="ticket-panel">
-		<div class="ticket-panel__header">
-			<h2 class="h5 mb-0">Revision IT</h2>
-		</div>
+		{% if can_manage and revision_form %}
+		<hr>
+		<h2 class="h5">Revision IT</h2>
 		<form method="post" action="{% url 'solicitud_equipo_revisar' object.pk %}">
 			{% csrf_token %}
-			{% include "partials/form_fieldset.html" with bound_form=revision_form legend="Revision IT" %}
+			{% include "partials/form_fieldset.html" with form=revision_form legend="Decision" %}
 			<div class="actions">
 				<button class="btn btn-primary" type="submit">Guardar revision</button>
 			</div>
 		</form>
 		<p class="text-muted small mt-3 mb-0">
-			Al <strong>completar</strong> (o aprobar con equipo seleccionado) se intenta asignar el equipo disponible al personal de la solicitud.
+			<strong>Aprobar</strong> deja la solicitud lista para asignar.
+			<strong>Cerrar</strong> termina el caso; si hay equipo seleccionado, se asigna al personal destino.
 		</p>
+		{% endif %}
 	</section>
-	{% endif %}
+
+	<section class="ticket-panel">
+		<div class="ticket-panel__header">
+			<h2 class="h5 mb-0">Seguimientos</h2>
+			<span class="text-muted small">{{ seguimientos|length }} registro{{ seguimientos|length|pluralize:"s" }}</span>
+		</div>
+
+		{% if can_add_seguimiento and seguimiento_form %}
+		<details class="ticket-followup-form" {% if seguimiento_form.errors %}open{% endif %}>
+			<summary>Agregar seguimiento</summary>
+			<form method="post" class="mt-3">
+				{% csrf_token %}
+				<input type="hidden" name="form_type" value="seguimiento">
+				{{ seguimiento_form.non_field_errors }}
+				{% include "partials/form_fieldset.html" with form=seguimiento_form legend="Seguimiento" %}
+				<div class="actions">
+					<button class="btn btn-primary" type="submit">Guardar seguimiento</button>
+				</div>
+			</form>
+		</details>
+		{% elif object.esta_cerrada and can_manage_flow %}
+		<p class="text-muted small mb-3">La solicitud esta cerrada. No se pueden agregar seguimientos.</p>
+		{% endif %}
+
+		<div class="ticket-timeline">
+			{% for item in seguimientos %}
+			<article class="ticket-timeline__item {% if item.ya_terminado %}is-done{% endif %}">
+				<div class="ticket-timeline__meta">
+					<strong>{{ item.fecha_check }}</strong>
+					<span class="status-badge {% if item.ya_terminado %}status-badge--terminado{% else %}status-badge--en-proceso{% endif %}">
+						{% if item.ya_terminado %}Concluido{% else %}En curso{% endif %}
+					</span>
+				</div>
+				<p class="ticket-timeline__user text-muted small mb-2">
+					{{ item.usuario|default:"Sin usuario" }}
+					{% if item.fecha_proximo_seguimiento %}
+						· Proximo: {{ item.fecha_proximo_seguimiento }}
+					{% endif %}
+				</p>
+				{% if item.avance_realizado %}
+				<p class="mb-1"><strong>Avance:</strong> {{ item.avance_realizado }}</p>
+				{% endif %}
+				{% if item.pendiente %}
+				<p class="mb-1"><strong>Pendiente:</strong> {{ item.pendiente }}</p>
+				{% endif %}
+				{% if item.proximo_paso %}
+				<p class="mb-1"><strong>Proximo paso:</strong> {{ item.proximo_paso }}</p>
+				{% endif %}
+				{% if item.solucion %}
+				<p class="mb-1"><strong>Solucion:</strong> {{ item.solucion }}</p>
+				{% endif %}
+				{% if item.observacion %}
+				<p class="mb-1 text-muted"><strong>Obs:</strong> {{ item.observacion }}</p>
+				{% endif %}
+				{% if can_manage_flow %}
+				<div class="mt-2 d-flex gap-2">
+					<a class="btn btn-outline-secondary btn-sm" href="{% url 'seguimiento_solicitud_update' item.pk %}">Editar</a>
+					{% if can_delete_seguimiento %}
+					<a class="btn btn-outline-danger btn-sm" href="{% url 'seguimiento_solicitud_delete' item.pk %}">Eliminar</a>
+					{% endif %}
+				</div>
+				{% endif %}
+			</article>
+			{% empty %}
+			<p class="text-muted mb-0">Aun no hay seguimientos en esta solicitud.</p>
+			{% endfor %}
+		</div>
+	</section>
 </div>
 {% endblock %}

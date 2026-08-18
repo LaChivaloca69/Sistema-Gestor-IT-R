@@ -278,12 +278,12 @@
                                 {% endif %}
                                 <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>
                             </a>
-                            <a class="sidebar-link {% if request.resolver_match.url_name == 'bitacora_list' %}active{% endif %}" href="{% url 'bitacora_list' %}" data-nav-id="bitacora" data-nav-label="Bitacora" title="Bitacora">
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'bitacora_list' or request.resolver_match.url_name == 'bitacora_detail' or request.resolver_match.url_name == 'bitacora_create' or request.resolver_match.url_name == 'bitacora_update' %}active{% endif %}" href="{% url 'bitacora_list' %}" data-nav-id="bitacora" data-nav-label="Bitacora" title="Bitacora">
                                 <span class="sidebar-link__icon" aria-hidden="true"><i class="bi bi-journal-text"></i></span>
                                 <span class="sidebar-link__text">Bitacora</span>
                                 <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>
                             </a>
-                            <a class="sidebar-link {% if request.resolver_match.url_name == 'answer_list' %}active{% endif %}" href="{% url 'answer_list' %}" data-nav-id="respuestas" data-nav-label="Respuestas answer" title="Respuestas">
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'answer_list' or request.resolver_match.url_name == 'answer_create' or request.resolver_match.url_name == 'answer_update' %}active{% endif %}" href="{% url 'answer_list' %}" data-nav-id="respuestas" data-nav-label="Respuestas answer" title="Respuestas">
                                 <span class="sidebar-link__icon" aria-hidden="true"><i class="bi bi-chat-left-text"></i></span>
                                 <span class="sidebar-link__text">Respuestas</span>
                                 <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>

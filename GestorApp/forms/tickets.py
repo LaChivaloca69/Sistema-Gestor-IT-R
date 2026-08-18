@@ -62,6 +62,7 @@ from ..roles import (
 )
 from .common import (  # noqa: F401 — reexportado para vistas
     _get_personal_active_assignment,
+    _get_personal_active_equipos,
     _get_user_personal,
     get_subtipo_ticket_choices,
     get_tipo_equipo_queryset,
@@ -131,6 +132,26 @@ class TicketITForm(forms.ModelForm):
             self.fields["equipo"].label_from_instance = (
                 lambda obj: f"{obj.codigo_inventario} - {obj.categoria}"
             )
+            if is_operativo(self.request_user):
+                equipos_qs = Equipo.objects.order_by("codigo_inventario")
+                equipo_help = (
+                    "Puedes elegir cualquier equipo del inventario. "
+                    "Si no aplica a uno registrado, elige Otro equipo."
+                )
+            else:
+                equipos_qs = _get_personal_active_equipos(self.request_personal)
+                if self.instance and self.instance.pk and self.instance.equipo_id:
+                    equipos_qs = Equipo.objects.filter(
+                        Q(pk=self.instance.equipo_id) | Q(pk__in=equipos_qs.values("pk"))
+                    ).order_by("codigo_inventario")
+                equipo_help = (
+                    "Solo aparecen los equipos asignados a ti. "
+                    "Si pides ayuda para un equipo que no es tuyo, elige Otro equipo."
+                )
+            self.fields["equipo"].queryset = equipos_qs
+            self.fields["equipo"].required = False
+            self.fields["equipo"].empty_label = "Otro equipo"
+            self.fields["equipo"].help_text = equipo_help
             if not (self.instance and self.instance.pk) and self.request_assignment and self.request_assignment.equipo_id:
                 self.fields["equipo"].initial = self.request_assignment.equipo
 
@@ -170,8 +191,6 @@ class TicketITForm(forms.ModelForm):
                 self.fields["area"].help_text = "Favor de comprobar que el área sea correcta."
             if "puesto" in self.fields:
                 self.fields["puesto"].help_text = "Favor de comprobar que el puesto sea correcto."
-            if "equipo" in self.fields:
-                self.fields["equipo"].help_text = "Favor de comprobar que el equipo sea correcto."
             if "tipo_equipo" in self.fields:
                 self.fields["tipo_equipo"].help_text = "Favor de comprobar que el tipo de equipo sea correcto."
 
@@ -322,65 +341,125 @@ class SeguimientoTicketForm(forms.ModelForm):
 
 
 
-# =========== Bitacora views =============
 class BitacoraForm(forms.ModelForm):
     class Meta:
         model = Bitacora
-        fields = "__all__"
+        exclude = ["folio_bitacora"]
         labels = {
-            "folio_bitacora": "Folio de bitacora",
-            "fecha_bitacora": "Fecha de bitacora",
-            "Situacion": "Situacion",
+            "fecha_bitacora": "Fecha",
+            "situacion": "Situacion",
             "descripcion_situacion": "Descripcion de la situacion",
         }
         help_texts = {
-            "descripcion_bitacora": "Descripcion",
-            "Situacion": "Problema o situacion que se presenta.",
+            "situacion": "Problema o situacion que se presenta.",
+            "descripcion_situacion": "Describe el hecho con el detalle necesario.",
         }
         widgets = {
-            "fecha_bitacora": forms.DateTimeInput(attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M"),
+            "fecha_bitacora": forms.DateTimeInput(
+                attrs={"type": "datetime-local"},
+                format="%Y-%m-%dT%H:%M",
+            ),
             "descripcion_situacion": forms.Textarea(attrs={"rows": 4}),
+            "situacion": forms.TextInput(attrs={"placeholder": "Ej. Caida de red en planta"}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         fecha_bitacora = self.fields.get("fecha_bitacora")
         if fecha_bitacora:
-            fecha_bitacora.widget = forms.DateTimeInput(
-                attrs={"type": "datetime-local"},
-                format="%Y-%m-%dT%H:%M",
-            )
-            fecha_bitacora.input_formats = ["%Y-%m-%dT%H:%M"]
+            fecha_bitacora.input_formats = ["%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M:%S"]
+            fecha_bitacora.required = False
+            if not (self.instance and self.instance.pk):
+                fecha_bitacora.initial = timezone.now()
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        if not instance.fecha_bitacora:
+            instance.fecha_bitacora = timezone.now()
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance
 
 
-
-# =========== Answer views =============
 class AnswerForm(forms.ModelForm):
     class Meta:
         model = Answer
-        fields = "__all__"
+        fields = [
+            "bitacora",
+            "fecha_answer",
+            "usuario",
+            "solucion",
+            "descripcion_solucion",
+        ]
         labels = {
-            "folio_answer": "Folio",
+            "bitacora": "Bitacora",
             "fecha_answer": "Fecha",
+            "usuario": "Usuario",
             "solucion": "Solucion",
             "descripcion_solucion": "Descripcion de la solucion",
         }
-        help_texts = {
-            "descripcion_answer": "Descripcion",
-            "descripcion_solucion": "Descripcion de la solucion",
-        }
         widgets = {
-            "fecha_answer": forms.DateTimeInput(attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M"),
+            "fecha_answer": forms.DateTimeInput(
+                attrs={"type": "datetime-local"},
+                format="%Y-%m-%dT%H:%M",
+            ),
             "descripcion_solucion": forms.Textarea(attrs={"rows": 4}),
+            "solucion": forms.TextInput(attrs={"placeholder": "Resumen de la respuesta"}),
         }
 
     def __init__(self, *args, **kwargs):
+        self.fixed_bitacora = kwargs.pop("bitacora", None)
+        self.request_user = kwargs.pop("request_user", None)
         super().__init__(*args, **kwargs)
+
+        if self.fixed_bitacora is not None:
+            self.fields["bitacora"].initial = self.fixed_bitacora
+            self.fields["bitacora"].queryset = Bitacora.objects.filter(pk=self.fixed_bitacora.pk)
+            self.fields["bitacora"].widget = forms.HiddenInput()
+            self.fields["bitacora"].required = False
+        else:
+            self.fields["bitacora"].queryset = Bitacora.objects.order_by("-fecha_bitacora", "-pk")
+
+        if "usuario" in self.fields:
+            user_model = get_user_model()
+            user_qs = operativo_users_queryset(user_model)
+            if self.instance and self.instance.usuario_id:
+                user_qs = user_model.objects.filter(
+                    Q(pk=self.instance.usuario_id) | Q(pk__in=user_qs.values("pk"))
+                )
+            self.fields["usuario"].queryset = user_qs.distinct().order_by(
+                user_model.USERNAME_FIELD
+            )
+            self.fields["usuario"].required = False
+            if (
+                not (self.instance and self.instance.pk)
+                and self.request_user
+                and getattr(self.request_user, "is_authenticated", False)
+                and is_operativo(self.request_user)
+            ):
+                self.fields["usuario"].initial = self.request_user
+
         fecha_answer = self.fields.get("fecha_answer")
         if fecha_answer:
-            fecha_answer.widget = forms.DateTimeInput(
-                attrs={"type": "datetime-local"},
-                format="%Y-%m-%dT%H:%M",
-            )
-            fecha_answer.input_formats = ["%Y-%m-%dT%H:%M"]
+            fecha_answer.required = False
+            fecha_answer.input_formats = ["%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M:%S"]
+            if not (self.instance and self.instance.pk):
+                fecha_answer.initial = timezone.now()
+
+    def clean_bitacora(self):
+        if self.fixed_bitacora is not None:
+            return self.fixed_bitacora
+        return self.cleaned_data.get("bitacora")
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        if self.fixed_bitacora is not None:
+            instance.bitacora = self.fixed_bitacora
+        if not instance.fecha_answer:
+            instance.fecha_answer = timezone.now()
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance
 

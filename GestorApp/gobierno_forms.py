@@ -4,4 +4,5 @@ from .forms.gobierno import (  # noqa: F401
     CoberturaTicketsForm,
     SolicitudEquipoForm,
     SolicitudEquipoRevisionForm,
+    SeguimientoSolicitudEquipoForm,
 )

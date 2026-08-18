@@ -191,6 +191,7 @@ urlpatterns = [
     # -------------- Bitacora de actividades Urls -------------
     path('Bitacora/', views.operativo_required(views.bitacora_list), name='bitacora_list'),
     path('Bitacora/create/', views.operativo_required(views.bitacora_create), name='bitacora_create'),
+    path('Bitacora/<int:pk>/', views.operativo_required(views.bitacora_detail), name='bitacora_detail'),
     path('Bitacora/update/<int:pk>/', views.operativo_required(views.bitacora_update), name='bitacora_update'),
     path('Bitacora/delete/<int:pk>/', views.admin_required(views.bitacora_delete), name='bitacora_delete'),
 
@@ -234,6 +235,16 @@ urlpatterns = [
         'SolicitudesEquipo/<int:pk>/cancelar/',
         login_required(gobierno_views.solicitud_equipo_cancelar),
         name='solicitud_equipo_cancelar',
+    ),
+    path(
+        'SolicitudesEquipo/seguimiento/update/<int:pk>/',
+        views.operativo_required(gobierno_views.seguimiento_solicitud_update),
+        name='seguimiento_solicitud_update',
+    ),
+    path(
+        'SolicitudesEquipo/seguimiento/delete/<int:pk>/',
+        views.admin_required(gobierno_views.seguimiento_solicitud_delete),
+        name='seguimiento_solicitud_delete',
     ),
 ]
 

@@ -27,7 +27,7 @@ PERMISSION_MATRIX = [
         False,
         True,
         True,
-        "Modulos de operacion diaria.",
+        "Bitacora con detalle y respuestas como seguimientos. Solo IT.",
     ),
     (
         "Soporte",
@@ -67,7 +67,7 @@ PERMISSION_MATRIX = [
         True,
         True,
         True,
-        "Flujo solicitud → revision IT.",
+        "Flujo solicitud → seguimientos IT. El solicitante solo consulta el hilo.",
     ),
     (
         "Inventario",
@@ -75,7 +75,7 @@ PERMISSION_MATRIX = [
         False,
         True,
         True,
-        "IT revisa, asigna o rechaza.",
+        "IT deja seguimientos; aprueba, rechaza o cierra. Puede asignar equipo al cerrar.",
     ),
     (
         "Operaciones",

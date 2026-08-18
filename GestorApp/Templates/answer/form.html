@@ -1,23 +1,38 @@
 {% extends "base.html" %}
 {% load django_bootstrap5 %}
 
-{% block title %}{% if object %}Editar Answer{% else %}Nuevo Answer{% endif %}{% endblock %}
+{% block title %}{% if object %}Editar respuesta{% else %}Nueva respuesta{% endif %}{% endblock %}
 
 {% block content %}
 {% if object %}
-{% include "partials/page_header_open.html" with title="Editar answer" description="Captura la informacion principal del answer." %}
+{% include "partials/page_header_open.html" with title="Editar respuesta" description="Actualiza la solucion asociada a la bitacora." %}
 {% else %}
-{% include "partials/page_header_open.html" with title="Nuevo answer" description="Captura la informacion principal del answer." %}
+{% include "partials/page_header_open.html" with title="Nueva respuesta" description="Registra la solucion de una bitacora, como un seguimiento." %}
 {% endif %}
+	{% if bitacora %}
+		<a class="btn btn-outline-primary" href="{% url 'bitacora_detail' bitacora.pk %}">Ver bitacora</a>
+	{% endif %}
 	<a class="btn btn-outline-secondary" href="{% url 'answer_list' %}">Volver</a>
 {% include "partials/page_header_close.html" %}
+
+{% if bitacora %}
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+	<span class="text-muted">Bitacora:</span>
+	<strong>{{ bitacora.folio_bitacora }}</strong>
+	<span class="text-muted">{{ bitacora.situacion }}</span>
+</div>
+{% endif %}
 
 <form method="post">
 	{% csrf_token %}
 	{{ form.non_field_errors }}
-	{% include "partials/form_fieldset.html" with legend="Datos" %}
+	{% include "partials/form_fieldset.html" with legend="Respuesta" %}
 	<div class="actions">
-		<a class="btn btn-outline-secondary" href="{% url 'answer_list' %}">Cancelar</a>
+		{% if bitacora %}
+			<a class="btn btn-outline-secondary" href="{% url 'bitacora_detail' bitacora.pk %}">Cancelar</a>
+		{% else %}
+			<a class="btn btn-outline-secondary" href="{% url 'answer_list' %}">Cancelar</a>
+		{% endif %}
 		<button class="btn btn-primary" type="submit">Guardar</button>
 	</div>
 </form>

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% load django_bootstrap5 %}
+
+{% block title %}Editar seguimiento{% endblock %}
+
+{% block content %}
+{% include "partials/page_header_open.html" with title="Editar seguimiento" description="Actualiza el avance de la solicitud de equipo." %}
+	<a class="btn btn-outline-primary" href="{% url 'solicitud_equipo_detail' solicitud.pk %}">Ver solicitud</a>
+	<a class="btn btn-outline-secondary" href="{% url 'solicitud_equipo_list' %}">Volver</a>
+{% include "partials/page_header_close.html" %}
+
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+	<span class="text-muted">Solicitud:</span>
+	<strong>{{ solicitud.folio }}</strong>
+	<span class="status-badge status-badge--{{ solicitud.estado|slugify }}">{{ solicitud.estado }}</span>
+	{% if object.ya_terminado %}
+		<span class="status-badge status-badge--terminado">Concluido</span>
+	{% else %}
+		<span class="status-badge status-badge--en-proceso">En curso</span>
+	{% endif %}
+</div>
+
+<form method="post">
+	{% csrf_token %}
+	{{ form.non_field_errors }}
+	{% include "partials/form_fieldset.html" with legend="Seguimiento" %}
+	<div class="actions">
+		<a class="btn btn-outline-secondary" href="{% url 'solicitud_equipo_detail' solicitud.pk %}">Cancelar</a>
+		<button class="btn btn-primary" type="submit">Guardar</button>
+	</div>
+</form>
+{% endblock %}

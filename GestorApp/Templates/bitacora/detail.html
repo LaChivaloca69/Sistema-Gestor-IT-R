@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% load django_bootstrap5 %}
+
+{% block title %}{{ object.folio_bitacora }}{% endblock %}
+
+{% block content %}
+{% include "partials/page_header_open.html" with title=object.folio_bitacora description=object.situacion description_inline=1 %}
+	<a class="btn btn-outline-secondary" href="{% url 'bitacora_list' %}">Volver</a>
+	{% if can_manage %}
+	<a class="btn btn-outline-primary" href="{% url 'bitacora_update' object.pk %}">Editar</a>
+	{% endif %}
+	{% if can_delete %}
+	<a class="btn btn-outline-danger" href="{% url 'bitacora_delete' object.pk %}">Eliminar</a>
+	{% endif %}
+{% include "partials/page_header_close.html" %}
+
+{% if can_manage and object.tiene_respuestas and not can_delete %}
+<p class="text-muted small mb-3">Esta bitacora tiene respuestas; no se puede eliminar hasta quitarlas.</p>
+{% endif %}
+
+<div class="ticket-detail-layout">
+	<section class="ticket-panel">
+		<div class="ticket-panel__header">
+			<h2 class="h5 mb-0">Detalle</h2>
+			<span class="text-muted small">{{ object.fecha_bitacora }}</span>
+		</div>
+		<div class="ticket-block">
+			<span class="ticket-meta__label">Situacion</span>
+			<p class="mb-0">{{ object.situacion }}</p>
+		</div>
+		<div class="ticket-block">
+			<span class="ticket-meta__label">Descripcion</span>
+			<p class="mb-0" style="white-space: pre-wrap;">{{ object.descripcion_situacion }}</p>
+		</div>
+	</section>
+
+	<section class="ticket-panel">
+		<div class="ticket-panel__header">
+			<h2 class="h5 mb-0">Respuestas</h2>
+			<span class="text-muted small">{{ answers|length }} registro{{ answers|length|pluralize:"s" }}</span>
+		</div>
+
+		{% if can_manage and answer_form %}
+		<details class="ticket-followup-form" {% if answer_form.errors %}open{% endif %}>
+			<summary>Agregar respuesta</summary>
+			<form method="post" class="mt-3">
+				{% csrf_token %}
+				<input type="hidden" name="form_type" value="answer">
+				{{ answer_form.non_field_errors }}
+				{% include "partials/form_fieldset.html" with form=answer_form legend="Respuesta" %}
+				<div class="actions">
+					<button class="btn btn-primary" type="submit">Guardar respuesta</button>
+				</div>
+			</form>
+		</details>
+		{% endif %}
+
+		<div class="ticket-timeline">
+			{% for item in answers %}
+			<article class="ticket-timeline__item">
+				<div class="ticket-timeline__meta">
+					<strong>{{ item.fecha_answer }}</strong>
+					<span class="status-badge status-badge--terminado">Respuesta</span>
+				</div>
+				<p class="ticket-timeline__user text-muted small mb-2">
+					{{ item.usuario|default:"Sin usuario" }}
+				</p>
+				{% if item.solucion %}
+				<p class="mb-1"><strong>Solucion:</strong> {{ item.solucion }}</p>
+				{% endif %}
+				{% if item.descripcion_solucion %}
+				<p class="mb-1" style="white-space: pre-wrap;">{{ item.descripcion_solucion }}</p>
+				{% endif %}
+				{% if can_manage %}
+				<div class="mt-2 d-flex gap-2">
+					<a class="btn btn-outline-secondary btn-sm" href="{% url 'answer_update' item.pk %}">Editar</a>
+					{% if can_delete_answer %}
+					<a class="btn btn-outline-danger btn-sm" href="{% url 'answer_delete' item.pk %}?next=bitacora">Eliminar</a>
+					{% endif %}
+				</div>
+				{% endif %}
+			</article>
+			{% empty %}
+			<p class="text-muted mb-0">Aun no hay respuestas en esta bitacora.</p>
+			{% endfor %}
+		</div>
+	</section>
+</div>
+{% endblock %}
