@@ -94,6 +94,9 @@
 					{% endif %}
 				{% include "partials/info_hint_close.html" %}
 			</h2>
+			{% if is_admin_dashboard and calendar_coberturas_hoy %}
+			<p class="calendar-coberturas">Coberturas hoy: {{ calendar_coberturas_hoy }} (en Mis asignados)</p>
+			{% endif %}
 		</div>
 		<div class="calendar-legend">
 			{% if is_admin_dashboard %}
@@ -112,30 +115,22 @@
 			<button type="button" class="calendar-chip calendar-chip--movimiento" data-calendar-filter="movimiento" aria-pressed="false">Movimientos{% if calendar_counts.movimiento %} ({{ calendar_counts.movimiento }}){% endif %}</button>
 			{% endif %}
 			<button type="button" class="calendar-chip calendar-chip--clear" data-calendar-filter-clear disabled>Limpiar tipo</button>
+			<ul class="calendar-urgency-legend" aria-label="Leyenda de urgencia">
+				<li><span class="calendar-dot calendar-dot--vencido" aria-hidden="true"></span> Vencido{% if calendar_counts.vencido %} ({{ calendar_counts.vencido }}){% endif %}</li>
+				<li><span class="calendar-dot calendar-dot--por-vencer" aria-hidden="true"></span> Por vencer{% if calendar_counts.por_vencer %} ({{ calendar_counts.por_vencer }}){% endif %}</li>
+			</ul>
 		</div>
 	</div>
 	{{ calendar_events|json_script:"home-calendar-events" }}
 	<div class="calendar-shell">
-		<div class="calendar-panel">
-			<div id="home-calendar" class="home-calendar"></div>
-		</div>
-		<div class="calendar-sidebar">
-			<div class="notice-card notice-card--accent">
-				<p><strong>Filtros y urgencia</strong></p>
-				<p>
-					{% if is_admin_dashboard %}
-					<strong>Mis asignados</strong> = tickets tuyos (y de coberturas), mantenimientos a tu cargo y checks relacionados.
-					{% endif %}
-					Rojo = vencido · Ambar = por vencer.
-				</p>
-				<ul class="calendar-urgency-legend" aria-label="Leyenda de urgencia">
-					<li><span class="calendar-dot calendar-dot--vencido" aria-hidden="true"></span> Vencido{% if calendar_counts.vencido %} ({{ calendar_counts.vencido }}){% endif %}</li>
-					<li><span class="calendar-dot calendar-dot--por-vencer" aria-hidden="true"></span> Por vencer{% if calendar_counts.por_vencer %} ({{ calendar_counts.por_vencer }}){% endif %}</li>
-				</ul>
-				{% if is_admin_dashboard and calendar_coberturas_hoy %}
-				<p class="mb-0 mt-2"><strong>Coberturas hoy:</strong> {{ calendar_coberturas_hoy }} (incluidas en Mis asignados).</p>
-				{% endif %}
+		<div class="calendar-panel" data-calendar-size="md">
+			<div class="calendar-size-bar" role="group" aria-label="Tamano del calendario">
+				<span class="calendar-size-bar__label">Tamano</span>
+				<button type="button" class="calendar-size-btn" data-calendar-size="sm" aria-pressed="false">Chico</button>
+				<button type="button" class="calendar-size-btn" data-calendar-size="md" aria-pressed="true">Medio</button>
+				<button type="button" class="calendar-size-btn" data-calendar-size="lg" aria-pressed="false">Grande</button>
 			</div>
+			<div id="home-calendar" class="home-calendar"></div>
 		</div>
 	</div>
 	<div class="calendar-modal" id="calendar-event-modal" hidden aria-hidden="true">
@@ -598,10 +593,64 @@
 		if (event.key === "Escape" && !modal.hidden) hideModal();
 	});
 
+	const SIZE_STORAGE_KEY = "gestor_calendar_size";
+	const SIZE_HEIGHTS = { sm: 480, md: 640, lg: 860 };
+	const sizeButtons = Array.from(document.querySelectorAll(".calendar-size-btn"));
+	const calendarPanel = calendarElement.closest(".calendar-panel");
+
+	const readCalendarSize = () => {
+		try {
+			const stored = window.localStorage.getItem(SIZE_STORAGE_KEY);
+			if (stored && Object.prototype.hasOwnProperty.call(SIZE_HEIGHTS, stored)) {
+				return stored;
+			}
+		} catch (err) {
+			/* ignore */
+		}
+		return window.matchMedia("(max-width: 1100px)").matches ? "sm" : "md";
+	};
+
+	let activeSize = readCalendarSize();
+
+	const syncSizeState = () => {
+		if (calendarPanel) {
+			calendarPanel.dataset.calendarSize = activeSize;
+		}
+		sizeButtons.forEach((button) => {
+			const isActive = button.dataset.calendarSize === activeSize;
+			button.classList.toggle("is-active", isActive);
+			button.setAttribute("aria-pressed", String(isActive));
+		});
+	};
+
+	const applyCalendarSize = (nextSize, persist) => {
+		if (!nextSize || !SIZE_HEIGHTS[nextSize]) {
+			return;
+		}
+		activeSize = nextSize;
+		if (persist) {
+			try {
+				window.localStorage.setItem(SIZE_STORAGE_KEY, activeSize);
+			} catch (err) {
+				/* ignore */
+			}
+		}
+		syncSizeState();
+		calendar.setOption("height", SIZE_HEIGHTS[activeSize]);
+		window.requestAnimationFrame(() => {
+			calendar.updateSize();
+			window.setTimeout(() => calendar.updateSize(), 80);
+		});
+	};
+
 	const prefersCompact = window.matchMedia("(max-width: 1100px)").matches;
 	const calendar = new FullCalendar.Calendar(calendarElement, {
 		initialView: prefersCompact ? "listWeek" : "dayGridMonth",
-		height: "auto",
+		height: SIZE_HEIGHTS[activeSize],
+		expandRows: true,
+		stickyHeaderDates: false,
+		fixedWeekCount: true,
+		firstDay: 1,
 		locale: "es",
 		headerToolbar: {
 			left: "prev,next today",
@@ -612,12 +661,16 @@
 		navLinks: true,
 		nowIndicator: true,
 		dayMaxEvents: true,
+		windowResizeDelay: 80,
 		events(fetchInfo, successCallback) {
 			successCallback(getVisibleEvents());
 		},
 		eventClick(info) {
 			info.jsEvent.preventDefault();
 			showModal(info.event);
+		},
+		datesSet() {
+			calendar.updateSize();
 		},
 	});
 
@@ -630,8 +683,13 @@
 	if (clearFilterButton) {
 		clearFilterButton.addEventListener("click", () => applyFilter(null));
 	}
+	sizeButtons.forEach((button) => {
+		button.addEventListener("click", () => applyCalendarSize(button.dataset.calendarSize, true));
+	});
 	syncFilterState();
+	syncSizeState();
 	calendar.render();
+	window.requestAnimationFrame(() => calendar.updateSize());
 })();
 </script>
 {% endif %}

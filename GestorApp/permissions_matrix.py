@@ -67,7 +67,7 @@ PERMISSION_MATRIX = [
         True,
         True,
         True,
-        "Flujo solicitud → seguimientos IT. El solicitante solo consulta el hilo.",
+        "Flujo solicitud → revision IT. El solicitante solo consulta el hilo.",
     ),
     (
         "Inventario",
@@ -75,7 +75,7 @@ PERMISSION_MATRIX = [
         False,
         True,
         True,
-        "IT deja seguimientos; aprueba, rechaza o cierra. Puede asignar equipo al cerrar.",
+        "IT deja revisiones; aprueba, rechaza o cierra. Puede asignar equipo al cerrar.",
     ),
     (
         "Operaciones",

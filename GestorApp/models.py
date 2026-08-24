@@ -1381,8 +1381,8 @@ class SeguimientoSolicitudEquipo(models.Model):
 
     class Meta:
         ordering = ["-fecha_check", "-pk"]
-        verbose_name = "Seguimiento de solicitud"
-        verbose_name_plural = "Seguimientos de solicitud"
+        verbose_name = "Revision IT"
+        verbose_name_plural = "Revisiones IT"
 
     def __str__(self):
         folio = self.solicitud.folio if self.solicitud_id else "SOL"
@@ -1391,7 +1391,7 @@ class SeguimientoSolicitudEquipo(models.Model):
     def clean(self):
         if self.ya_terminado and not (self.solucion or "").strip():
             raise ValidationError(
-                {"solucion": "Indica la solucion al concluir el seguimiento."}
+                {"solucion": "Indica la solucion al concluir la revision."}
             )
 
     def save(self, *args, **kwargs):

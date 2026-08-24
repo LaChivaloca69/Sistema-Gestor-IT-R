@@ -122,8 +122,8 @@ _MODULE = {
     "solicitud_equipo_detail": ("Inventario", None, "Detalle", "solicitud_equipo_list"),
     "solicitud_equipo_cancelar": ("Inventario", None, "Cancelar", "solicitud_equipo_list"),
     "solicitud_equipo_revisar": ("Inventario", None, "Revisar", "solicitud_equipo_list"),
-    "seguimiento_solicitud_update": ("Inventario", None, "Editar seguimiento", "solicitud_equipo_list"),
-    "seguimiento_solicitud_delete": ("Inventario", None, "Eliminar seguimiento", "solicitud_equipo_list"),
+    "seguimiento_solicitud_update": ("Inventario", None, "Editar revision IT", "solicitud_equipo_list"),
+    "seguimiento_solicitud_delete": ("Inventario", None, "Eliminar revision IT", "solicitud_equipo_list"),
 }
 
 _SKIP = {"login", "logout", "signup", "home"}

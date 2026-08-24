@@ -9,7 +9,7 @@
         <p class="eyebrow">Registro</p>
         <h1>Crear usuario {% include "partials/info_hint.html" with text="Genera una cuenta para entrar al panel." %}</h1>
     </div>
-    <form method="post" class="stack-form">
+    <form method="post" class="stack-form auth-form">
         {% csrf_token %}
         {{ form.non_field_errors }}
         {% bootstrap_form form %}

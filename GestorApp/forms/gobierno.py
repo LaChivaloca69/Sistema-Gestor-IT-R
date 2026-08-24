@@ -166,9 +166,10 @@ class SolicitudEquipoRevisionForm(forms.Form):
         help_text="Opcional al aprobar o cerrar. Solo equipos disponibles.",
     )
 
-    def __init__(self, *args, solicitud=None, **kwargs):
+    def __init__(self, *args, solicitud=None, require_estado=True, **kwargs):
         super().__init__(*args, **kwargs)
         self.solicitud = solicitud
+        self.fields["estado"].required = require_estado
         qs = Equipo.objects.filter(
             activo=True,
             estado_equipo=EstadoEquipo.DISPONIBLE,
@@ -212,7 +213,7 @@ class SeguimientoSolicitudEquipoForm(forms.ModelForm):
             "avance_realizado": "Avance realizado",
             "pendiente": "Pendiente",
             "proximo_paso": "Proximo paso",
-            "fecha_proximo_seguimiento": "Fecha de proximo seguimiento",
+            "fecha_proximo_seguimiento": "Fecha de proxima revision",
             "usuario": "Usuario",
             "solucion": "Solucion",
             "observacion": "Observaciones",
@@ -268,7 +269,7 @@ class SeguimientoSolicitudEquipoForm(forms.ModelForm):
     def clean(self):
         cleaned_data = super().clean()
         if cleaned_data.get("ya_terminado") and not (cleaned_data.get("solucion") or "").strip():
-            self.add_error("solucion", "Indica la solucion al concluir el seguimiento.")
+            self.add_error("solucion", "Indica la solucion al concluir la revision.")
         return cleaned_data
 
     def save(self, commit=True):

@@ -7,12 +7,21 @@
 <div class="auth-card">
 	<div class="auth-card__header">
 		<p class="eyebrow">Acceso</p>
-		<h1>Iniciar sesion {% include "partials/info_hint.html" with text="Ingresa con tu cuenta para administrar el sistema." %}</h1>
+		<h1>Iniciar sesion</h1>
+		<p>Ingresa con tu cuenta para entrar al sistema.</p>
 	</div>
-	<form method="post" class="stack-form">
+	<form method="post" class="stack-form auth-form{% if form.non_field_errors %} auth-form--error{% endif %}">
 		{% csrf_token %}
-		{{ form.non_field_errors }}
-		{% bootstrap_form form %}
+		{% if form.non_field_errors %}
+		<div class="auth-alert" role="alert">
+			<strong>No se pudo iniciar sesion</strong>
+			{% for error in form.non_field_errors %}
+			<p>{{ error }}</p>
+			{% endfor %}
+		</div>
+		{% endif %}
+		{% bootstrap_field form.username server_side_validation=False %}
+		{% bootstrap_field form.password server_side_validation=False %}
 		<input type="hidden" name="next" value="{{ next }}">
 		<button class="btn btn-primary w-100" type="submit">Entrar</button>
 	</form>

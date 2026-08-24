@@ -1662,9 +1662,47 @@ td .empty-state {
 .notice-card--accent { background: linear-gradient(135deg, #eff6ff, #ecfdf9); }
 
 .auth-card {
-    max-width: 560px;
+    max-width: 420px;
     margin: 0 auto;
-    padding: 1.4rem;
+    padding: 1.6rem 1.5rem 1.4rem;
+}
+
+.auth-card--centered { margin-top: 2rem; }
+.auth-card__header { margin-bottom: 1.15rem; }
+.auth-card__header h1 { font-size: 1.45rem; }
+.auth-card__header p:last-child { margin-bottom: 0; color: var(--app-muted); }
+.auth-card__footer { margin: 1.1rem 0 0; color: var(--app-muted); text-align: center; }
+
+.auth-form {
+    grid-template-columns: minmax(0, 1fr) !important;
+}
+
+.auth-alert {
+    grid-column: 1 / -1;
+    margin: 0 0 1rem;
+    padding: 0.85rem 1rem;
+    border: 1px solid #fecaca;
+    border-radius: 0.9rem;
+    background: linear-gradient(135deg, #fff7f7, #ffffff);
+    color: var(--app-danger);
+}
+
+.auth-alert strong {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-size: 0.95rem;
+}
+
+.auth-form--error input[type="text"],
+.auth-form--error input[type="password"] {
+    border-color: rgba(180, 35, 24, 0.5);
+    background: #fff8f7;
+}
+
+.auth-form--error input[type="text"]:focus,
+.auth-form--error input[type="password"]:focus {
+    border-color: rgba(180, 35, 24, 0.65);
+    box-shadow: 0 0 0 0.2rem rgba(180, 35, 24, 0.12);
 }
 
 .auth-card--centered { margin-top: 2rem; }
@@ -1743,6 +1781,11 @@ form fieldset {
 .stack-form > *:has(input[type="file"]),
 .stack-form > *:has(input[type="checkbox"]),
 .stack-form > .errorlist,
+.stack-form > .alert,
+.stack-form > .auth-alert,
+.stack-form > .btn,
+.stack-form > button,
+.stack-form > .actions,
 .stack-form > .d-flex,
 form fieldset > *:has(textarea),
 form fieldset > *:has(input[type="file"]),
@@ -1750,6 +1793,11 @@ form fieldset > *:has(input[type="checkbox"]),
 form fieldset > *:has(select[multiple]),
 form fieldset > legend {
     grid-column: 1 / -1;
+}
+
+.stack-form > input[type="hidden"],
+form fieldset > input[type="hidden"] {
+    display: none;
 }
 
 form fieldset {
@@ -1768,10 +1816,6 @@ form fieldset legend {
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: var(--app-primary-dark);
-}
-
-form fieldset > input[type="hidden"] {
-    display: none;
 }
 
 form fieldset.form-fieldset--block {
@@ -1866,9 +1910,7 @@ ul.model-grid { list-style: none; padding: 0; margin: 0; display: grid; grid-tem
 ul.model-grid li a { display: block; padding: 0.85rem; border: 1px solid var(--app-border); border-radius: 1rem; text-decoration: none; background: var(--app-surface-alt); color: var(--app-text); }
 
 .calendar-shell {
-    display: grid;
-    grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.75fr);
-    gap: 0.95rem;
+    display: block;
 }
 
 .calendar-panel {
@@ -1876,12 +1918,47 @@ ul.model-grid li a { display: block; padding: 0.85rem; border: 1px solid var(--a
     border: 1px solid var(--app-border);
     border-radius: 1rem;
     background: linear-gradient(180deg, var(--app-surface), var(--app-surface-alt));
-    overflow: hidden;
+    overflow: visible;
 }
 
-.calendar-sidebar {
-    display: grid;
-    gap: 0.85rem;
+.calendar-size-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.4rem;
+    margin: 0 0 0.7rem;
+}
+
+.calendar-size-bar__label {
+    margin-right: 0.15rem;
+    color: var(--app-muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.calendar-size-btn {
+    min-height: 1.85rem;
+    padding: 0.15rem 0.65rem;
+    border: 1px solid var(--app-border);
+    border-radius: 999px;
+    background: var(--app-surface);
+    color: var(--app-text);
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.calendar-size-btn:hover {
+    border-color: rgba(15, 118, 110, 0.4);
+}
+
+.calendar-size-btn.is-active {
+    border-color: var(--app-primary-dark);
+    background: linear-gradient(135deg, var(--app-primary), var(--app-primary-dark));
+    color: #fff;
 }
 
 .calendar-legend {
@@ -1933,18 +2010,27 @@ ul.model-grid li a { display: block; padding: 0.85rem; border: 1px solid var(--a
 
 .calendar-urgency-legend {
     list-style: none;
-    margin: 0.75rem 0 0;
-    padding: 0;
-    display: grid;
-    gap: 0.35rem;
+    margin: 0;
+    padding: 0.15rem 0 0.15rem 0.55rem;
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.65rem 0.9rem;
     color: var(--app-muted);
-    font-size: 0.9rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    border-left: 1px solid var(--app-border);
 }
 
 .calendar-urgency-legend li {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 0.45rem;
+    gap: 0.35rem;
+}
+
+.calendar-coberturas {
+    margin: 0.3rem 0 0;
+    font-size: 0.82rem;
 }
 
 .calendar-dot {
@@ -2146,6 +2232,41 @@ body.calendar-modal-open {
 .home-calendar .fc-theme-standard td,
 .home-calendar .fc-theme-standard th {
     border-color: var(--app-border);
+}
+
+.home-calendar .fc-dayGridMonth-view .fc-col-header,
+.home-calendar .fc-dayGridMonth-view .fc-daygrid-body,
+.home-calendar .fc-dayGridMonth-view .fc-scrollgrid-sync-table {
+    width: 100% !important;
+    table-layout: fixed !important;
+}
+
+.home-calendar .fc-scrollgrid-section-header .fc-scroller {
+    overflow: hidden !important;
+}
+
+.home-calendar .fc-dayGridMonth-view .fc-col-header-cell,
+.home-calendar .fc-dayGridMonth-view .fc-daygrid-day {
+    width: calc(100% / 7);
+    box-sizing: border-box;
+}
+
+.home-calendar .fc-scrollgrid-section-header > td,
+.home-calendar .fc-scrollgrid-section-body > td,
+.home-calendar .fc-scrollgrid-section-liquid > td {
+    width: 100%;
+}
+
+.home-calendar .fc-daygrid-day-frame {
+    min-height: 5.5rem;
+}
+
+.calendar-panel[data-calendar-size="sm"] .home-calendar .fc-daygrid-day-frame {
+    min-height: 4.1rem;
+}
+
+.calendar-panel[data-calendar-size="lg"] .home-calendar .fc-daygrid-day-frame {
+    min-height: 7.4rem;
 }
 
 .home-calendar .fc-daygrid-event,
@@ -2488,7 +2609,6 @@ body.calendar-modal-open {
 @media (max-width: 1100px) {
     .app-shell { flex-direction: column; }
     .hero-panel, .quick-grid, .kpi-grid, .dash-panels, .home-toolbar { grid-template-columns: 1fr; }
-    .calendar-shell { grid-template-columns: 1fr; }
     .ticket-detail-layout { grid-template-columns: 1fr; }
 
     .content-card {

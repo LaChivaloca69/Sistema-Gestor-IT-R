@@ -76,7 +76,7 @@ Sistema-Gestor-IT-R/
 │   └── management/commands/  # limpiar_historial, setup_background_jobs
 ├── static/GestorApp/
 ├── media/
-└── docs existentes (ROLES.md, TICKETS.md, MANTENIMIENTO.md, …)
+└── documentacion/Docs1/      # ROLES.md, TICKETS.md, MANTENIMIENTO.md, …
 ```
 
 ### Capas de una petición típica
@@ -709,6 +709,7 @@ sequenceDiagram
 
 | Documento | Enfoque |
 |-----------|---------|
+| `CASOS_DE_USO.md` | Que puede hacer cada actor en cada modulo |
 | `ROLES.md` | Roles, precedencia, matriz de acceso |
 | `TICKETS.md` | Flujo y SLA de tickets |
 | `MANTENIMIENTO.md` | Operación de mantenimientos |

@@ -392,7 +392,9 @@ html.theme-dark .dash-ok {
 html.theme-dark .alert-success,
 html.theme-dark .message-success { background: #052e1c !important; border-color: #166534 !important; color: #86efac !important; }
 html.theme-dark .alert-danger,
-html.theme-dark .message-error { background: #3f1210 !important; border-color: #991b1b !important; color: #fca5a5 !important; }
+html.theme-dark .message-error,
+html.theme-dark .auth-alert { background: #3f1210 !important; border-color: #991b1b !important; color: #fca5a5 !important; }
+html.theme-dark .auth-alert p { color: #fecaca !important; }
 html.theme-dark .alert-warning,
 html.theme-dark .message-warning { background: #3b2a08 !important; border-color: #a16207 !important; color: #fde68a !important; }
 html.theme-dark .alert-info { background: #0c1e36 !important; border-color: #1d4ed8 !important; color: #93c5fd !important; }
@@ -522,6 +524,18 @@ html.theme-dark .fc-theme-standard .fc-list-day-cushion {
 
 html.theme-dark .fc .fc-list-event:hover td {
     background-color: rgba(45, 212, 191, 0.14) !important;
+}
+
+html.theme-dark .calendar-size-btn {
+    background: #1a2438;
+    border-color: #2b364c;
+    color: #e8eef7;
+}
+
+html.theme-dark .calendar-size-btn.is-active {
+    background: linear-gradient(135deg, #0f766e, #0b5e58);
+    border-color: #14b8a6;
+    color: #fff;
 }
 
 html.theme-dark .fc .fc-button-primary {

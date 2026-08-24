@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from django import forms
 from django.contrib.auth import get_user_model
-from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.db import transaction
@@ -62,6 +62,33 @@ from ..roles import (
 )
 from .common import _get_user_personal  # noqa: F401
 
+
+class LoginForm(AuthenticationForm):
+    error_messages = {
+        "invalid_login": (
+            "Usuario o contraseña incorrectos. "
+            "Revisa que esten bien escritos (mayusculas y minusculas cuentan)."
+        ),
+        "inactive": "Esta cuenta esta desactivada. Contacta a un administrador.",
+    }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["username"].label = "Usuario"
+        self.fields["password"].label = "Contraseña"
+        self.fields["username"].widget.attrs.update(
+            {
+                "autofocus": True,
+                "autocomplete": "username",
+                "placeholder": "Tu usuario",
+            }
+        )
+        self.fields["password"].widget.attrs.update(
+            {
+                "autocomplete": "current-password",
+                "placeholder": "Tu contraseña",
+            }
+        )
 
 
 class UserRegisterForm(UserCreationForm):

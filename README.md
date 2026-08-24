@@ -121,15 +121,18 @@ python manage.py makemigrations
 A continuacion se mostrara un breve repaso de funciones segun los apartados del proyecto
 
 ## Documentacion tecnica
-- Models: MODELS.md
-- Views CRUD: DocViews.md
-- Templates: DocTemplates.md
-- Tickets y Seguimiento: TICKETS.md
-- Mantenimiento y Cierres: MANTENIMIENTO.md
-- Inventario de equipos: INVENTARIO.md
+- Models: [documentacion/Docs1/MODELS.md](documentacion/Docs1/MODELS.md)
+- Views CRUD: [documentacion/Docs1/DocViews.md](documentacion/Docs1/DocViews.md)
+- Templates: [documentacion/Docs1/DocTemplates.md](documentacion/Docs1/DocTemplates.md)
+- Tickets y Seguimiento: [documentacion/Docs1/TICKETS.md](documentacion/Docs1/TICKETS.md)
+- Mantenimiento y Cierres: [documentacion/Docs1/MANTENIMIENTO.md](documentacion/Docs1/MANTENIMIENTO.md)
+- Inventario de equipos: [documentacion/Docs1/INVENTARIO.md](documentacion/Docs1/INVENTARIO.md)
+- Roles: [documentacion/Docs1/ROLES.md](documentacion/Docs1/ROLES.md)
+- Modulos: [documentacion/Docs1/MODULOS.md](documentacion/Docs1/MODULOS.md)
+- Casos de uso: [documentacion/Docs1/CASOS_DE_USO.md](documentacion/Docs1/CASOS_DE_USO.md)
 
 ## Inventario (CRUD)
-Modulo para gestionar equipos, bajas/altas, asignaciones, movimientos (auditoria), mantenimientos y avisos operativos. Detalle del funcionamiento actual en **INVENTARIO.md**.
+Modulo para gestionar equipos, bajas/altas, asignaciones, movimientos (auditoria), mantenimientos y avisos operativos. Detalle del funcionamiento actual en **[INVENTARIO.md](documentacion/Docs1/INVENTARIO.md)**.
 
 ## Apoyo en formatos
 *Nota: Apartado sujeto a cambios *

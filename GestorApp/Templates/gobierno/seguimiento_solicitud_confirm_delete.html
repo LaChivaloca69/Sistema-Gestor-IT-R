@@ -1,15 +1,15 @@
 {% extends "base.html" %}
 
-{% block title %}Eliminar seguimiento{% endblock %}
+{% block title %}Eliminar revision IT{% endblock %}
 
 {% block content %}
-{% include "partials/page_header_open.html" with title="Eliminar seguimiento" description="Esta accion no se puede deshacer." %}
+{% include "partials/page_header_open.html" with title="Eliminar revision IT" description="Esta accion no se puede deshacer." %}
 	<a class="btn btn-outline-secondary" href="{% url 'solicitud_equipo_detail' solicitud.pk %}">Volver</a>
 {% include "partials/page_header_close.html" %}
 
 <div class="card shadow-sm border-0">
 	<div class="card-body">
-		<p class="mb-4">Estas seguro que deseas eliminar el seguimiento de <strong>{{ solicitud.folio }}</strong>?</p>
+		<p class="mb-4">Estas seguro que deseas eliminar la revision IT de <strong>{{ solicitud.folio }}</strong>?</p>
 		<form method="post" class="d-flex flex-wrap gap-2">
 			{% csrf_token %}
 			<a class="btn btn-outline-secondary" href="{% url 'solicitud_equipo_detail' solicitud.pk %}">Cancelar</a>

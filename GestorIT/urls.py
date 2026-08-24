@@ -10,6 +10,7 @@ from django.urls import path
 
 from GestorApp import views
 from GestorApp import gobierno_views
+from GestorApp.forms import LoginForm
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -20,6 +21,7 @@ urlpatterns = [
         auth_views.LoginView.as_view(
             template_name='login.html',
             redirect_authenticated_user=True,
+            authentication_form=LoginForm,
         ),
         name='login',
     ),

@@ -4,7 +4,7 @@ Formularios de GestorApp (paquete).
 Compatibilidad: `from GestorApp.forms import TicketITForm` sigue funcionando.
 """
 
-from .auth import UserRegisterForm
+from .auth import LoginForm, UserRegisterForm
 from .common import (
     get_subtipo_ticket_choices,
     get_tipo_equipo_queryset,
@@ -68,6 +68,7 @@ __all__ = [
     "SolicitudEquipoRevisionForm",
     "TicketITForm",
     "UbicacionForm",
+    "LoginForm",
     "UserRegisterForm",
     "ZonaEdificioForm",
     "get_subtipo_ticket_choices",

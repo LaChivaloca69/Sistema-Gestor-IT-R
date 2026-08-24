@@ -66,6 +66,8 @@ class AuthFlowTests(TestCase):
         form = response.context.get("form")
         self.assertIsNotNone(form)
         self.assertTrue(form.errors)
+        self.assertContains(response, "No se pudo iniciar sesion")
+        self.assertContains(response, "Usuario o contraseña incorrectos")
 
 
 class SmokeFlowTests(TestCase):
@@ -369,14 +371,14 @@ class SolicitudEquipoSeguimientoTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Se reviso inventario.")
-        self.assertContains(response, "Seguimientos")
-        self.assertNotContains(response, "Agregar seguimiento")
+        self.assertContains(response, "Revision IT")
+        self.assertNotContains(response, "Guardar revision")
         self.assertNotContains(response, "Cerrar solicitud")
 
         response = self.client.post(
             reverse("solicitud_equipo_detail", args=[self.solicitud.pk]),
             {
-                "form_type": "seguimiento",
+                "form_type": "revision",
                 "avance_realizado": "Intento del solicitante",
             },
         )
@@ -393,14 +395,16 @@ class SolicitudEquipoSeguimientoTests(TestCase):
         response = self.client.get(
             reverse("solicitud_equipo_detail", args=[self.solicitud.pk])
         )
-        self.assertContains(response, "Agregar seguimiento")
+        self.assertContains(response, "Guardar revision")
         self.assertContains(response, "Cerrar solicitud")
+        self.assertContains(response, "Revision IT")
+        self.assertNotContains(response, "Agregar seguimiento")
         self.assertNotContains(response, "Completar (asignado)")
 
         response = self.client.post(
             reverse("solicitud_equipo_detail", args=[self.solicitud.pk]),
             {
-                "form_type": "seguimiento",
+                "form_type": "revision",
                 "avance_realizado": "Buscando equipo compatible",
                 "usuario": str(self.tech.pk),
             },
@@ -423,6 +427,26 @@ class SolicitudEquipoSeguimientoTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.solicitud.refresh_from_db()
         self.assertEqual(self.solicitud.estado, EstadoSolicitudEquipo.COMPLETADA)
+
+    def test_tecnico_unified_revision_can_add_avance_and_close(self):
+        self.client.login(username="sol_tech", password=self.password)
+        response = self.client.post(
+            reverse("solicitud_equipo_detail", args=[self.solicitud.pk]),
+            {
+                "form_type": "revision",
+                "avance_realizado": "Equipo entregado",
+                "usuario": str(self.tech.pk),
+                "estado": EstadoSolicitudEquipo.COMPLETADA,
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.solicitud.refresh_from_db()
+        self.assertEqual(self.solicitud.estado, EstadoSolicitudEquipo.COMPLETADA)
+        self.assertTrue(
+            self.solicitud.seguimientos.filter(
+                avance_realizado="Equipo entregado"
+            ).exists()
+        )
 
 
 class BitacoraAnswerFlowTests(TestCase):

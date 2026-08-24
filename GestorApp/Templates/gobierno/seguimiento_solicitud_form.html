@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 {% load django_bootstrap5 %}
 
-{% block title %}Editar seguimiento{% endblock %}
+{% block title %}Editar revision IT{% endblock %}
 
 {% block content %}
-{% include "partials/page_header_open.html" with title="Editar seguimiento" description="Actualiza el avance de la solicitud de equipo." %}
+{% include "partials/page_header_open.html" with title="Editar revision IT" description="Actualiza el avance de la solicitud de equipo." %}
 	<a class="btn btn-outline-primary" href="{% url 'solicitud_equipo_detail' solicitud.pk %}">Ver solicitud</a>
 	<a class="btn btn-outline-secondary" href="{% url 'solicitud_equipo_list' %}">Volver</a>
 {% include "partials/page_header_close.html" %}
@@ -23,7 +23,7 @@
 <form method="post">
 	{% csrf_token %}
 	{{ form.non_field_errors }}
-	{% include "partials/form_fieldset.html" with legend="Seguimiento" %}
+	{% include "partials/form_fieldset.html" with legend="Revision IT" %}
 	<div class="actions">
 		<a class="btn btn-outline-secondary" href="{% url 'solicitud_equipo_detail' solicitud.pk %}">Cancelar</a>
 		<button class="btn btn-primary" type="submit">Guardar</button>
