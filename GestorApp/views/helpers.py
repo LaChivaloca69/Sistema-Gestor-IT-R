@@ -61,6 +61,22 @@ def user_can_manage_ticket_flow(user):
     return is_operativo(user)
 
 
+def user_can_comment_ticket(user, ticket):
+    if not user_can_view_ticket(user, ticket):
+        return False
+    if ticket.status != EstadoSupport.CERRADO:
+        return True
+    return is_operativo(user)
+
+
+def user_can_delete_comentario(user, comentario):
+    if not user or not user.is_authenticated or comentario is None:
+        return False
+    if is_admin_user(user):
+        return True
+    return comentario.autor_id == user.id
+
+
 def _deny_ticket_access(request, message="No tienes permisos para este ticket."):
     messages.error(request, message)
     return redirect("ticketit_list")

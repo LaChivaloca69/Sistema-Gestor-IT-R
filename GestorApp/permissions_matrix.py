@@ -23,6 +23,14 @@ PERMISSION_MATRIX = [
     ),
     (
         "Soporte",
+        "Comentar y adjuntar en tickets",
+        True,
+        True,
+        True,
+        "Solicitante y IT en tickets abiertos. En cerrado, solo IT. Adjuntos: imagen o PDF.",
+    ),
+    (
+        "Soporte",
         "Seguimientos, bitacora y respuestas",
         False,
         True,

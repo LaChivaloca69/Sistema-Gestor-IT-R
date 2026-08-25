@@ -22,6 +22,7 @@ from ..forms.common import get_subtipo_ticket_choices
 from ..forms.tickets import (
     AnswerForm,
     BitacoraForm,
+    ComentarioTicketForm,
     SeguimientoTicketForm,
     TicketITForm,
 )
@@ -45,6 +46,7 @@ from ..models import (
     AsignacionEquipo,
     Bitacora,
     CategoriaEquipo,
+    ComentarioTicket,
     DetalleOrdenCompra,
     Edificio,
     Equipo,
@@ -98,6 +100,8 @@ from .helpers import (
     _tickets_for_user,
     _tickets_sla_por_vencer_q,
     _tickets_sla_vencidos_q,
+    user_can_comment_ticket,
+    user_can_delete_comentario,
     user_can_delete_ticket,
     user_can_edit_ticket,
     user_can_manage_orden,
@@ -212,7 +216,11 @@ def ticketit_dashboard(request):
 
 def ticketit_detail(request, pk):
     ticket = get_object_or_404(
-        _ticketit_queryset().prefetch_related("seguimientos__usuario"),
+        _ticketit_queryset().prefetch_related(
+            "seguimientos__usuario",
+            "comentarios__autor",
+            "comentarios__adjuntos",
+        ),
         pk=pk,
     )
     if not user_can_view_ticket(request.user, ticket):
@@ -222,7 +230,9 @@ def ticketit_detail(request, pk):
     can_edit = user_can_edit_ticket(request.user, ticket)
     can_delete = user_can_delete_ticket(request.user, ticket)
     can_add_seguimiento = can_manage_flow and ticket.status != EstadoSupport.CERRADO
+    can_comment = user_can_comment_ticket(request.user, ticket)
     seguimiento_form = None
+    comentario_form = ComentarioTicketForm() if can_comment else None
 
     if can_add_seguimiento and request.method == "POST" and request.POST.get("form_type") == "seguimiento":
         seguimiento_form = SeguimientoTicketForm(
@@ -257,6 +267,9 @@ def ticketit_detail(request, pk):
     seguimientos = ticket.seguimientos.select_related("usuario").order_by(
         "-fecha_check", "-pk"
     )
+    comentarios = ticket.comentarios.select_related("autor").prefetch_related("adjuntos")
+    for item in comentarios:
+        item.perm_can_delete = user_can_delete_comentario(request.user, item)
 
     return render(
         request,
@@ -265,12 +278,100 @@ def ticketit_detail(request, pk):
             "object": ticket,
             "seguimientos": seguimientos,
             "seguimiento_form": seguimiento_form,
+            "comentarios": comentarios,
+            "comentario_form": comentario_form,
             "can_manage_flow": can_manage_flow,
             "can_add_seguimiento": can_add_seguimiento,
+            "can_comment": can_comment,
             "can_edit": can_edit,
             "can_delete": can_delete,
         },
     )
+
+
+def ticketit_comentario_create(request, pk):
+    ticket = get_object_or_404(_ticketit_queryset(), pk=pk)
+    if not user_can_view_ticket(request.user, ticket):
+        return _deny_ticket_access(request)
+    if request.method != "POST":
+        return redirect("ticketit_detail", pk=ticket.pk)
+    if not user_can_comment_ticket(request.user, ticket):
+        messages.error(
+            request,
+            "No puedes comentar este ticket. Si esta cerrado, pide a IT que lo reabra.",
+        )
+        return redirect("ticketit_detail", pk=ticket.pk)
+
+    form = ComentarioTicketForm(request.POST, request.FILES)
+    if form.is_valid():
+        comentario = form.save(ticket=ticket, autor=request.user)
+        adjuntos = comentario.adjuntos.count()
+        historial.registrar_creacion(
+            request,
+            modulo=ModuloHistorial.TICKET,
+            titulo=f"Comentario en {ticket.folio_ticket}",
+            objeto=comentario,
+            entidad_relacionada=ticket,
+            enlace_nombre="ticketit_detail",
+            enlace_pk=ticket.pk,
+            descripcion=(comentario.mensaje or "")[:400],
+            metadata={"adjuntos": adjuntos},
+        )
+        messages.success(request, "Comentario publicado.")
+        return redirect("ticketit_detail", pk=ticket.pk)
+
+    messages.error(request, "No se pudo publicar el comentario. Revisa el texto o los archivos.")
+    can_manage_flow = user_can_manage_ticket_flow(request.user)
+    can_add_seguimiento = can_manage_flow and ticket.status != EstadoSupport.CERRADO
+    comentarios = ticket.comentarios.select_related("autor").prefetch_related("adjuntos")
+    for item in comentarios:
+        item.perm_can_delete = user_can_delete_comentario(request.user, item)
+    return render(
+        request,
+        "ticketit/detail.html",
+        {
+            "object": ticket,
+            "seguimientos": ticket.seguimientos.select_related("usuario").order_by(
+                "-fecha_check", "-pk"
+            ),
+            "seguimiento_form": (
+                SeguimientoTicketForm(ticket=ticket, request_user=request.user)
+                if can_add_seguimiento
+                else None
+            ),
+            "comentarios": comentarios,
+            "comentario_form": form,
+            "can_manage_flow": can_manage_flow,
+            "can_add_seguimiento": can_add_seguimiento,
+            "can_comment": True,
+            "can_edit": user_can_edit_ticket(request.user, ticket),
+            "can_delete": user_can_delete_ticket(request.user, ticket),
+        },
+    )
+
+
+def ticketit_comentario_delete(request, pk, comentario_id):
+    ticket = get_object_or_404(_ticketit_queryset(), pk=pk)
+    if not user_can_view_ticket(request.user, ticket):
+        return _deny_ticket_access(request)
+    comentario = get_object_or_404(ComentarioTicket, pk=comentario_id, ticket=ticket)
+    if request.method != "POST":
+        return redirect("ticketit_detail", pk=ticket.pk)
+    if not user_can_delete_comentario(request.user, comentario):
+        messages.error(request, "No puedes eliminar este comentario.")
+        return redirect("ticketit_detail", pk=ticket.pk)
+
+    historial.registrar_eliminacion(
+        request,
+        modulo=ModuloHistorial.TICKET,
+        titulo=f"Comentario eliminado en {ticket.folio_ticket}",
+        objeto=comentario,
+        entidad_relacionada=ticket,
+        descripcion=(comentario.mensaje or "")[:400],
+    )
+    comentario.delete()
+    messages.success(request, "Comentario eliminado.")
+    return redirect("ticketit_detail", pk=ticket.pk)
 
 
 def ticketit_create(request):

@@ -13,6 +13,7 @@ from .media_security import (
     equipo_imagen_upload_to,
     orden_pdf_upload_to,
     plantilla_archivo_upload_to,
+    ticket_comentario_upload_to,
     ticket_imagen_upload_to,
 )
 # ------------ MODELOS DE AREAS, PUESTOS Y PERSONAL ------------
@@ -757,6 +758,77 @@ class SeguimientoTicket(models.Model):
 
     def __str__(self):
         return self.folio_check or f'Check {self.pk}'
+
+
+class ComentarioTicket(models.Model):
+    """Hilo de conversacion en el ticket. No cambia el estado ni el SLA."""
+
+    ticket = models.ForeignKey(
+        TicketIT,
+        on_delete=models.CASCADE,
+        related_name="comentarios",
+    )
+    autor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="comentarios_ticket",
+    )
+    mensaje = models.TextField(blank=True)
+    es_interno = models.BooleanField(
+        default=False,
+        help_text="True si lo publico un tecnico o administrador.",
+    )
+    fecha = models.DateTimeField(default=timezone.now, db_index=True)
+
+    class Meta:
+        verbose_name = "Comentario de ticket"
+        verbose_name_plural = "Comentarios de ticket"
+        ordering = ["fecha", "pk"]
+
+    def __str__(self):
+        folio = self.ticket.folio_ticket if self.ticket_id else "SPR0"
+        return f"{folio} · comentario {self.pk}"
+
+    @property
+    def tiene_adjuntos(self):
+        return self.adjuntos.exists()
+
+
+class ComentarioTicketAdjunto(models.Model):
+    comentario = models.ForeignKey(
+        ComentarioTicket,
+        on_delete=models.CASCADE,
+        related_name="adjuntos",
+    )
+    archivo = models.FileField(upload_to=ticket_comentario_upload_to)
+    nombre_original = models.CharField(max_length=180, blank=True)
+    fecha = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Adjunto de comentario"
+        verbose_name_plural = "Adjuntos de comentario"
+        ordering = ["pk"]
+
+    def __str__(self):
+        return self.nombre_original or (self.archivo.name if self.archivo else "adjunto")
+
+    @property
+    def es_imagen(self):
+        ext = (self.archivo.name or "").rsplit(".", 1)
+        suffix = f".{ext[-1].lower()}" if len(ext) == 2 else ""
+        return suffix in {".jpg", ".jpeg", ".png", ".gif", ".webp"}
+
+    @property
+    def etiqueta(self):
+        return self.nombre_original or (self.archivo.name.rsplit("/", 1)[-1] if self.archivo else "archivo")
+
+
+@receiver(post_delete, sender=ComentarioTicketAdjunto)
+def delete_comentario_adjunto_file(sender, instance, **kwargs):
+    if instance.archivo:
+        instance.archivo.delete(save=False)
 
 
 class Bitacora(models.Model):

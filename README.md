@@ -1,40 +1,100 @@
-# Sistema-Gestor-IT-R
-Proyecto sistema web gestor de it
+# Sistema Gestor IT
 
-El proyecto correspondiente tiene como objetivo gestionar el area de It en una fabrica. 
-La idea principal es llevar un registro completo de todo el apartado del area IT y el gestor de ticktes, con la opcion de expandirse a futuro.
+Aplicación web Django para gestionar el área de TI de una fábrica: inventario de equipos, tickets de soporte, mantenimiento, órdenes de compra, personal y gobierno de roles.
 
-## Lenguajes y programas a utilizar etc
-Lenguaje: Python
-Base de datos: Postgresql with DjangoDB
+Una sola app de negocio (`GestorApp`) dentro del proyecto Django (`GestorIT`). Los “módulos” de la documentación son dominios funcionales, no apps Django separadas.
 
-## Principales caracteristicas
-- CRUD para el inventario general
-    - Alta y bajas etc.
-- Entradas y salidas de equipos
-    - Entradas y salidas de equipos 
-    - Apoyar a la elaboracion de formatos 
-- Manejo de mantenimiento
-    - Registro de mantenimientos, calendarios y agendas proximas etc
-- Registro de asignaciones de equipo al personal 
-    - Llevar un regstro de asignacion de equipos.
-Sistema de tickets 
-    It
-Gestor de ventas y presupuestos(Ayuda a generar el formato para)
-    Ayuda a dar formato para los presupuestos y compras de materiales etc.
+**Última revisión:** agosto 2026 (código actual del repositorio).
 
-## Instalacion
-Para instalar el sistema web es necesario 
-Python, Postgresql y las dependencias correspondientes dentro del archivo requeriments.txt
+---
 
+## Qué cubre el sistema
 
-### Git
-Instalar git para copiar el repositorio Nota: puedes descargar el repositorio y ejecutarlo pero git hace mas comodo todo este proceso 
-``` Powershell
-# Clonar repositorio
+| Módulo | Qué hace |
+|--------|----------|
+| **Inventario** | Gestion de Equipos unitarios: alta, asignación, devolución, ubicación, baja lógica, movimientos |
+| **Soporte** | Tickets con SLA, seguimientos, bitácora operativa |
+| **Mantenimiento** | Órdenes preventivo/correctivo/predictivo, cierres y próximo ciclo |
+| **Compras** | Órdenes de compra (crear o subir), plantillas DOCX/XLSX/PDF, PDF generado |
+| **Organización** | Áreas, puestos, personal ligado a `User` |
+| **Ubicaciones** | Edificio → zona → ubicación |
+| **Gobierno** | Roles (Groups), coberturas de tickets, solicitudes de equipo, matriz de permisos |
+| **Auditoría** | Historial de actividad con retención (archivar → purgar) |
+
+Los avisos (SLA, checks, mantenimientos, solicitudes) se ven en **Inicio**, la **campana** del topbar y los **dashboards**.
+
+---
+
+## Stack
+
+| Pieza | Detalle |
+|-------|---------|
+| Python / Django | Django **6.0.7** |
+| Base de datos | **PostgreSQL** (`psycopg2-binary`) |
+| UI | `django-bootstrap5`, CSS/JS en `static/GestorApp/` |
+| Jobs | `django-q2` (broker ORM en Postgres, sin Redis) |
+| Documentos | `docxtpl`, `python-docx`, `openpyxl`, `pypdf`, `Pillow` |
+| Auth | `django.contrib.auth.User` (sin `AUTH_USER_MODEL` propio) |
+
+Dependencias: [requirements.txt](requirements.txt).
+
+---
+
+## Roles
+
+Tres grupos de Django (un usuario tiene un solo rol de negocio):
+
+| Grupo | Quién | Alcance típico |
+|-------|-------|----------------|
+| `Usuario` | Empleado final | Tickets propios, mis equipos, solicitudes, órdenes propias |
+| `Tecnico IT` | Operación diaria | Inventario, tickets globales, mantenimiento, coberturas |
+| `Administrador` | Gobierno | Personal, borrados, plantillas, retención, matriz |
+
+El registro (`/signup/`) crea `User` + `Personal` con rol **Usuario**. El Administrador eleva roles desde Personal.
+
+Detalle: [ROLES.md](documentacion/Docs1/ROLES.md).
+
+---
+
+## Instalación (desarrollo)
+
+Requisitos: Python 3, PostgreSQL, Git.
+
+```powershell
 git clone https://github.com/LaChivaloca69/Sistema-Gestor-IT-R.git
+cd Sistema-Gestor-IT-R
+
+python -m venv venv
+venv\Scripts\activate
+
+pip install -r requirements.txt
 ```
-comandos basicos de git
+
+1. Crear en PostgreSQL la base `GestorIT` y un usuario con permiso sobre ella.
+2. Ajustar `DATABASES` en `GestorIT/settings.py` (host, usuario, contraseña). Los valores del repo son de desarrollo, no de producción.
+3. Migrar y arrancar:
+
+```powershell
+python manage.py migrate
+python manage.py createsuperuser
+python manage.py runserver
+```
+
+Opcional (jobs de retención y recordatorios):
+
+```powershell
+python manage.py setup_background_jobs
+python manage.py qcluster
+```
+
+El worker debe quedar como proceso aparte en el servidor. Sin él, las tareas pueden ejecutarse en el mismo request (fallback) o quedar en cola.
+
+Tests de humo:
+
+```powershell
+python manage.py test GestorApp.tests
+```
+Comandos github 
 ``` powershell
 # Ver estado de cambios
 git status
@@ -61,81 +121,70 @@ git push -u origin main
 # Muestra el historial de cambios
 git log --oneline
 ```
-### Crear entorno o espacio de trabajo
-``` Powershell
-# Crear entorno virtual
-python -m venv venv
 
-# Activar entorno virtual (Linux/Mac)
-source venv/bin/activate
 
-# Activar entorno virtual (Windows)
-venv\Scripts\activate
 
-# Salir del entorno
-deactivate
+---
+
+## Estructura del repositorio
 
 ```
-
-Dependencias
-``` Powershell
-# Guardar Dependencias
-pip freeze > requirements.txt
-
-# Descargar dependencias
-pip install -r requirements.txt
-
-# Verificar instalacion
-pip list
-
+Sistema-Gestor-IT-R/
+├── GestorIT/                 # Proyecto Django (settings, urls, wsgi/asgi)
+├── GestorApp/                # App de negocio
+│   ├── models.py
+│   ├── views/                # Vistas por dominio
+│   ├── forms/                # Formularios por dominio
+│   ├── Templates/            # HTML por entidad
+│   ├── gobierno_views.py
+│   └── management/commands/
+├── static/GestorApp/         # CSS / JS
+├── media/                    # Uploads (equipos, tickets, OC, plantillas)
+├── documentacion/Docs1/      # Documentación técnica
+├── manage.py
+└── requirements.txt
 ```
 
-Django
-``` Powershell
-# Instalacion Django dentro del entorno
-pip install django
+---
 
-# Crear un proyecto
-django-admin startproject nombre_projecto
+## Documentación técnica
 
-# Activar servidor de desarrollo 
-python manage.py runserver
+| Documento | Contenido |
+|-----------|-----------|
+| [MODELS.md](documentacion/Docs1/MODELS.md) | Modelos Django, choices, relaciones y métodos |
+| [DocModels.md](documentacion/Docs1/DocModels.md) | Diccionario de datos (tablas / campos) |
+| [DocTemplates.md](documentacion/Docs1/DocTemplates.md) | Templates, layout y partials |
+| [Reestructuracion_Views.md](documentacion/Docs1/Reestructuracion_Views.md) | Split de `views/` y `forms/` |
+| [TICKETS.md](documentacion/Docs1/TICKETS.md) | Flujo, SLA y seguimientos |
+| [MANTENIMIENTO.md](documentacion/Docs1/MANTENIMIENTO.md) | Órdenes, cierres y próximo ciclo |
+| [INVENTARIO.md](documentacion/Docs1/INVENTARIO.md) | Equipos, OC, asignaciones, movimientos |
+| [ROLES.md](documentacion/Docs1/ROLES.md) | Roles, decoradores, matriz de acceso |
+| [MODULOS.md](documentacion/Docs1/MODULOS.md) | Arquitectura funcional y mapa de archivos |
+| [CASOS_DE_USO.md](documentacion/Docs1/CASOS_DE_USO.md) | Qué puede hacer cada actor |
+| [MEJORAS_CALIDAD_Y_GOBIERNO.md](documentacion/Docs1/MEJORAS_CALIDAD_Y_GOBIERNO.md) | Cache, jobs, auditoría, media, gobierno |
 
-# Crear una aplicacion dentro de la carpeta actual
-python manage.py startapp nombre_app
+---
 
-# Creacion de super usuario
-\\ El super usuario es solamente para el entorno de django recuerde administrar de manera correcta los usuarios en la Base de datos
-python manage.py createsuperuser
+## Rutas de entrada
 
-# Aplica migraciones a la base de datos
-python manage.py migrate
+| Ruta | Uso |
+|------|-----|
+| `/` | Inicio (KPIs + calendario) |
+| `/login/` `/logout/` `/signup/` | Auth |
+| `/Ticketit/` | Tickets |
+| `/Equipos/` `/Equipos/mis/` | Inventario / mis equipos |
+| `/MantenimientoEquipos/` | Mantenimientos |
+| `/OrdenesCompra/` | Órdenes de compra |
+| `/SolicitudesEquipo/` | Solicitudes de equipo |
+| `/Gobierno/permisos/` | Matriz (solo Admin) |
+| `/admin/` | Django Admin (`is_staff`; modelos de negocio **no** están registrados) |
 
-# Genera archivos de migracion en los cambios en modelos
-python manage.py makemigrations
+---
 
-#
-```
+## Notas de operación
 
-# Secciones
-A continuacion se mostrara un breve repaso de funciones segun los apartados del proyecto
-
-## Documentacion tecnica
-- Models: [documentacion/Docs1/MODELS.md](documentacion/Docs1/MODELS.md)
-- Views CRUD: [documentacion/Docs1/DocViews.md](documentacion/Docs1/DocViews.md)
-- Templates: [documentacion/Docs1/DocTemplates.md](documentacion/Docs1/DocTemplates.md)
-- Tickets y Seguimiento: [documentacion/Docs1/TICKETS.md](documentacion/Docs1/TICKETS.md)
-- Mantenimiento y Cierres: [documentacion/Docs1/MANTENIMIENTO.md](documentacion/Docs1/MANTENIMIENTO.md)
-- Inventario de equipos: [documentacion/Docs1/INVENTARIO.md](documentacion/Docs1/INVENTARIO.md)
-- Roles: [documentacion/Docs1/ROLES.md](documentacion/Docs1/ROLES.md)
-- Modulos: [documentacion/Docs1/MODULOS.md](documentacion/Docs1/MODULOS.md)
-- Casos de uso: [documentacion/Docs1/CASOS_DE_USO.md](documentacion/Docs1/CASOS_DE_USO.md)
-
-## Inventario (CRUD)
-Modulo para gestionar equipos, bajas/altas, asignaciones, movimientos (auditoria), mantenimientos y avisos operativos. Detalle del funcionamiento actual en **[INVENTARIO.md](documentacion/Docs1/INVENTARIO.md)**.
-
-## Apoyo en formatos
-*Nota: Apartado sujeto a cambios *
-ayuda en los formatos, (presupuestos, compras, etc)
-
-
+- Zona horaria: `America/Tijuana`.
+- Uploads: imagen 5 MB, PDF 10 MB, plantilla 15 MB (`MEDIA_UPLOAD` en settings).
+- Historial: activo 180 días → archivo 365 días → purga; eventos **críticos** no se archivan (`HISTORIAL_RETENCION`).
+- No hay API REST pública; solo endpoints AJAX (subtipos de ticket, zonas, preview OC, etc.).
+- `DEBUG = True` y `SECRET_KEY` del repo son de desarrollo. No usarlos en fábrica.

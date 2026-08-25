@@ -1,6 +1,8 @@
 # Roles — Guía de funcionamiento
 
-Documento del sistema de roles del **Gestor IT**: Usuario, Técnico IT y Administrador.
+Sistema de roles del **Gestor IT**: Usuario, Técnico IT y Administrador.
+
+**Última revisión:** agosto 2026.
 
 ---
 
@@ -20,6 +22,8 @@ Archivos clave:
 |---------|-----|
 | `GestorApp/roles.py` | Constantes, helpers, decoradores |
 | `GestorApp/context_processors.py` | Flags en templates (`is_admin_role`, etc.) |
+| `GestorApp/views/helpers.py` | Permisos de tickets y órdenes |
+| `GestorApp/permissions_matrix.py` | Matriz documentada (`/Gobierno/permisos/`) |
 | `GestorApp/migrations/0032_roles_groups_y_tipo_mantenimiento.py` | Grupos + migración de usuarios + tipo ticket MANTENIMIENTO |
 | `GestorIT/urls.py` | Rutas con `operativo_required` / `admin_required` |
 
@@ -197,13 +201,13 @@ Si un Técnico intenta una URL de Admin, recibe mensaje de error y redirect a **
 
 | Sección | Quién la ve |
 |---------|-------------|
-| General (Inicio, Calendario, Mis equipos) | Todos |
+| General (Inicio, Calendario, Mis equipos, Solicitudes) | Todos |
 | Soporte → Tickets / Dashboard | Todos |
-| Soporte → Seguimiento / Bitácora / Respuestas | Operativo |
+| Soporte → Seguimiento / Bitácora / Respuestas / Coberturas | Operativo |
 | Compras → Órdenes | Todos |
 | Compras → Plantillas | Solo Admin |
 | Organización, Ubicaciones, Inventario, Operaciones | Operativo |
-| Admin (Bajar roles, Archivar) | Solo Admin |
+| Admin (Bajar roles, Archivar, Matriz permisos) | Solo Admin |
 
 ---
 

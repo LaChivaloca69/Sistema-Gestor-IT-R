@@ -1,8 +1,8 @@
 # Casos de uso — Sistema Gestor IT
 
-Que puede hacer cada persona en la aplicacion, modulo por modulo.
+Qué puede hacer cada persona en la aplicación, módulo por módulo.
 
-Los avisos (SLA, checks, mantenimientos, solicitudes) se ven en **Inicio**, **campana** y **dashboards**. No se envia correo.
+**Última revisión:** agosto 2026. Los avisos (SLA, checks, mantenimientos, solicitudes) se ven en **Inicio**, **campana** y **dashboards**. No se envía correo.
 
 ---
 
@@ -322,7 +322,7 @@ El solicitante no guarda revisiones.
 
 **Devolver**
 1. **Devolver**.
-2. Asignacion → Devuelta. Equipo → disponible (si aplica).
+2. Asignacion → Devuelta. Equipo → **En Stock** (si aplica).
 
 Tambien se puede asignar al cerrar una solicitud (CU-14).
 
@@ -401,7 +401,7 @@ El Usuario pide mantenimiento con ticket tipo MANTENIMIENTO (CU-05), no opera es
 **Flujo**
 1. En el detalle o en **Cierres** (`/AgendaMantenimiento/`) registra fechas reales, acciones y observaciones.
 2. El mantenimiento queda **Completado**.
-3. El equipo vuelve a Disponible o Asignado (si no hay otro mant. en proceso).
+3. El equipo vuelve a **En Stock** o Asignado (si no hay otro mant. en proceso).
 4. Si indica **proxima fecha**, se puede programar el siguiente ciclo.
 
 Eliminar mantenimiento o cierre: **Admin**.
@@ -578,4 +578,4 @@ Sin worker, las tareas pueden ejecutarse en el mismo request (fallback) o quedar
 4. **Compra a inventario:** CU-24 → CU-25 → CU-16 (liga OC) → CU-17.
 5. **Tecnico de vacaciones:** CU-30 → suplente opera CU-07.
 
-Detalle de reglas: `ROLES.md`, `TICKETS.md`, `MANTENIMIENTO.md`, `INVENTARIO.md`, `MODULOS.md`.
+Detalle de reglas: `ROLES.md`, `TICKETS.md`, `MANTENIMIENTO.md`, `INVENTARIO.md`, `MODULOS.md`, `MODELS.md`.

@@ -228,6 +228,8 @@ def movimientoequipo_list(request):
 
     paginator = Paginator(items, HISTORIAL_LIST_PAGE_SIZE)
     page_obj = paginator.get_page(request.GET.get("page"))
+    for item in page_obj.object_list:
+        item.enlace_url = historial.resolver_enlace(item.enlace_nombre, item.enlace_pk)
 
     User = get_user_model()
     usuario_choices = (
@@ -264,12 +266,7 @@ def historial_actividad_detail(request, pk):
         HistorialActividad.objects.select_related("usuario"),
         pk=pk,
     )
-    enlace_url = None
-    if obj.enlace_nombre and obj.enlace_pk:
-        try:
-            enlace_url = reverse(obj.enlace_nombre, args=[obj.enlace_pk])
-        except NoReverseMatch:
-            enlace_url = None
+    enlace_url = historial.resolver_enlace(obj.enlace_nombre, obj.enlace_pk)
     return render(
         request,
         "historial/auditoria_detail.html",

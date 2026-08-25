@@ -1,6 +1,6 @@
 # Mejoras de calidad, rendimiento y gobierno
 
-Documento de las funciones anadidas al Gestor IT en la oleada de endurecimiento tecnico (puntos 11–15) y gobierno de roles (16–18).
+Funciones de endurecimiento técnico y gobierno de roles. **Última revisión:** agosto 2026.
 
 ---
 
@@ -45,7 +45,7 @@ CACHES = {
 ### Codigo clave
 - `GestorApp/metrics_cache.py` — get/set e invalidacion por version
 - `GestorApp/nav_badges.py` — badges cacheados
-- `GestorApp/views.py` → `home()` — KPIs cacheados
+- `GestorApp/views/home.py` — `home()` con KPIs cacheados
 
 ### Nota operativa
 Los badges pueden ir hasta ~45 s “atrasados”. Es aceptable para avisos de operacion. En un servidor con varios workers, `LocMemCache` es por proceso; si hace falta cache compartida, se puede cambiar a Redis o `DatabaseCache`.
@@ -140,7 +140,7 @@ Filtros:
 Cada fila abre un **detalle** con metadata completa: `/Auditoria/<id>/`.
 
 ### Codigo clave
-- Vista lista: `movimientoequipo_list` (plantilla `movimientoequipo/list.html`)
+- Vista lista: `views/movimiento.py` → `movimientoequipo_list` (plantilla `movimientoequipo/list.html`)
 - Detalle: `historial_actividad_detail` → `historial/auditoria_detail.html`
 - Modelo: `HistorialActividad`
 
@@ -169,7 +169,7 @@ En `GestorIT/settings.py` → `MEDIA_UPLOAD` y limites globales `DATA_UPLOAD_MAX
 
 ### Codigo clave
 - `GestorApp/media_security.py` — validadores + `SafeUploadTo`
-- Forms: `TicketITForm`, `EquipoForm`, `OrdenCompraSubirForm`, `PlantillaDocumentoForm`
+- Forms: `forms/tickets.py` (`TicketITForm`), `forms/equipo.py` (`EquipoForm`), `forms/compras.py` (`OrdenCompraSubirForm`, `PlantillaDocumentoForm`)
 - Migracion: `0038_media_upload_safe_paths`
 
 ---
@@ -239,8 +239,11 @@ GestorApp/schedules.py
 GestorApp/media_security.py
 GestorApp/permissions_matrix.py
 GestorApp/cobertura.py
-GestorApp/gobierno_forms.py
+GestorApp/forms/gobierno.py
+GestorApp/gobierno_forms.py          # shim
 GestorApp/gobierno_views.py
+GestorApp/views/home.py
+GestorApp/views/movimiento.py
 GestorApp/management/commands/setup_background_jobs.py
 GestorApp/Templates/gobierno/…
 GestorApp/Templates/historial/auditoria_detail.html

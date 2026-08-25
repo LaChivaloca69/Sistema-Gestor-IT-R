@@ -2,6 +2,8 @@
 
 Documentación de arquitectura funcional: qué hace cada módulo, cómo se relacionan entre sí y dónde vive el código.
 
+**Última revisión:** agosto 2026.
+
 ---
 
 ## Tabla de contenidos
@@ -61,9 +63,10 @@ Sistema-Gestor-IT-R/
 │   └── ...
 ├── GestorApp/                # Lógica de negocio
 │   ├── models.py             # Todos los modelos ORM
-│   ├── views.py              # CRUD y flujos operativos (~principal)
+│   ├── views/                # Vistas por dominio (fachada en __init__.py)
+│   ├── forms/                # Formularios por dominio
 │   ├── gobierno_views.py     # Coberturas, solicitudes, matriz
-│   ├── forms.py / gobierno_forms.py
+│   ├── gobierno_forms.py     # Shim → forms.gobierno
 │   ├── roles.py              # Roles y decoradores
 │   ├── historial.py          # Auditoría + retención
 │   ├── cobertura.py          # Suplencias de tickets
@@ -76,8 +79,10 @@ Sistema-Gestor-IT-R/
 │   └── management/commands/  # limpiar_historial, setup_background_jobs
 ├── static/GestorApp/
 ├── media/
-└── documentacion/Docs1/      # ROLES.md, TICKETS.md, MANTENIMIENTO.md, …
+└── documentacion/Docs1/
 ```
+
+`from GestorApp import views` sigue funcionando: `views/__init__.py` reexporta las funciones públicas. Detalle del split: `Reestructuracion_Views.md`.
 
 ### Capas de una petición típica
 
@@ -85,9 +90,9 @@ Sistema-Gestor-IT-R/
 flowchart TD
     A[Browser] --> B[GestorIT/urls.py]
     B --> C{Decorador rol}
-    C --> D[views.py / gobierno_views.py]
+    C --> D[views/dominio.py / gobierno_views.py]
     D --> E[models.py]
-    D --> F[forms / gobierno_forms]
+    D --> F[forms/dominio.py]
     D --> G[historial.registrar_*]
     D --> H[Templates/*.html]
     H --> I[context_processors: roles, badges, breadcrumbs]
@@ -194,7 +199,7 @@ Edificio
 
 ### Código / UX
 
-- Formulario: `UbicacionForm` en `forms.py` (filtra zonas por edificio).
+- Formulario: `UbicacionForm` en `forms/ubicaciones.py` (filtra zonas por edificio).
 - Endpoint AJAX: `ubicacion_zona_choices` → `/Ubicacion/zonas/`.
 - `Equipo.ubicacion` y la acción `equipo_cambiar_ubicacion` consumen este módulo.
 
@@ -344,7 +349,7 @@ Definido en `models.py` como `SLA_HORAS_POR_PRIORIDAD`. Propiedades del ticket:
 
 ### Visibilidad por rol
 
-Helpers en `views.py` (concepto):
+Helpers en `views/helpers.py` (concepto):
 
 - Usuario: ve/edita lo suyo
 - Operativo: ve operación completa
@@ -362,7 +367,7 @@ def ticket_asignados_q_for_user(user, on_date=None):
 
 ### Forms
 
-`TicketITForm`, `SeguimientoTicketForm`, `AnswerForm` en `forms.py` (subtipos dinámicos, asignación de equipo del solicitante, etc.).
+`TicketITForm`, `SeguimientoTicketForm`, `AnswerForm` en `forms/tickets.py` (subtipos dinámicos en `forms/common.py`, asignación de equipo del solicitante, etc.).
 
 Detalle: `TICKETS.md`.
 
@@ -414,14 +419,14 @@ Al dar de alta un `Equipo` se puede enlazar `orden_compra` + `detalle_orden`, co
 
 ### Qué hace
 
-Gobierno de acceso y procesos de solicitud/cobertura sin mezclarlo con el CRUD operativo de `views.py`.
+Gobierno de acceso y procesos de solicitud/cobertura, separado del CRUD operativo de `views/`.
 
 ### Archivos
 
 | Archivo | Contenido |
 |---------|-----------|
 | `gobierno_views.py` | Vistas de matriz, coberturas, solicitudes |
-| `gobierno_forms.py` | `CoberturaTicketsForm`, `SolicitudEquipoForm`, `SolicitudEquipoRevisionForm` |
+| `forms/gobierno.py` (`gobierno_forms.py` es shim) | `CoberturaTicketsForm`, `SolicitudEquipoForm`, `SolicitudEquipoRevisionForm` |
 | `cobertura.py` | Queries de coberturas vigentes |
 | `permissions_matrix.py` | Matriz estática documentada (`PERMISSION_MATRIX`) |
 
@@ -667,10 +672,11 @@ sequenceDiagram
 | `GestorIT/settings.py` | Config global: DB, cache, Q_CLUSTER, media, retención |
 | `GestorIT/urls.py` | Todas las rutas HTTP |
 | `GestorApp/models.py` | Modelos y enums de todos los dominios |
-| `GestorApp/views.py` | Vistas CRUD y flujos operativos (inventario, tickets, OC, etc.) |
+| `GestorApp/views/` | Vistas por dominio (`equipo.py`, `tickets.py`, `home.py`, …) |
+| `GestorApp/views/helpers.py` | Permisos tickets/OC, movimientos, reconciliación de estado |
+| `GestorApp/forms/` | Formularios por dominio (`equipo.py`, `tickets.py`, `gobierno.py`, …) |
 | `GestorApp/gobierno_views.py` | Matriz, coberturas, solicitudes de equipo |
-| `GestorApp/forms.py` | Forms compartidos (ticket, ubicación, registro…) |
-| `GestorApp/gobierno_forms.py` | Forms de gobierno |
+| `GestorApp/gobierno_forms.py` | Shim que reexporta `forms.gobierno` |
 | `GestorApp/roles.py` | Roles, helpers, decoradores |
 | `GestorApp/cobertura.py` | Coberturas vigentes y Q de tickets |
 | `GestorApp/permissions_matrix.py` | Matriz documental de permisos |
@@ -714,7 +720,9 @@ sequenceDiagram
 | `TICKETS.md` | Flujo y SLA de tickets |
 | `MANTENIMIENTO.md` | Operación de mantenimientos |
 | `MEJORAS_CALIDAD_Y_GOBIERNO.md` | Cache, jobs, auditoría, media, coberturas, solicitudes |
-| `MODELS.md` | Nota: puede describir un esquema anterior; la fuente de verdad actual es `GestorApp/models.py` |
+| `MODELS.md` / `DocModels.md` | Modelos ORM y diccionario de datos |
+| `DocTemplates.md` | Layout, partials y plantillas por dominio |
+| `Reestructuracion_Views.md` | Split de `views/` y `forms/` |
 
 ---
 

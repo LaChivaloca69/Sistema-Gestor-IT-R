@@ -29,6 +29,8 @@ from .helpers import (  # noqa: F401
     _tickets_for_user,
     _tickets_sla_por_vencer_q,
     _tickets_sla_vencidos_q,
+    user_can_comment_ticket,
+    user_can_delete_comentario,
     user_can_delete_ticket,
     user_can_edit_ticket,
     user_can_manage_orden,

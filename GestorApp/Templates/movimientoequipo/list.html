@@ -127,8 +127,8 @@
 				<td>{{ item.objeto_etiqueta|default:"-" }}</td>
 				<td class="text-nowrap">
 					<a class="btn btn-outline-secondary btn-sm" href="{% url 'historial_actividad_detail' item.pk %}">Ver</a>
-					{% if item.enlace_nombre and item.enlace_pk %}
-					<a class="btn btn-primary btn-sm" href="{% url item.enlace_nombre item.enlace_pk %}">Abrir</a>
+					{% if item.enlace_url %}
+					<a class="btn btn-primary btn-sm" href="{{ item.enlace_url }}">Abrir</a>
 					{% endif %}
 				</td>
 			</tr>

@@ -30,7 +30,7 @@
 {% include "partials/page_header_close.html" %}
 
 {% if not can_edit and not can_manage_flow %}
-<p class="text-muted small mb-3">Solo puedes consultar este ticket. La edicion queda bloqueada cuando ya esta en atencion.</p>
+<p class="text-muted small mb-3">La edicion del ticket queda bloqueada cuando ya esta en atencion. Puedes seguir publicando comentarios y adjuntos.</p>
 {% endif %}
 {% if can_manage_flow and object.tiene_seguimientos and not can_delete %}
 <p class="text-muted small mb-3">Este ticket tiene seguimientos; no se puede eliminar hasta quitar los checks.</p>
@@ -137,7 +137,83 @@
 		{% endif %}
 	</section>
 
-	<section class="ticket-panel">
+	<section class="ticket-panel" id="comentarios">
+		<div class="ticket-panel__header">
+			<h2 class="h5 mb-0">Comentarios</h2>
+			<span class="text-muted small">{{ comentarios|length }} registro{{ comentarios|length|pluralize:"s" }}</span>
+		</div>
+
+		{% if can_comment and comentario_form %}
+		<form method="post" action="{% url 'ticketit_comentario_create' object.pk %}" enctype="multipart/form-data" class="ticket-comment-form">
+			{% csrf_token %}
+			{{ comentario_form.non_field_errors }}
+			<div class="form-row{% if comentario_form.mensaje.errors %} field-error{% endif %}">
+				<label class="form-label" for="{{ comentario_form.mensaje.id_for_label }}">{{ comentario_form.mensaje.label }}</label>
+				{{ comentario_form.mensaje }}
+				{{ comentario_form.mensaje.errors }}
+			</div>
+			<div class="form-row{% if comentario_form.adjuntos.errors %} field-error{% endif %}">
+				<label class="form-label" for="{{ comentario_form.adjuntos.id_for_label }}">{{ comentario_form.adjuntos.label }}</label>
+				{{ comentario_form.adjuntos }}
+				{{ comentario_form.adjuntos.errors }}
+				{% if comentario_form.adjuntos.help_text %}
+				<small class="helptext">{{ comentario_form.adjuntos.help_text }}</small>
+				{% endif %}
+			</div>
+			<div class="actions">
+				<button class="btn btn-primary" type="submit">Publicar</button>
+			</div>
+		</form>
+		{% elif object.status == "Cerrado" %}
+		<p class="text-muted small mb-3">El ticket esta cerrado. IT puede dejar notas; para responder como solicitante, pide que lo reabran.</p>
+		{% endif %}
+
+		<div class="ticket-timeline">
+			{% for item in comentarios %}
+			<article class="ticket-timeline__item {% if item.es_interno %}ticket-comment--interno{% endif %}">
+				<div class="ticket-timeline__meta">
+					<strong>{{ item.fecha }}</strong>
+					<span class="status-badge {% if item.es_interno %}status-badge--en-proceso{% else %}status-badge--asignado{% endif %}">
+						{% if item.es_interno %}IT{% else %}Solicitante{% endif %}
+					</span>
+				</div>
+				<p class="ticket-timeline__user text-muted small mb-2">
+					{{ item.autor|default:"Usuario eliminado" }}
+				</p>
+				{% if item.mensaje %}
+				<p class="mb-2" style="white-space: pre-wrap;">{{ item.mensaje }}</p>
+				{% endif %}
+				{% if item.adjuntos.all %}
+				<ul class="ticket-comment__adjuntos">
+					{% for adjunto in item.adjuntos.all %}
+					<li>
+						{% if adjunto.es_imagen %}
+						<a href="{{ adjunto.archivo.url }}" target="_blank" rel="noopener">
+							<img class="ticket-comment__thumb" src="{{ adjunto.archivo.url }}" alt="{{ adjunto.etiqueta }}">
+						</a>
+						<span class="d-block small">{{ adjunto.etiqueta }}</span>
+						{% else %}
+						<a href="{{ adjunto.archivo.url }}" target="_blank" rel="noopener">{{ adjunto.etiqueta }}</a>
+						{% endif %}
+					</li>
+					{% endfor %}
+				</ul>
+				{% endif %}
+				{% if item.perm_can_delete %}
+				<form method="post" action="{% url 'ticketit_comentario_delete' object.pk item.pk %}" class="mt-2">
+					{% csrf_token %}
+					<button class="btn btn-outline-danger btn-sm" type="submit">Eliminar</button>
+				</form>
+				{% endif %}
+			</article>
+			{% empty %}
+			<p class="text-muted mb-0">Aun no hay comentarios. Usa este hilo para evidencia extra (fotos, PDF) sin cambiar el estado del ticket.</p>
+			{% endfor %}
+		</div>
+	</section>
+
+	{% if can_manage_flow or seguimientos %}
+	<section class="ticket-panel ticket-panel--wide">
 		<div class="ticket-panel__header">
 			<h2 class="h5 mb-0">Seguimientos</h2>
 			<span class="text-muted small">{{ seguimientos|length }} registro{{ seguimientos|length|pluralize:"s" }}</span>
@@ -202,5 +278,6 @@
 			{% endfor %}
 		</div>
 	</section>
+	{% endif %}
 </div>
 {% endblock %}

@@ -20,7 +20,7 @@ from .equipo import EquipoAsignarForm, EquipoBajaForm, EquipoForm, EquipoUbicaci
 from .movimiento import MovimientoEquipoForm
 from .asignacion import AsignacionEquipoForm
 from .mantenimiento import AgendaMantenimientoForm, MantenimientoForm
-from .tickets import AnswerForm, BitacoraForm, SeguimientoTicketForm, TicketITForm
+from .tickets import AnswerForm, BitacoraForm, ComentarioTicketForm, SeguimientoTicketForm, TicketITForm
 from .compras import (
     DetalleOrdenCompraCapturaForm,
     DetalleOrdenCompraCapturaFormSet,
@@ -45,6 +45,7 @@ __all__ = [
     "BitacoraForm",
     "CategoriaEquipoForm",
     "CoberturaTicketsForm",
+    "ComentarioTicketForm",
     "DetalleOrdenCompraCapturaForm",
     "DetalleOrdenCompraCapturaFormSet",
     "DetalleOrdenCompraForm",

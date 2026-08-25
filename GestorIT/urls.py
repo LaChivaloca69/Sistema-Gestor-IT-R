@@ -179,6 +179,16 @@ urlpatterns = [
         name='ticketit_reabrir',
     ),
     path(
+        'Ticketit/<int:pk>/comentarios/',
+        login_required(views.ticketit_comentario_create),
+        name='ticketit_comentario_create',
+    ),
+    path(
+        'Ticketit/<int:pk>/comentarios/<int:comentario_id>/delete/',
+        login_required(views.ticketit_comentario_delete),
+        name='ticketit_comentario_delete',
+    ),
+    path(
         'Ticketit/subtipos/',
         login_required(views.ticketit_subtipo_choices),
         name='ticketit_subtipo_choices',

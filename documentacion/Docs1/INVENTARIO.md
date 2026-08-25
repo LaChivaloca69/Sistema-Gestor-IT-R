@@ -1,8 +1,8 @@
 # Inventario de equipos — Guía de funcionamiento
 
-Documento actualizado del módulo de **Inventario**: equipos, ubicaciones, proveedores, asignaciones, movimientos, vínculo con **órdenes de compra** y avisos operativos.
+Documento del módulo de **Inventario**: equipos, ubicaciones, proveedores, asignaciones, movimientos, vínculo con **órdenes de compra** y avisos operativos.
 
-Relacionado: `ROLES.md` (permisos Usuario / Tecnico IT / Administrador).
+**Última revisión:** agosto 2026. Relacionado: `ROLES.md`.
 
 ---
 
@@ -13,13 +13,11 @@ El inventario gestiona **activos unitarios de TI** (una fila = una pieza), no st
 | Área | Qué hace |
 |------|----------|
 | Ficha de equipo | Hub: datos, asignación, movimientos, mant., tickets, OC |
-| Estados | Disponible / Asignado / En Mantenimiento / Baja |
+| Estados | **En Stock** / Asignado / En Mantenimiento / Baja |
 | Alta | Manual (legado) o desde OC terminada (compra, con cupo por línea) |
 | Operación | Asignar, devolver, ubicación, baja lógica, reactivar |
 | Avisos | Home + dashboard (sin email) |
 | Auditoría | `MovimientoEquipo` + `HistorialActividad` |
-
-**Importante:** las notificaciones son solo avisos en **home**, **lista** y **dashboard**. No se envía correo.
 
 ---
 
@@ -71,9 +69,9 @@ OrdenCompra → DetalleOrdenCompra ─┐
 
 | Estado | Significado |
 |--------|-------------|
-| Disponible | Sin asignación activa |
+| En Stock | Sin asignación activa (`EstadoEquipo.DISPONIBLE` = `"En Stock"`) |
 | Asignado | Tiene asignación **Activa** |
-| En Mantenimiento | Mantenimiento en curso (prevalece sobre Disponible/Asignado) |
+| En Mantenimiento | Mantenimiento en curso (prevalece sobre En Stock/Asignado) |
 | Baja | Baja lógica; `activo=False`; se conserva historial |
 
 ### Origen de alta (`OrigenAltaEquipo`)
@@ -128,15 +126,15 @@ Decoradores: `operativo_required` (Técnico + Admin), `admin_required` (solo Adm
 
 ```
 Asignar (Activa) ──────────────► Equipo: Asignado
-Devolver / Extraviada ────────► Equipo: Disponible
+Devolver / Extraviada ────────► Equipo: En Stock
 Baja / En Mantenimiento ──────► Prevalecen sobre la asignación
 ```
 
 ### Reglas
-- **Disponible / Asignado** se reconcilian con la asignación activa al guardar equipo o asignación.
+- **En Stock / Asignado** se reconcilian con la asignación activa al guardar equipo o asignación.
 - No se puede asignar si el equipo está en **Baja** o **En Mantenimiento**.
 - Al crear una asignación Activa se cierran otras activas del mismo equipo (lógica de aplicación).
-- Helpers: `asignacion_activa`, `puede_asignarse`, `puede_devolver`, `puede_dar_de_baja`, `puedereactivar`, `puede_cambiar_ubicacion`, `puede_eliminar_fisico`.
+- Helpers: `asignacion_activa`, `puede_asignarse`, `puede_devolver`, `puede_dar_de_baja`, `puede_reactivar`, `puede_cambiar_ubicacion`, `puede_eliminar_fisico`.
 
 ---
 
@@ -222,7 +220,7 @@ Muestra:
 | Acción | Efecto | Quién |
 |--------|--------|-------|
 | Asignar | Asignación Activa + movimiento + Asignado | Operativo |
-| Devolver | Cierra asignación + movimiento + Disponible | Operativo |
+| Devolver | Cierra asignación + movimiento + En Stock | Operativo |
 | Ubicacion | Cambia ubicación + movimiento | Operativo |
 | Dar de baja | Baja lógica (Admin) | Admin |
 | Reactivar | Sale de Baja | Admin |
@@ -374,7 +372,9 @@ Filtros útiles:
 | Archivo | Rol |
 |---------|-----|
 | `GestorApp/models.py` | `Equipo`, `OrigenAltaEquipo`, OC/detalle (cupo), asignación, movimiento, ubicación, proveedor |
-| `GestorApp/views.py` | CRUD equipo, cupo OC, sync, baja, dashboard, mis equipos |
+| `GestorApp/views/equipo.py` | CRUD equipo, cupo OC, sync, baja, dashboard, mis equipos |
+| `GestorApp/views/movimiento.py` | Movimientos y lista de auditoría |
+| `GestorApp/forms/equipo.py` | Alta/edición, baja, asignar, ubicación |
 | `GestorApp/historial.py` | Actividad del sistema |
 | `GestorIT/urls.py` | Rutas y decoradores de rol |
 | `GestorApp/Templates/equipo/` | list, detail, form, dashboard, mis_equipos, baja, asignar, ubicacion |

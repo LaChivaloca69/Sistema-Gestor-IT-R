@@ -13,6 +13,7 @@ from django.utils import timezone
 
 from .. import document_engine
 from ..cobertura import operativo_user_choices
+from ..media_security import validate_ticket_adjunto_upload
 from ..models import (
     AccionHistorial,
     AgendaMantenimiento,
@@ -22,6 +23,8 @@ from ..models import (
     Bitacora,
     CategoriaEquipo,
     CoberturaTickets,
+    ComentarioTicket,
+    ComentarioTicketAdjunto,
     DetalleOrdenCompra,
     Edificio,
     Equipo,
@@ -339,6 +342,89 @@ class SeguimientoTicketForm(forms.ModelForm):
         return instance
 
 
+class MultipleFileInput(forms.FileInput):
+    allow_multiple_selected = True
+
+
+class MultipleFileField(forms.FileField):
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault(
+            "widget",
+            MultipleFileInput(
+                attrs={
+                    "class": "form-control",
+                    "accept": "image/jpeg,image/png,image/gif,image/webp,application/pdf,.pdf",
+                }
+            ),
+        )
+        super().__init__(*args, **kwargs)
+
+    def clean(self, data, initial=None):
+        single = super().clean
+        if isinstance(data, (list, tuple)):
+            return [single(item, initial) for item in data if item]
+        if not data:
+            return []
+        return [single(data, initial)]
+
+
+class ComentarioTicketForm(forms.Form):
+    MAX_ADJUNTOS = 5
+
+    mensaje = forms.CharField(
+        required=False,
+        label="Comentario",
+        widget=forms.Textarea(
+            attrs={
+                "rows": 3,
+                "class": "form-control",
+                "placeholder": "Escribe un comentario o adjunta evidencia...",
+            }
+        ),
+    )
+    adjuntos = MultipleFileField(
+        required=False,
+        label="Adjuntos",
+        help_text="Hasta 5 archivos. Imagen (JPG, PNG, GIF, WEBP) o PDF.",
+    )
+
+    def clean_mensaje(self):
+        return (self.cleaned_data.get("mensaje") or "").strip()
+
+    def clean_adjuntos(self):
+        from pathlib import Path
+
+        files = self.cleaned_data.get("adjuntos") or []
+        if len(files) > self.MAX_ADJUNTOS:
+            raise ValidationError(f"Maximo {self.MAX_ADJUNTOS} archivos por comentario.")
+        validados = []
+        for uploaded in files:
+            original = Path(getattr(uploaded, "name", "") or "adjunto").name[:180]
+            validados.append((original, validate_ticket_adjunto_upload(uploaded)))
+        return validados
+
+    def clean(self):
+        cleaned_data = super().clean()
+        mensaje = cleaned_data.get("mensaje") or ""
+        adjuntos = cleaned_data.get("adjuntos") or []
+        if not mensaje and not adjuntos:
+            raise ValidationError("Escribe un comentario o adjunta un archivo.")
+        return cleaned_data
+
+    def save(self, *, ticket, autor):
+        comentario = ComentarioTicket.objects.create(
+            ticket=ticket,
+            autor=autor,
+            mensaje=self.cleaned_data.get("mensaje") or "",
+            es_interno=is_operativo(autor),
+        )
+        for nombre_original, archivo in self.cleaned_data.get("adjuntos") or []:
+            ComentarioTicketAdjunto.objects.create(
+                comentario=comentario,
+                archivo=archivo,
+                nombre_original=nombre_original,
+            )
+        return comentario
 
 
 class BitacoraForm(forms.ModelForm):

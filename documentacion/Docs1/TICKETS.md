@@ -1,6 +1,6 @@
 # Tickets y Seguimiento — Guía de funcionamiento
 
-Documento de los cambios implementados en **Tickets (Support)** y **Seguimiento (Checks)**, y de cómo opera el módulo actualmente.
+Documento de **Tickets (Support)** y **Seguimiento (Checks)**. **Última revisión:** agosto 2026.
 
 ---
 
@@ -13,7 +13,7 @@ Se reforzó el ciclo de vida del ticket, la experiencia de uso, los permisos por
 | Flujo y estados | Status automático, En Revisión usable, reabrir, asignado |
 | UX Tickets | Detalle, timeline, búsqueda, Mis tickets, paginación |
 | UX Seguimiento | Filtros, avisos de próximo check en home |
-| Permisos | Solicitante vs staff; borrado solo sin checks |
+| Permisos | Solicitante vs operativo; borrado de ticket/check solo Admin |
 | SLA y operación | Tiempos por prioridad + dashboard operativo |
 
 **Importante:** las notificaciones son solo avisos en **home** y **dashboard**. No se envía correo.
@@ -31,8 +31,10 @@ Avance sobre un ticket. El último check define si el ticket sigue en proceso o 
 ### Roles
 | Rol | Quién |
 |-----|--------|
-| Solicitante | Usuario autenticado (no staff) |
-| Staff | `is_staff` o `is_superuser` (mismo criterio que `is_admin_user` en el código) |
+| Solicitante | Usuario autenticado (rol **Usuario**) |
+| Operativo | **Tecnico IT** o **Administrador** (`is_operativo`) |
+
+El criterio ya **no** es `is_staff`. Ver `ROLES.md`.
 
 ---
 
@@ -42,7 +44,7 @@ Estados: **Abierto** → **En Revision** → **En Proceso** → **Cerrado** (y r
 
 ```
 Abierto
-   │  Staff marca En Revision / asigna técnico
+   │  Operativo marca En Revision / asigna técnico
    ▼
 En Revision
    │  Se registra el primer seguimiento
@@ -51,7 +53,7 @@ En Proceso
    │  Seguimiento con “Concluido” + solución
    ▼
 Cerrado
-   │  Staff reabre (crea check de reapertura)
+   │  Operativo reabre (crea check de reapertura)
    ▼
 En Proceso
 ```
@@ -62,10 +64,10 @@ En Proceso
 - Último seguimiento concluido (`ya_terminado`): **Cerrado**.
 - El campo **Estado no se edita a mano** en el formulario; lo mueven seguimientos y acciones de flujo.
 
-### Acciones de staff
+### Acciones de operativo
 - **Marcar En Revision:** solo si está Abierto y sin checks. Si no hay asignado, se asigna al usuario actual.
 - **Reabrir:** solo si está Cerrado. Crea un seguimiento de reapertura y deja el ticket en En Proceso.
-- **Asignado a:** técnico staff. Si el ticket está Abierto y se asigna, pasa a En Revision.
+- **Asignado a:** usuario operativo (Técnico o Admin). Si el ticket está Abierto y se asigna, pasa a En Revision.
 
 ### Cierre
 Para marcar un seguimiento como **Concluido**, la **solución es obligatoria**.
@@ -76,7 +78,7 @@ Para marcar un seguimiento como **Concluido**, la **solución es obligatoria**.
 
 ### Lista (`/Ticketit/`)
 - Búsqueda: folio, problema, descripción, equipo, usuarios.
-- Vista: Todos / Mis tickets / Asignados a mí (staff). Solicitante solo ve los suyos.
+- Vista: Todos / Mis tickets / Asignados a mí (operativo). Solicitante solo ve los suyos.
 - Filtros: tipo, prioridad, estatus, operación (SLA), sin seguimiento.
 - Columna **SLA** (En tiempo / Por vencer / Vencido).
 - Paginación (20).
@@ -85,26 +87,26 @@ Para marcar un seguimiento como **Concluido**, la **solución es obligatoria**.
 ### Detalle (`/Ticketit/<id>/`)
 - Datos del ticket, imagen, SLA y límite.
 - Timeline de seguimientos.
-- Staff: agregar seguimiento embebido, marcar revisión, reabrir.
+- Operativo: agregar seguimiento embebido, marcar revisión, reabrir.
 - Botones Editar / Eliminar según permisos.
 
 ### Formulario crear/editar
 - Status fuera del form (automático).
 - Solicitante: `solicitado_por` fijo; no asigna técnico.
-- Staff: puede asignar `asignado_a`.
+- Operativo: puede asignar `asignado_a`.
 - Tras guardar → detalle del ticket.
 
 ---
 
 ## 5. UX de Seguimiento
 
-### Lista (`/SeguimientoTickets/`) — solo staff
+### Lista (`/SeguimientoTickets/`) — solo operativo
 - Búsqueda, Mis checks, estado del ticket, concluido.
 - Avisos: Por atender / Vencidos / Por vencer (según `fecha_proximo_seguimiento`).
 - Enlace al detalle del ticket.
 - Paginación.
 
-### Avisos en home (staff)
+### Avisos en home (operativo)
 Si un check:
 - no está concluido,
 - tiene `fecha_proximo_seguimiento`,
@@ -120,20 +122,21 @@ Aparecen en KPI, banners y panel del home. **Sin email.**
 
 ## 6. Permisos
 
-| Acción | Solicitante | Staff |
-|--------|-------------|-------|
-| Ver | Solo los suyos (`solicitado_por`) | Todos |
-| Crear | Sí | Sí |
-| Editar | Solo si está **Abierto** y **sin checks** | Sí |
-| Eliminar | No | Solo **sin seguimientos** |
-| Flujo (revisión / reabrir) | No | Sí |
-| Crear/editar checks | No | Sí |
+| Acción | Solicitante (Usuario) | Operativo | Admin |
+|--------|-----------------------|-----------|-------|
+| Ver | Solo los suyos (`solicitado_por`) | Todos | Todos |
+| Crear | Sí | Sí | Sí |
+| Editar | Solo si está **Abierto** y **sin checks** | Sí | Sí |
+| Eliminar ticket | No | No | Solo **sin seguimientos** |
+| Flujo (revisión / reabrir) | No | Sí | Sí |
+| Crear/editar checks | No | Sí | Sí |
+| Borrar checks | No | No | Sí |
 
 ### Detalles
 - Intento de ver/editar un ticket ajeno → bloqueado con mensaje.
 - Ticket con seguimientos → no se elimina; hay que quitar los checks primero.
 - Home y calendario del solicitante: solo sus tickets.
-- Lista de seguimientos: `admin_required`.
+- Lista de seguimientos: `operativo_required`. Borrado de checks: `admin_required`.
 
 ---
 
@@ -170,7 +173,7 @@ También en sidebar (**Dashboard**) y accesos rápidos del home.
 - Conteos por estado y por tipo (con enlaces filtrados).
 - Listas: tickets fuera de SLA y tickets sin checks.
 
-Los conteos respetan permisos: el solicitante ve solo lo suyo; staff ve el total operativo.
+Los conteos respetan permisos: el solicitante ve solo lo suyo; operativo ve el total operativo.
 
 ---
 
@@ -181,12 +184,12 @@ Los conteos respetan permisos: el solicitante ve solo lo suyo; staff ve el total
 | `/Ticketit/` | `ticketit_list` | Autenticado (scoped) |
 | `/Ticketit/dashboard/` | `ticketit_dashboard` | Autenticado (scoped) |
 | `/Ticketit/create/` | `ticketit_create` | Autenticado |
-| `/Ticketit/<id>/` | `ticketit_detail` | Dueño o staff |
+| `/Ticketit/<id>/` | `ticketit_detail` | Dueño u operativo |
 | `/Ticketit/update/<id>/` | `ticketit_update` | Según permisos de edición |
-| `/Ticketit/delete/<id>/` | `ticketit_delete` | Staff, sin checks |
-| `/Ticketit/<id>/marcar-revision/` | `ticketit_marcar_revision` | Staff |
-| `/Ticketit/<id>/reabrir/` | `ticketit_reabrir` | Staff |
-| `/SeguimientoTickets/` | `seguimientoticket_list` | Staff |
+| `/Ticketit/delete/<id>/` | `ticketit_delete` | Admin, sin checks |
+| `/Ticketit/<id>/marcar-revision/` | `ticketit_marcar_revision` | Operativo |
+| `/Ticketit/<id>/reabrir/` | `ticketit_reabrir` | Operativo |
+| `/SeguimientoTickets/` | `seguimientoticket_list` | Operativo |
 
 ---
 
@@ -195,8 +198,11 @@ Los conteos respetan permisos: el solicitante ve solo lo suyo; staff ve el total
 | Archivo | Rol |
 |---------|-----|
 | `GestorApp/models.py` | `TicketIT`, `SeguimientoTicket`, estados, SLA |
-| `GestorApp/forms.py` | Formularios ticket/check, asignación, validación de cierre |
-| `GestorApp/views.py` | CRUD, permisos, SLA, dashboard, avisos home |
+| `GestorApp/forms/tickets.py` | Formularios ticket/check, validación de cierre |
+| `GestorApp/forms/common.py` | Subtipos por `tipo_ticket` |
+| `GestorApp/views/tickets.py` | CRUD, permisos, SLA, dashboard |
+| `GestorApp/views/helpers.py` | Visibilidad y ownership |
+| `GestorApp/cobertura.py` | Suplente ve tickets del ausente |
 | `GestorIT/urls.py` | Rutas |
 | `GestorApp/Templates/ticketit/` | list, detail, form, dashboard, confirm_delete |
 | `GestorApp/Templates/seguimientoticket/` | list, form, confirm_delete |
@@ -215,13 +221,14 @@ Migración relacionada: `0031_ticketit_asignado_a_flujo_estados.py` (campo `asig
 3. Puede editarlo mientras esté Abierto y sin checks.
 4. Ve el avance en el detalle (timeline), sin poder agregar checks.
 
-### Staff
+### Operativo (Tecnico IT / Admin)
 1. Revisa home: SLA vencidos, sin seguimiento, checks por atender.
 2. Abre el **Dashboard** para priorizar.
 3. Asigna o marca **En Revision**.
 4. Registra seguimientos desde el detalle del ticket.
 5. Cierra con check **Concluido** + solución.
 6. Si hace falta, **Reabre** el ticket.
+7. Solo Admin borra tickets (sin checks) o seguimientos.
 
 ---
 

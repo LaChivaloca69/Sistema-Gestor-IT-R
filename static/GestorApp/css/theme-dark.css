@@ -355,6 +355,7 @@ html.theme-dark button.btn:not([class*="btn-"]) {
 html.theme-dark .filters,
 html.theme-dark .empty-state,
 html.theme-dark .ticket-followup-form,
+html.theme-dark .ticket-comment-form,
 html.theme-dark .ticket-timeline__item {
     background: #1a2438 !important;
     border-color: #2b364c !important;

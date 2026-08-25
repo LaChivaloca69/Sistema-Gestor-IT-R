@@ -86,7 +86,8 @@ def cobertura_create(request):
                 accion=AccionHistorial.CREACION,
                 titulo=f"Cobertura: {obj.suplente} cubre a {obj.ausente}",
                 objeto=obj,
-                enlace_nombre="cobertura_list",
+                enlace_nombre="cobertura_update",
+                enlace_pk=obj.pk,
             )
             messages.success(request, "Cobertura creada.")
             return redirect("cobertura_list")
@@ -112,7 +113,8 @@ def cobertura_update(request, pk):
                 accion=AccionHistorial.ACTUALIZACION,
                 titulo=f"Cobertura actualizada: {obj}",
                 objeto=obj,
-                enlace_nombre="cobertura_list",
+                enlace_nombre="cobertura_update",
+                enlace_pk=obj.pk,
             )
             messages.success(request, "Cobertura actualizada.")
             return redirect("cobertura_list")

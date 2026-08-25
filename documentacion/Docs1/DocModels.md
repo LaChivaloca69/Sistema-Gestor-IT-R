@@ -1,398 +1,487 @@
-# Documentación de Base de Datos - Sistema IT para Fábrica
+# Diccionario de datos — Sistema Gestor IT
 
-## 1. Información General
+Esquema actual según Django ORM (`GestorApp/models.py`) y PostgreSQL.
 
-- **Proyecto:** Sistema IT para Fábrica
-- **Motor de base de datos:** PostgreSQL
-- **Framework backend:** Python + Django
-- **ORM:** Django ORM
-- **Fecha:** 2026-04-20
+- **Proyecto:** Sistema Gestor IT
+- **Motor:** PostgreSQL
+- **ORM:** Django 6.0
+- **Última revisión:** agosto 2026
 
-## 2. Objetivo
+Los nombres de tabla en Postgres los genera Django (`gestorapp_*` en minúsculas). Aquí se documentan los **modelos** y sus campos.
 
-Diseñar y documentar una base de datos para la gestión integral del área de TI en una fábrica, incluyendo:
+Auth: tabla `auth_user` de Django. El rol de negocio está en `auth_group` (`Usuario`, `Tecnico IT`, `Administrador`).
 
-- Inventario general de equipos (CRUD)
-- Altas y bajas de activos
-- Entradas y salidas de equipos
-- Asignación de equipos a personal
-- Mantenimiento (registro, calendario y agenda de próximos servicios)
-- Sistema de tickets IT
-- Gestión de presupuestos y compras de materiales
-- Ubicación física de activos por edificio y zona
+---
 
-## 3. Alcance Funcional
+## 1. Objetivo
 
-### 3.1 Módulos incluidos
+Gestionar el área de TI de una fábrica: inventario unitario, altas/bajas, asignaciones, mantenimiento, tickets, órdenes de compra, gobierno de roles y auditoría.
+
+---
+
+## 2. Módulos cubiertos
 
 1. Catálogos organizacionales
-2. Ubicación física en planta
-3. Inventario de equipos
-4. Movimientos de equipos
-5. Asignaciones de equipos
-6. Mantenimiento y agenda
-7. Tickets IT y seguimiento
-8. Presupuestos
-9. Compras de materiales
+2. Proveedores
+3. Ubicación física
+4. Inventario, movimientos y asignaciones
+5. Mantenimiento y cierres
+6. Tickets, seguimientos, bitácora
+7. Órdenes de compra y plantillas
+8. Historial de actividad
+9. Gobierno (coberturas y solicitudes de equipo)
 
-## 4. Convenciones de Diseño
+**Fuera del esquema actual:** `Presupuesto`, `DetallePresupuesto`, `CompraMaterial`, `DetalleCompraMaterial`. Esos modelos se unificaron en `OrdenCompra` / `DetalleOrdenCompra`.
 
-- Nomenclatura de tablas y campos en español.
-- Claves primarias autoincrementales (`id` en Django / `SERIAL` o `BIGSERIAL` en PostgreSQL).
-- Fechas de auditoría en campos `fecha_creacion`, `fecha_evento`, etc.
-- Bajas lógicas mediante el campo `activo`.
-- Catálogos de estado modelados con `choices` en Django o tablas catálogo según necesidad.
-- Integridad referencial mediante claves foráneas.
+---
 
-## 5. Modelo de Datos (Resumen de Entidades)
+## 3. Convenciones
 
-- **Organización:** Area, Puesto, Personal
-- **Inventario:** CategoriaEquipo, Proveedor, Equipo
-- **Ubicación:** Edificio, ZonaEdificio, Ubicacion
-- **Operación de activos:** MovimientoEquipo, AsignacionEquipo
-- **Mantenimiento:** Mantenimiento, AgendaMantenimiento
-- **Soporte:** TicketIT, SeguimientoTicket
-- **Gestión económica:** Presupuesto, DetallePresupuesto, CompraMaterial, DetalleCompraMaterial
+- PK autoincremental `id`.
+- Bajas lógicas con `activo` donde aplica.
+- Estados con `TextChoices` (valores en español en inventario/tickets/mantenimiento).
+- Folios automáticos: `SPR0-`, `BIT-`, `OC-`, `PROV-`, `SOL-`, `MAN###-`.
+- `ON DELETE`: CASCADE en detalles e historiales dependientes; PROTECT o SET_NULL cuando hay que conservar contexto.
 
-## 6. Diccionario de Datos
+---
 
-## 6.1 Catálogos organizacionales
+## 4. Diccionario
 
-### Tabla: `area`
+### 4.1 Organización
+
+#### `Area`
+
 | Campo | Tipo | Nulo | Restricción | Descripción |
-|---|---|---|---|---|
-| id | PK | No | Autoincremental | Identificador único |
-| nombre_area | varchar(100) | No |  | Nombre del área |
-| descripcion_area | varchar(255) | Sí |  | Descripción |
-| activo | boolean | No | default true | Estado lógico |
-| fecha_creacion | datetime | No | auto_now_add | Fecha de creación |
+|-------|------|------|-------------|-------------|
+| id | PK | No | auto | Idetificador unico |
+| nombre_area | varchar(100) | No | No | Nombre del area |
+| descripcion_area | varchar(255) | Sí | No | Descripcion del area |
+| activo | boolean | No | default true | En uso o desuso |
+| fecha_creacion | timestamptz | No | auto_now_add | |
 
-### Tabla: `puesto`
+#### `Puesto`
+
 | Campo | Tipo | Nulo | Restricción | Descripción |
-|---|---|---|---|---|
-| id | PK | No | Autoincremental | Identificador único |
-| nombre_puesto | varchar(100) | No |  | Nombre del puesto |
-| descripcion_puesto | varchar(255) | Sí |  | Descripción |
-| activo | boolean | No | default true | Estado lógico |
+|-------|------|------|-------------|-------------|
+| id | PK | No | auto | Identificador |
+| nombre_puesto | varchar(100) | No | No | Nombre del puesto |
+| descripcion_puesto | varchar(255) | Sí | No | Descripcion general del puesto |
+| activo | boolean | No | default true | En uso o desuso |
 
-### Tabla: `personal`
+#### `Personal`
+
 | Campo | Tipo | Nulo | Restricción | Descripción |
-|---|---|---|---|---|
-| id | PK | No | Autoincremental | Identificador único |
-| numero_empleado | varchar(30) | No | unique | Folio de empleado |
-| nombre | varchar(100) | No |  | Nombre |
-| apellido_paterno | varchar(100) | No |  | Apellido paterno |
-| apellido_materno | varchar(100) | Sí |  | Apellido materno |
-| correo | email | Sí |  | Correo electrónico |
-| telefono | varchar(30) | Sí |  | Teléfono |
-| area_id | FK | Sí | area(id) | Área del empleado |
-| puesto_id | FK | Sí | puesto(id) | Puesto del empleado |
-| activo | boolean | No | default true | Estado lógico |
-| fecha_ingreso | date | Sí |  | Fecha de ingreso |
-| fecha_creacion | datetime | No | auto_now_add | Fecha de creación |
+|-------|------|------|-------------|-------------|
+| id | PK | No | auto | Identificador unico |
+| numero_empleado | varchar(30) | No | unique | Numero del empleado |
+| user_id | FK User | Sí | SET_NULL, OneToOne | Login ligado |
+| admin_requested | boolean | No | default false | Legacy |
+| nombre | varchar(100) | No | No | Nombre del empleado |
+| apellido_paterno | varchar(100) | No | No | Apellido Paterno del empleado |
+| apellido_materno | varchar(100) | Sí | No | Apellido Materno del empleado |
+| correo | email | Sí | No | Correo electronico del empleado |
+| telefono | varchar(30) | Sí | No | Numero de telefono del empleado |
+| area_id | FK Area | Sí | SET_NULL | Identificador de area |
+| puesto_id | FK Puesto | Sí | SET_NULL | Identificador de puesto |
+| activo | boolean | No | default true | Persona activo o de baja |
+| fecha_ingreso | date | Sí | No | Fecha de Ingreso del empleado |
+| fecha_creacion | timestamptz | No | auto_now_add | Fecha de creacion del Usuario |
 
-## 6.2 Ubicación física
+Al borrar Personal se elimina el User ligado (señal).
 
-### Tabla: `edificio`
+---
+
+### 4.2 Proveedor
+
 | Campo | Tipo | Nulo | Restricción | Descripción |
-|---|---|---|---|---|
-| id | PK | No | Autoincremental | Identificador |
-| nombre_edificio | varchar(100) | No |  | Nombre del edificio |
-| descripcion_edificio | varchar(255) | Sí |  | Descripción |
-| activo | boolean | No | default true | Estado lógico |
+|-------|------|------|-------------|-------------|
+| id | PK | No | auto | Identificador |
+| codigo_interno | varchar(30) | Sí | unique | Auto `PROV-######` |
+| nombre_proveedor | varchar(150) | No | | Nombre comercial |
+| razon_social | varchar(200) | Sí | No | Nombre de real de la empresa o proveedor ante el SAT |
+| rfc | varchar(13) | Sí | No | Registro Federal de Contribuyentes |
+| tipo | varchar(30) | Sí | choices | Hardware/Software/… |
+| contacto | varchar(150) | Sí | No | Nombre del contacto |
+| correo | email | Sí | No | Correo electronico del proveedor |
+| telefono | varchar(30) | Sí | No | Telefono del proveedor |
+| sitio_web | url | Sí | No | Sitio Web del Proveedor |
+| direccion | varchar(255) | Sí | No | Direccion del proveedor |
+| ciudad | varchar(100) | Sí | No | Ciudad del proveedor |
+| estado | varchar(100) | Sí | No | Estado donde recide |
+| codigo_postal | varchar(10) | Sí | No | Codigo postal |
+| notas | text | Sí | No | Notas |
+| activo | boolean | No | default true | Activo o de baja |
 
-### Tabla: `zona_edificio`
+---
+
+### 4.3 Ubicación física
+
+#### `Edificio`
+
+| Campo | Tipo | Nulo | Descripción |
+|-------|------|------|-------------|
+| id | PK | No | Identificador |
+| nombre_edificio | varchar(100) | No | Nombre del edificio |
+| descripcion_edificio | varchar(255) | Sí | Descripcion |
+| activo | boolean | No | Edificio en uso o desuso |
+
+#### `ZonaEdificio`
+
+| Campo | Tipo | Nulo | Restricción |
+|-------|------|------|-------------|
+| id | PK | No | No  |
+| edificio_id | FK Edificio | No | No |
+| nombre_zona | varchar(100) | No | No |
+| descripcion_zona | varchar(255) | No | |
+| activo | boolean | No | Activo o en desuso |
+
+#### `Ubicacion`
+
+| Campo | Tipo | Nulo | Restricción |
+|-------|------|------|-------------|
+| id | PK | No | No |
+| edificio_id | FK Edificio | No | PROTECT |
+| zona_id | FK ZonaEdificio | No | PROTECT |
+| pasillo | varchar(50) | Sí | No |
+| referencia | varchar(255) | Sí | No |
+| activo | boolean | No | default true |
+
+---
+
+### 4.4 Inventario
+
+#### `CategoriaEquipo`
+
+| Campo | Tipo | Nulo |
+|-------|------|------|
+| id | PK | No |
+| nombre_categoria | varchar(100) | No |
+| descripcion_categoria | varchar(255) | Sí |
+| activo | boolean | No |
+
+#### `Equipo`
+
 | Campo | Tipo | Nulo | Restricción | Descripción |
-|---|---|---|---|---|
-| id | PK | No | Autoincremental | Identificador |
-| edificio_id | FK | No | edificio(id) | Edificio padre |
-| nombre_zona | varchar(100) | No |  | Nombre de zona |
-| descripcion_zona | varchar(255) | Sí |  | Descripción |
-| activo | boolean | No | default true | Estado lógico |
-
-### Tabla: `ubicacion`
-| Campo | Tipo | Nulo | Restricción | Descripción |
-|---|---|---|---|---|
-| id | PK | No | Autoincremental | Identificador |
-| edificio_id | FK | No | edificio(id) | Edificio |
-| zona_id | FK | No | zona_edificio(id) | Zona |
-| pasillo | varchar(50) | Sí |  | Pasillo |
-| referencia | varchar(255) | Sí |  | Referencia textual |
-| activo | boolean | No | default true | Estado lógico |
-
-## 6.3 Inventario
-
-### Tabla: `categoria_equipo`
-| Campo | Tipo | Nulo | Restricción | Descripción |
-|---|---|---|---|---|
-| id | PK | No | Autoincremental | Identificador |
-| nombre_categoria | varchar(100) | No |  | Categoría |
-| descripcion_categoria | varchar(255) | Sí |  | Descripción |
-| activo | boolean | No | default true | Estado lógico |
-
-### Tabla: `proveedor`
-| Campo | Tipo | Nulo | Restricción | Descripción |
-|---|---|---|---|---|
-| id | PK | No | Autoincremental | Identificador |
-| nombre_proveedor | varchar(150) | No |  | Proveedor |
-| contacto | varchar(150) | Sí |  | Nombre de contacto |
-| correo | email | Sí |  | Correo |
-| telefono | varchar(30) | Sí |  | Teléfono |
-| direccion | varchar(255) | Sí |  | Dirección |
-| activo | boolean | No | default true | Estado lógico |
-
-### Tabla: `equipo`
-| Campo | Tipo | Nulo | Restricción | Descripción |
-|---|---|---|---|---|
-| id | PK | No | Autoincremental | Identificador |
-| codigo_inventario | varchar(50) | No | unique | Código interno |
-| numero_serie | varchar(100) | Sí | unique | Serie de fabricante |
-| categoria_id | FK | No | categoria_equipo(id) | Categoría |
-| marca | varchar(80) | Sí |  | Marca |
-| modelo | varchar(80) | Sí |  | Modelo |
-| descripcion_equipo | varchar(255) | Sí |  | Descripción |
-| fecha_compra | date | Sí |  | Fecha de compra |
-| costo_compra | numeric(12,2) | Sí |  | Costo |
-| garantia_meses | int | No | default 0 | Garantía en meses |
-| proveedor_id | FK | Sí | proveedor(id) | Proveedor |
-| estado_equipo | varchar(30) | No | choices | Estado del equipo |
-| ubicacion_id | FK | Sí | ubicacion(id) | Ubicación física |
-| fecha_alta | date | No |  | Fecha de alta |
-| fecha_baja | date | Sí |  | Fecha de baja |
-| motivo_baja | varchar(255) | Sí |  | Motivo |
+|-------|------|------|-------------|-------------|
+| id | PK | No | auto | Identificador |
+| codigo_inventario | varchar(50) | No | unique | Codigo de Inventario del equipo |
+| numero_serie | varchar(100) | Sí | unique | Numero de serie |
+| categoria_id | FK CategoriaEquipo | No | PROTECT | Identificador de categoria de equipo |
+| marca | varchar(80) | Sí | No | Marca del equipo |
+| modelo | varchar(80) | Sí | No | Modelo del equipo |
+| Numero_Pedimiento | varchar(15) | Sí | | Pedimento / folio OC |
+| descripcion_equipo | varchar(255) | Sí | No | Descripcion del equipo |
+| imagen | varchar (path) | Sí | | Foto del equipo |
+| proveedor_id | FK Proveedor | Sí | SET_NULL | Identificador del proveedor |
+| origen_alta | varchar(20) | No | choices | Compra/Legado/Donacion/Transferencia/Otro |
+| orden_compra_id | FK OrdenCompra | Sí | SET_NULL | Identificador de orden de compra |
+| detalle_orden_id | FK DetalleOrdenCompra | Sí | SET_NULL | Línea que consume cupo |
+| estado_equipo | varchar(30) | No | choices | **En Stock** / Asignado / En Mantenimiento / Baja |
+| ubicacion_id | FK Ubicacion | Sí | SET_NULL | Ubicacion del equipo |
+| fecha_alta | date | No | default hoy | fecha de dada de alta del equipo |
+| fecha_baja | date | Sí | No | Fecha de dada de baja |
+| motivo_baja | varchar(255) | Sí | No | Motivo de la baja |
 | activo | boolean | No | default true | Baja lógica |
-| fecha_creacion | datetime | No | auto_now_add | Auditoría |
+| fecha_creacion | timestamptz | No | auto_now_add | Fecha de creacion |
 
-## 6.4 Movimientos y asignaciones
+Campos **eliminados** del diseño original: `fecha_compra`, `costo_compra`, `garantia_meses`.
 
-### Tabla: `movimiento_equipo`
+#### `MovimientoEquipo`
+
+| Campo | Tipo | Nulo | Restricción |
+|-------|------|------|-------------|
+| id | PK | No | No |
+| equipo_id | FK Equipo | No | CASCADE |
+| tipo_movimiento | varchar(20) | No | Dada de alta/baja, Asignacion, Cambio de asignacion, En mantenimiento, Cambio de ubicacion |
+| fecha_movimiento | timestamptz | No | auto_now_add |
+| origen | varchar(150) | Sí | No |
+| destino | varchar(150) | Sí | No |
+| responsable_id | FK Personal | Sí | SET_NULL |
+| observaciones | varchar(255) | Sí | No |
+
+Sin campo `cantidad` (inventario unitario).
+
+#### `AsignacionEquipo`
+
+| Campo | Tipo | Nulo | Restricción |
+|-------|------|------|-------------|
+| id | PK | No | No |
+| equipo_id | FK Equipo | No | CASCADE |
+| personal_id | FK Personal | No | CASCADE |
+| fecha_asignacion | timestamptz | No | auto_now_add |
+| fecha_devolucion | timestamptz | Sí | |
+| estado_asignacion | varchar(20) | No | Activa / Devuelta / Extraviada |
+| observaciones | varchar(255) | Sí | No |
+
+---
+
+### 4.5 Mantenimiento
+
+#### `Mantenimiento`
+
+| Campo | Tipo | Nulo | Descripción |
+|-------|------|------|-------------|
+| id | PK | No | Folio derivado `MANnnn-MMDDYY` |
+| equipo_id | FK Equipo | No | CASCADE |
+| tipo_mantenimiento | varchar(20) | No | Preventivo / Correctivo / Predictivo |
+| estado_mantenimiento | varchar(20) | No | Programado / En Proceso / Completado / Cancelado |
+| fecha_programada | date | No | Fecha programada del mantenimiento |
+| tecnico_responsable | varchar(150) | Sí | Texto, no FK |
+| costo_mantenimiento | numeric(12,2) | No | default 0 |
+| descripcion_falla | varchar(255) | Sí | Descripcion del error |
+
+Fechas reales, acciones y próxima fecha viven en el **cierre**, no en esta tabla.
+
+#### `AgendaMantenimiento` (cierre)
+
+| Campo | Tipo | Nulo | Restricción |
+|-------|------|------|-------------|
+| id | PK | No | No |
+| mantenimiento_id | FK Mantenimiento | No | OneToOne CASCADE, related `cierre` |
+| fecha_inicio | timestamptz | Sí | No |
+| fecha_fin | timestamptz | Sí | No |
+| acciones_realizadas | text | Sí | |
+| observaciones | varchar(255) | Sí | No |
+| proxima_fecha_mantenimiento | date | Sí | Próximo ciclo |
+
+Campos **eliminados:** `fecha_recordatorio`, `canal_recordatorio`, `enviado`.
+
+---
+
+### 4.6 Soporte
+
+#### `TicketIT`
+
 | Campo | Tipo | Nulo | Restricción | Descripción |
-|---|---|---|---|---|
-| id | PK | No | Autoincremental | Identificador |
-| equipo_id | FK | No | equipo(id) | Equipo |
-| tipo_movimiento | varchar(20) | No | choices | Entrada/Salida/Transferencia/Baja |
-| fecha_movimiento | datetime | No | auto_now_add | Fecha del movimiento |
-| cantidad | int | No | default 1 | Cantidad |
-| origen | varchar(150) | Sí |  | Origen |
-| destino | varchar(150) | Sí |  | Destino |
-| responsable | varchar(150) | Sí |  | Responsable |
-| observaciones | varchar(255) | Sí |  | Notas |
+|-------|------|------|-------------|-------------|
+| id | PK | No | | |
+| folio_ticket | varchar(30) | No | unique | Auto `SPR0-######` |
+| fecha_support | timestamptz | No | default now | Inicio SLA |
+| requerimiento | varchar(180) | No | No | Titulo para el ticket o problema |
+| area_id | FK Area | Sí | SET_NULL | Identificador de area |
+| puesto_id | FK Puesto | Sí | SET_NULL | Identificador de puesto |
+| solicitado_por_id | FK User | Sí | SET_NULL | identificador de usuario |
+| asignado_a_id | FK User | Sí | SET_NULL | Técnico |
+| tipo_ticket | varchar(30) | No | choices | HELPDESK, HARDWARE, … |
+| sub_tipo_ticket | varchar(150) | Sí | No | Catálogo en forms |
+| prioridad | varchar(10) | No | Baja/Media/Alta/Urgente | Prioridad de atencion |
+| equipo_id | FK Equipo | Sí | SET_NULL | Identificador de equipo |
+| tipo_equipo_id | FK CategoriaEquipo | Sí | PROTECT | Tipo de equipo |
+| otro_tipo_equipo | varchar(120) | Sí | | Si categoría “Otro” |
+| detalle | varchar(255) | Sí | No | Detalles del problema |
+| descripcion | text | No | No | Descripcion completa del problema |
+| imagen | path | Sí | | `media/support/` |
+| status | varchar(20) | No | Abierto / En Revision / En Proceso / Cerrado | Automático |
 
-### Tabla: `asignacion_equipo`
+#### `SeguimientoTicket`
+
+| Campo | Tipo | Nulo | Restricción |
+|-------|------|------|-------------|
+| id | PK | No | No |
+| ticket_id | FK TicketIT | No | CASCADE |
+| folio_check | varchar(30) | Sí | = folio del ticket |
+| fecha_check | timestamptz | No | No |
+| avance_realizado | text | Sí | No |
+| pendiente | text | Sí | No |
+| proximo_paso | text | Sí | No |
+| fecha_proximo_seguimiento | date | Sí | Avisos home |
+| usuario_id | FK User | Sí | SET_NULL |
+| solucion | text | No | Obligatoria si ya_terminado |
+| observacion | text | Sí | No |
+| ya_terminado | boolean | No | default false |
+
+#### `Bitacora`
+
+| Campo | Tipo | Nulo | Restricción |
+|-------|------|------|-------------|
+| id | PK | No | No |
+| folio_bitacora | varchar(30) | No | unique, auto `BIT-######` |
+| fecha_bitacora | timestamptz | No | No |
+| situacion | varchar(180) | No | No |
+| descripcion_situacion | text | No | No |
+
+#### `Answer`
+
+| Campo | Tipo | Nulo | Restricción |
+|-------|------|------|-------------|
+| id | PK | No | No |
+| bitacora_id | FK Bitacora | No | CASCADE |
+| folio_answer | varchar(30) | No | = folio bitácora |
+| fecha_answer | timestamptz | No | No |
+| solucion | varchar(180) | No | No |
+| descripcion_solucion | text | No | No |
+| usuario_id | FK User | Sí | SET_NULL |
+
+---
+
+### 4.7 Compras
+
+#### `PlantillaDocumento`
+
+| Campo | Tipo | Nulo |
+|-------|------|------|
+| id | PK | No |
+| nombre | varchar(150) | No |
+| descripcion | varchar(255) | Sí |
+| tipo_archivo | varchar(10) | DOCX / XLSX / PDF |
+| archivo | path | `media/plantillas_orden_compra/` |
+| campos | json | Lista de placeholders |
+| activo | boolean | No |
+| creado_en | timestamptz | No |
+
+#### `OrdenCompra`
+
 | Campo | Tipo | Nulo | Restricción | Descripción |
-|---|---|---|---|---|
-| id | PK | No | Autoincremental | Identificador |
-| equipo_id | FK | No | equipo(id) | Equipo asignado |
-| personal_id | FK | No | personal(id) | Personal asignado |
-| fecha_asignacion | datetime | No | auto_now_add | Inicio de asignación |
-| fecha_devolucion | datetime | Sí |  | Devolución |
-| estado_asignacion | varchar(20) | No | choices | Activa/Devuelta/Extraviada |
-| observaciones | varchar(255) | Sí |  | Notas |
+|-------|------|------|-------------|-------------|
+| id | PK | No | No | Identificador |
+| folio_orden | varchar(30) | No | unique | Auto `OC-######` |
+| elaborado_por_id | FK User | Sí | SET_NULL | Dueño para alcance Usuario |
+| origen | varchar(10) | No | CREADO / SUBIDO | Si el archivo se creara o solamente se subira |
+| fecha | date | Sí | No | Fecha de creacion |
+| proveedor_id | FK Proveedor | Sí | SET_NULL | Obligatorio si CREADO |
+| tipo_moneda | varchar(3) | No | MXN / USD | Tipo de moneda |
+| iva_opcion | varchar(4) | No | 8 / 16 / OTRO | Iva |
+| iva_porcentaje | numeric(5,2) | No | default 16 | Porcentaje de Iva |
+| subtotal | numeric(14,2) | No | No | Recalculado |
+| iva_monto | numeric(14,2) | No | No | Monto de Iva |
+| total | numeric(14,2) | No | No | Total |
+| comentarios | text | Sí | No | Comentarios |
+| notas | varchar(255) | Sí | No | Notas |
+| estado | varchar(30) | No | Borrador / En Proceso / Terminado / Cancelado | Estado de la orden |
+| archivo_pdf | path | Sí | | `media/ordenes_compra/` |
+| plantilla_id | FK PlantillaDocumento | Sí | SET_NULL | Identificador de plantilla |
+| creado_en | timestamptz | No | auto_now_add | Tipo de creacion |
 
-## 6.5 Mantenimiento
+#### `DetalleOrdenCompra`
 
-### Tabla: `mantenimiento`
-| Campo | Tipo | Nulo | Restricción | Descripción |
-|---|---|---|---|---|
-| id | PK | No | Autoincremental | Identificador |
-| equipo_id | FK | No | equipo(id) | Equipo |
-| tipo_mantenimiento | varchar(20) | No | choices | Preventivo/Correctivo/Predictivo |
-| estado_mantenimiento | varchar(20) | No | choices | Programado/En Proceso/Completado/Cancelado |
-| fecha_programada | date | No |  | Fecha objetivo |
-| fecha_inicio | datetime | Sí |  | Inicio real |
-| fecha_fin | datetime | Sí |  | Fin real |
-| tecnico_responsable | varchar(150) | Sí |  | Técnico |
-| costo_mantenimiento | numeric(12,2) | No | default 0 | Costo |
-| descripcion_falla | varchar(255) | Sí |  | Falla reportada |
-| acciones_realizadas | text | Sí |  | Trabajo ejecutado |
-| proxima_fecha_mantenimiento | date | Sí |  | Próximo mantenimiento |
-| observaciones | varchar(255) | Sí |  | Notas |
+| Campo | Tipo | Nulo | Restricción |
+|-------|------|------|-------------|
+| id | PK | No | No |
+| orden_id | FK OrdenCompra | No | CASCADE |
+| id_producto | varchar(80) | Sí | No |
+| descripcion | varchar(255) | No | No |
+| cantidad | numeric(10,2) | No | default 1 |
+| precio_unitario | numeric(12,2) | No | default 0 |
+| importe | numeric(14,2) | No | cantidad × precio |
 
-### Tabla: `agenda_mantenimiento`
-| Campo | Tipo | Nulo | Restricción | Descripción |
-|---|---|---|---|---|
-| id | PK | No | Autoincremental | Identificador |
-| mantenimiento_id | FK | No | mantenimiento(id) | Relación de mantenimiento |
-| fecha_recordatorio | datetime | No |  | Fecha/hora del recordatorio |
-| canal_recordatorio | varchar(50) | Sí |  | Canal (correo/sistema) |
-| enviado | boolean | No | default false | Estado de envío |
+Cupo inventario: parte entera de `cantidad` menos equipos con `detalle_orden_id` = esta línea.
 
-## 6.6 Tickets IT
+---
 
-Tickets IT a sido reestructurado de la siguiente manera
+### 4.8 Historial
 
-### Tabla Support 
+#### `HistorialActividad`
 
-### Tabla: `ticket_it`
-| Campo | Tipo | Nulo | Restricción | Descripción |
-|---|---|---|---|---|
-| folio_ticket | Auto incremental | No | unique | Folio |
-| fecha_support | datetime | No | auto_now_add | Fecha de alta |
-| requerimiento | varchar(180) | No || No | requerimiento solicitado |
-| departamento | FK | Si | No | de que departamento se solicita |
-| personal_solicitante_id | FK | No | personal(id) | Solicitante |
-| tipo_ticket | varchar(30) | No | No | Tipo de ticket | 
-| Sub_ticket | varchar(150) | Si | No | Subtipo de ticket |
-| equipo_id | FK | Sí | equipo(id) | Equipo relacionado |
-| tipo_equipo | FK | Si | No | Especificacion de tipo de equipo| 
-| otro_tipo_equipo | varchar(80) | Si | No | Otro tipo de equipo |
-| detalle | varchar(150) | No |  | Resumen del problema |
-| descripcion | text | No |  | Detalle del caso |
-| prioridad | varchar(10) | No | choices | Baja/Media/Alta/Urgente |
-| estado_ticket | varchar(20) | No | choices | Abierto/En Proceso/Resuelto/Cerrado |
-| tecnico_asignado | varchar(150) | Sí |  | Técnico responsable |
-| fecha_cierre | datetime | Sí |  | Fecha de cierre |
-| solucion | text | Sí |  | Solución aplicada |
+| Campo | Tipo | Nulo | Notas |
+|-------|------|------|-------|
+| id | PK | No | Identificador |
+| fecha | timestamptz | No | index |
+| modulo | varchar(32) | No | index; ver MODELS.md |
+| accion | varchar(24) | No | index |
+| nivel | varchar(16) | No | info / advertencia / critico |
+| es_automatico | boolean | No | Si o no |
+| usuario_id | FK User | Sí | SET_NULL |
+| titulo | varchar(200) | No | Titulo |
+| descripcion | text | No | blank ok |
+| objeto_tipo / objeto_id / objeto_etiqueta | Varchar | Sí | Tipo de Objeto |
+| entidad_relacionada_* | | Sí | Contexto padre |
+| enlace_nombre / enlace_pk | | Sí | Deep-link UI |
+| metadata | json | Sí | |
+| archivado | boolean | No | index |
+| fecha_archivado | timestamptz | Sí | fecha en que fue archivado |
 
-### Tabla: `seguimiento_ticket`
-| Campo | Tipo | Nulo | Restricción | Descripción |
-|---|---|---|---|---|
-| id | PK | No | Autoincremental | Identificador |
-| ticket_id | FK | No | ticket_it(id) | Ticket relacionado |
-| fecha_evento | datetime | No | auto_now_add | Fecha/hora del evento |
-| comentario | text | No |  | Comentario de seguimiento |
-| usuario_evento | varchar(150) | No |  | Usuario que registra |
-| cambio_estado | varchar(100) | Sí |  | Cambio aplicado |
+Retención: `HISTORIAL_RETENCION` (activo 180 d → archivo 365 d → purga; críticos protegidos).
 
-## 6.7 Presupuestos y compras
+---
 
-### Tabla: `presupuesto`
-| Campo | Tipo | Nulo | Restricción | Descripción |
-|---|---|---|---|---|
-| id | PK | No | Autoincremental | Identificador |
-| folio_presupuesto | varchar(30) | No | unique | Folio |
-| fecha_presupuesto | date | No |  | Fecha |
-| cliente_o_area | varchar(150) | No |  | Destinatario |
-| elaborado_por | varchar(150) | No |  | Responsable |
-| subtotal | numeric(12,2) | No | default 0 | Suma de importes |
-| impuestos | numeric(12,2) | No | default 0 | IVA u otro impuesto |
-| total | numeric(12,2) | No | default 0 | Total final |
-| estado_presupuesto | varchar(30) | No | default 'Borrador' | Estado |
-| notas | varchar(255) | Sí |  | Notas |
+### 4.9 Gobierno
 
-### Tabla: `detalle_presupuesto`
-| Campo | Tipo | Nulo | Restricción | Descripción |
-|---|---|---|---|---|
-| id | PK | No | Autoincremental | Identificador |
-| presupuesto_id | FK | No | presupuesto(id), cascade | Cabecera |
-| concepto | varchar(150) | No |  | Concepto |
-| descripcion | varchar(255) | Sí |  | Descripción |
-| cantidad | numeric(10,2) | No |  | Cantidad |
-| precio_unitario | numeric(12,2) | No |  | Precio unitario |
-| importe | numeric(12,2) | No | default 0 | cantidad * precio_unitario |
+#### `CoberturaTickets`
 
-### Tabla: `compra_material`
-| Campo | Tipo | Nulo | Restricción | Descripción |
-|---|---|---|---|---|
-| id | PK | No | Autoincremental | Identificador |
-| folio_compra | varchar(30) | No | unique | Folio |
-| fecha_compra | date | No |  | Fecha |
-| proveedor_id | FK | Sí | proveedor(id) | Proveedor |
-| solicitado_por | varchar(150) | Sí |  | Responsable |
-| subtotal | numeric(12,2) | No | default 0 | Subtotal |
-| impuestos | numeric(12,2) | No | default 0 | Impuestos |
-| total | numeric(12,2) | No | default 0 | Total |
-| estado_compra | varchar(30) | No | default 'Solicitada' | Estado |
-| observaciones | varchar(255) | Sí |  | Notas |
+| Campo | Tipo | Nulo | Restricción |
+|-------|------|------|-------------|
+| id | PK | No | No |
+| ausente_id | FK User | No | CASCADE |
+| suplente_id | FK User | No | CASCADE |
+| fecha_inicio | date | No | No |
+| fecha_fin | date | No | ≥ inicio |
+| activa | boolean | No | default true |
+| motivo | varchar(255) | No | blank ok |
+| creado_por_id | FK User | Sí | SET_NULL |
+| fecha_creacion | timestamptz | No | No |
 
-### Tabla: `detalle_compra_material`
-| Campo | Tipo | Nulo | Restricción | Descripción |
-|---|---|---|---|---|
-| id | PK | No | Autoincremental | Identificador |
-| compra_id | FK | No | compra_material(id), cascade | Cabecera |
-| concepto | varchar(150) | No |  | Concepto |
-| descripcion | varchar(255) | Sí |  | Descripción |
-| cantidad | numeric(10,2) | No |  | Cantidad |
-| costo_unitario | numeric(12,2) | No |  | Costo unitario |
-| importe | numeric(12,2) | No | default 0 | cantidad * costo_unitario |
+#### `SolicitudEquipo`
 
-## 7. Reglas de Negocio
+| Campo | Tipo | Nulo | Restricción |
+|-------|------|------|-------------|
+| id | PK | No | No |
+| folio | varchar(30) | No | unique, auto `SOL-000001` |
+| solicitante_id | FK User | No | CASCADE |
+| personal_id | FK Personal | Sí | SET_NULL |
+| categoria_id | FK CategoriaEquipo | Sí | SET_NULL |
+| titulo | varchar(160) | No | No |
+| justificacion | text | No | No |
+| urgencia | varchar(10) | No | Baja / Media / Alta |
+| estado | varchar(20) | No | Pendiente / En revision / Aprobada / Rechazada / Completada / Cancelada |
+| notas_solicitante | varchar(255) | No | blank |
+| notas_it | text | No | blank |
+| revisado_por_id | FK User | Sí | SET_NULL |
+| equipo_id | FK Equipo | Sí | SET_NULL |
+| fecha_creacion | timestamptz | No | No |
+| fecha_actualizacion | timestamptz | No | No |
+| fecha_resolucion | timestamptz | Sí | No |
 
-1. Cuando una asignación se crea en estado `Activa`, el equipo cambia a estado `Asignado`.
-2. Cuando una asignación cambia a `Devuelta`, el equipo cambia a estado `Disponible`.
-3. Cuando se crea un mantenimiento, el equipo cambia a estado `En Mantenimiento`.
-4. En detalles de presupuesto y compra:
-   - `importe = cantidad * precio_unitario` (o `costo_unitario`)
-   - Se recalculan automáticamente `subtotal`, `impuestos` y `total` en la cabecera.
-5. En baja lógica de equipo:
-   - `activo = false`
-   - se registra `fecha_baja` y `motivo_baja`.
+#### `SeguimientoSolicitudEquipo`
 
-## 8. Integridad y Restricciones
+| Campo | Tipo | Nulo |
+|-------|------|------|
+| id | PK | No |
+| solicitud_id | FK SolicitudEquipo | No, CASCADE |
+| fecha_check | timestamptz | No |
+| avance_realizado / pendiente / proximo_paso | text | Sí |
+| fecha_proximo_seguimiento | date | Sí |
+| usuario_id | FK User | Sí |
+| solucion | text | blank |
+| observacion | text | Sí |
+| ya_terminado | boolean | No |
 
-### 8.1 Restricciones de unicidad
+---
 
-- `personal.numero_empleado`
-- `equipo.codigo_inventario`
-- `equipo.numero_serie`
-- `ticket_it.folio_ticket`
-- `presupuesto.folio_presupuesto`
-- `compra_material.folio_compra`
+## 5. Reglas de negocio (persistidas en código)
 
-### 8.2 Integridad referencial
+1. Asignación **Activa** → equipo **Asignado**. Devolución → **En Stock** (si no está Baja / En Mantenimiento).
+2. Iniciar mantenimiento → equipo **En Mantenimiento**. Completar/cancelar restaura En Stock o Asignado si no hay otro En Proceso.
+3. Ticket: el status lo mueven seguimientos y acciones de flujo, no el formulario.
+4. OC: `importe` de línea = cantidad × precio; cabecera recalcula subtotal/IVA/total.
+5. Alta origen Compra exige OC **Terminado** + línea con cupo > 0.
+6. Folios únicos: `numero_empleado`, `codigo_inventario`, `numero_serie`, `folio_ticket`, `folio_bitacora`, `folio_orden`, `codigo_interno` de proveedor, `folio` de solicitud.
 
-- Uso de claves foráneas en todas las relaciones críticas.
-- Uso de `on_delete=CASCADE` en tablas detalle e historiales dependientes.
-- Uso de `on_delete=PROTECT` o `SET_NULL` cuando se requiere conservar historial.
+---
 
-## 9. Índices Recomendados
+## 6. Integridad
 
-Para mejorar rendimiento en consultas operativas y reportes:
+| Relación | on_delete |
+|----------|-----------|
+| Detalles de OC, seguimientos, answers, movimientos, asignaciones, mantenimientos, revisiones de solicitud | CASCADE |
+| Categoría de equipo, ubicación (edificio/zona en Ubicacion) | PROTECT |
+| User en tickets/OC/historial, proveedor en equipo | SET_NULL |
+| Zona al borrar edificio | CASCADE (zonas) |
 
-- `equipo(estado_equipo, activo)`
-- `equipo(categoria_id)`
-- `equipo(ubicacion_id)`
-- `movimiento_equipo(fecha_movimiento, tipo_movimiento)`
-- `asignacion_equipo(personal_id, estado_asignacion)`
-- `mantenimiento(fecha_programada, proxima_fecha_mantenimiento)`
-- `ticket_it(estado_ticket, prioridad, fecha_creacion)`
-- `ticket_it(personal_solicitante_id)`
+---
 
-## 10. Vistas de Reporteo Recomendadas
+## 7. Índices relevantes
 
-1. **vista_inventario_general**
-   - Equipos activos con categoría, estado y ubicación.
+- `HistorialActividad`: fecha, modulo, accion, nivel, es_automatico, archivado
+- `SolicitudEquipo.estado`
+- Uniques listados en la sección 5
 
-2. **vista_equipos_asignados**
-   - Equipos con asignación activa por empleado.
+Consultas operativas típicas (equipo por estado, tickets por status/prioridad, asignaciones activas) se filtran en vistas; no hay índices compuestos extra en el modelo de equipo/ticket.
 
-3. **vista_tickets_abiertos**
-   - Tickets en estados `Abierto` y `En Proceso`.
+---
 
-4. **vista_mantenimientos_proximos**
-   - Mantenimientos con próximas fechas dentro de una ventana configurable (ej. 30 días).
+## 8. Control de cambios
 
-## 11. Seguridad y Auditoría
-
-- Definir roles de base de datos:
-  - `rol_lectura_it` (solo lectura)
-  - `rol_operacion_it` (CRUD operativo)
-  - `rol_admin_it` (administración)
-- En Django, usar grupos y permisos por módulo.
-- Mantener trazabilidad de cambios en:
-  - `seguimiento_ticket`
-  - `movimiento_equipo`
-- Configurar respaldos automáticos diarios y política de retención.
-
-## 12. Flujo Operativo Sugerido
-
-1. Alta de catálogos (áreas, categorías, edificios, zonas, proveedores).
-2. Registro de equipos y ubicación inicial.
-3. Registro de entradas/salidas y asignaciones.
-4. Atención y seguimiento de tickets IT.
-5. Programación y cierre de mantenimientos.
-6. Generación de presupuestos y compras con cálculo automático de totales.
-
-## 13. Glosario
-
-- **Alta:** Creación de un registro nuevo y activo.
-- **Baja lógica:** Desactivación de un registro sin eliminarlo físicamente.
-- **Ticket:** Solicitud o incidente reportado al área IT.
-- **Mantenimiento preventivo:** Servicio programado para evitar fallas.
-- **Presupuesto:** Documento económico previo a compra o servicio.
-
-## 14. Control de Cambios del Documento
-
-| Versión | Fecha | Autor | Descripción |
-|---|---|---|---|
-| 1.0 | 2026-04-20 | Equipo IT | Versión inicial de documentación de base de datos |
+| Versión | Fecha | Descripción |
+|---------|-------|-------------|
+| 1.0 | 2026-04-20 | Esquema inicial (incluye presupuestos/compras materiales) |
+| 2.0 | 2026-08 | Alineado al código: OC unificada, gobierno, historial, bitácora, SLA, En Stock, cierres |

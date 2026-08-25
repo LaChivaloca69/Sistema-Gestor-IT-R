@@ -6,6 +6,7 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.db.models import Q
+from django.urls import NoReverseMatch, reverse
 from django.utils import timezone
 
 from .models import AccionHistorial, HistorialActividad, ModuloHistorial, NivelHistorial
@@ -17,6 +18,25 @@ def _resolver_usuario(request=None, usuario=None):
     if request is not None and getattr(request, "user", None) and request.user.is_authenticated:
         return request.user
     return None
+
+
+def resolver_enlace(enlace_nombre, enlace_pk=None):
+    """Resuelve un enlace de historial sin tumbar la pagina si la URL no acepta pk."""
+    if not enlace_nombre:
+        return None
+    if enlace_pk is not None:
+        try:
+            return reverse(enlace_nombre, args=[enlace_pk])
+        except NoReverseMatch:
+            pass
+        try:
+            return reverse(enlace_nombre, kwargs={"pk": enlace_pk})
+        except NoReverseMatch:
+            pass
+    try:
+        return reverse(enlace_nombre)
+    except NoReverseMatch:
+        return None
 
 
 def _meta_objeto(objeto):

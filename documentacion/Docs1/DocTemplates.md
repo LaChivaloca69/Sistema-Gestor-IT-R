@@ -1,216 +1,161 @@
-# Documentacion de Templates - Sistema Gestor IT
+# Templates — Sistema Gestor IT
 
-## Descripcion general
+Diseño de templates. **Última revisión:** agosto 2026.
 
-Este documento explica como funciona el sistema de templates en el proyecto Gestor IT.
+No hay CRUD genérico por `model_slug`. Cada dominio tiene sus plantillas (`list` / `form` / `detail` / `confirm_delete` según aplique).
 
-La implementacion usa templates de Django con herencia (base + hijos) y vistas genericas para construir un CRUD dinamico por modelo.
+---
 
-## Ubicacion de templates
+## Ubicación
 
-La carpeta principal de templates esta en:
+Las plantillas viven en la app:
 
-- GestorIT/Templates/
+```
+GestorApp/Templates/
+```
 
-Configuracion en Django (settings):
+Django las encuentra con `APP_DIRS = True`. En `GestorIT/settings.py` también está `DIRS: [BASE_DIR / 'Templates']` (carpeta de proyecto; no es la fuente actual).
 
-- Archivo: GestorIT/GestorIT/settings.py
-- Seccion: TEMPLATES
-- Clave DIRS: BASE_DIR / 'Templates'
+Estáticos:
 
-Esto permite que Django encuentre templates globales del proyecto en esa ruta.
+```
+static/GestorApp/css/app.css
+static/GestorApp/css/theme-dark.css
+static/GestorApp/js/app.js
+```
 
-## Estructura actual
+UI: Bootstrap 5 (`django-bootstrap5`), Bootstrap Icons, fuente Montserrat.
 
-Templates principales:
+---
 
-- GestorIT/Templates/base.html
-- GestorIT/Templates/home.html
-- GestorIT/Templates/Index.html
+## Layout
 
-Templates de CRUD:
+### `base.html`
 
-- GestorIT/Templates/crud/list.html
-- GestorIT/Templates/crud/form.html
-- GestorIT/Templates/crud/confirm_delete.html
+Esqueleto de toda la app autenticada:
 
-Nota:
+- Topbar: marca, atajos (Nuevo ticket / Nuevo equipo), campana de avisos, chip de usuario · rol, tema claro/oscuro
+- Sidebar: secciones General, Soporte, Compras, Organización, Ubicaciones, Inventario, Operaciones, Admin (visibles según rol)
+- Búsqueda del menú (Ctrl+K), favoritos y recientes (JS)
+- Bloques: `title`, `content`, `extra_css`, `extra_js`
+- Mensajes Django (`messages`)
 
-- Index.html existe, pero en el flujo actual de vistas no se esta utilizando.
+Context processors:
 
-## Patron de herencia de templates
+| Processor | Variables |
+|-----------|-----------|
+| `roles` | `user_role`, `is_admin_role`, `is_tecnico_role`, `is_operativo_role` |
+| `breadcrumbs` | `breadcrumb_items` |
+| `nav_badges` | `nav_badges`, `nav_notifications`, `nav_notifications_total` |
 
-El proyecto usa herencia de templates de Django para evitar duplicar estructura visual.
+### Auth y home
 
-### Template base
+| Template | Vista | Uso |
+|----------|-------|-----|
+| `login.html` | `LoginView` | Inicio de sesión |
+| `signup.html` | `signup` | Alta User + Personal (rol Usuario) |
+| `logout.html` | (opcional) | Confirmación |
+| `home.html` | `home` | KPIs, avisos, calendario |
+| `index.html` | — | No forma parte del flujo actual |
 
-- base.html define el esqueleto comun:
-  - estructura HTML (head, body)
-  - estilos CSS globales
-  - header comun
-  - contenedor principal
+---
 
-Tambien define bloques reutilizables:
+## Partials (`Templates/partials/`)
 
-- block title
-- block content
+| Archivo | Uso |
+|---------|-----|
+| `breadcrumbs.html` | Migas de pan |
+| `page_header_open.html` / `page_header_close.html` | Título + acciones de página |
+| `form_fieldset.html` | Agrupa campos de formulario |
+| `empty_state.html` | Lista vacía |
+| `info_hint.html` / `info_hint_open.html` / `info_hint_close.html` | Notas de ayuda |
+| `row_actions.html` | Botones Ver / Editar / Eliminar en tablas |
 
-### Templates hijos
+Las listas y formularios reutilizan este patrón en lugar de un único `crud/*.html`.
 
-Los templates de paginas especificas extienden base.html:
+---
 
-- home.html
-- crud/list.html
-- crud/form.html
-- crud/confirm_delete.html
+## Plantillas por dominio
 
-Cada uno sobreescribe los bloques title y content para su caso.
+Patrón habitual: `list.html`, `form.html`, `confirm_delete.html`. Detalle o pantallas extra donde el flujo lo pide.
 
-## Como se conectan con las vistas
+| Carpeta | Dominio | Extra |
+|---------|---------|-------|
+| `area/`, `puesto/` | Catálogos org | |
+| `personal/` | Personal | `detail.html`, `admin_requests.html`, `admin_remove.html` |
+| `proveedor/` | Proveedores | |
+| `edificio/`, `zonaedificio/`, `ubicacion/` | Ubicaciones | |
+| `categoriaequipo/` | Categorías | |
+| `equipo/` | Inventario | `detail`, `dashboard`, `mis_equipos`, `baja`, `asignar`, `ubicacion` |
+| `movimientoequipo/` | Movimientos + lista de auditoría | `registros.html`, `detail.html` (la lista es historial de actividad) |
+| `asignacionequipo/` | Asignaciones | |
+| `mantenimiento/` | Órdenes de mant. | `detail`, `dashboard` |
+| `agendamantenimiento/` | Cierres (UI: Cierres) | |
+| `ticketit/` | Tickets | `detail`, `dashboard` |
+| `seguimientoticket/` | Checks | |
+| `bitacora/` | Bitácora | `detail` |
+| `answer/` | Respuestas | |
+| `plantilladocumento/` | Plantillas OC | Solo Admin |
+| `ordencompra/` | Órdenes | `choose`, `form_crear`, `form_subir`, `terminar` |
+| `gobierno/` | Permisos, coberturas, solicitudes | `permisos_matriz`, `solicitud_*`, `cobertura_*`, `seguimiento_solicitud_*` |
+| `historial/` | Auditoría / retención | `auditoria_detail.html`, `retencion.html` |
 
-Las vistas estan en:
+---
 
-- GestorIT/GestorITapps/views.py
+## Cómo se conectan con las vistas
 
-Cada vista define el template_name que debe renderizar Django:
+Las vistas son **funciones** en `GestorApp/views/` (y `gobierno_views.py`). Cada una hace `render(request, '…/….html', context)`.
 
-- HomeView -> home.html
-- ModelListView -> crud/list.html
-- ModelCreateView -> crud/form.html
-- ModelUpdateView -> crud/form.html
-- ModelDeleteView -> crud/confirm_delete.html
+Rutas: `GestorIT/urls.py`. Ejemplo:
 
-## Rutas que activan cada template
+| URL | Template |
+|-----|----------|
+| `/` | `home.html` |
+| `/Ticketit/` | `ticketit/list.html` |
+| `/Ticketit/<id>/` | `ticketit/detail.html` |
+| `/Equipos/` | `equipo/list.html` |
+| `/Equipos/mis/` | `equipo/mis_equipos.html` |
+| `/MantenimientoEquipos/<id>/` | `mantenimiento/detail.html` |
+| `/OrdenesCompra/nueva/` | `ordencompra/choose.html` |
+| `/Gobierno/permisos/` | `gobierno/permisos_matriz.html` |
+| `/Auditoria/<id>/` | `historial/auditoria_detail.html` |
 
-Rutas de app en:
+No hay `MODEL_REGISTRY` ni `ModelListView` genérico.
 
-- GestorIT/GestorITapps/urls.py
+---
 
-Mapeo actual:
+## Flujo de renderizado
 
-- / -> HomeView -> home.html
-- /<model_slug>/ -> ModelListView -> crud/list.html
-- /<model_slug>/nuevo/ -> ModelCreateView -> crud/form.html
-- /<model_slug>/<pk>/editar/ -> ModelUpdateView -> crud/form.html
-- /<model_slug>/<pk>/eliminar/ -> ModelDeleteView -> crud/confirm_delete.html
+1. URL en `GestorIT/urls.py` (con `login_required` / `operativo_required` / `admin_required`).
+2. Vista de dominio prepara queryset, formularios y flags de permiso.
+3. `render` del template de esa entidad.
+4. El hijo extiende `base.html` y llena `content`.
+5. Partials + Bootstrap pintan listados y forms.
 
-Y estas rutas se incluyen desde el proyecto principal en:
+---
 
-- GestorIT/GestorIT/urls.py
+## Convenciones de UI
 
-## Contexto que recibe cada template
+- Formularios POST con CSRF; campos vía django-bootstrap5 (`field-required`, `field-error`).
+- Enlaces con `{% url 'nombre_ruta' %}`.
+- Menú condicionado por `is_operativo_role` / `is_admin_role`.
+- Tema oscuro: clase `theme-dark` en `<html>` + `theme-dark.css`.
+- Badges del sidebar cacheados ~45 s (`nav_badges`).
 
-### 1) home.html
+---
 
-Lo renderiza HomeView.
+## Archivos clave
 
-Contexto principal:
+| Archivo | Rol |
+|---------|-----|
+| `GestorApp/Templates/base.html` | Shell |
+| `GestorApp/breadcrumbs.py` | Mapa url_name → migas |
+| `GestorApp/context_processors.py` | Roles, breadcrumbs, badges |
+| `GestorApp/nav_badges.py` | Conteos del menú y campana |
+| `static/GestorApp/js/app.js` | Sidebar, tema, búsqueda, calendario |
 
-- modelos: lista de modelos registrados con:
-  - slug
-  - nombre
+---
 
-Uso en template:
+## Documentación relacionada
 
-- genera una cuadricula de enlaces para entrar al CRUD de cada modelo.
-
-### 2) crud/list.html
-
-Lo renderiza ModelListView.
-
-Contexto principal:
-
-- modelo_nombre: nombre del modelo en formato legible
-- model_slug: slug tecnico del modelo
-- objetos: queryset paginado del modelo
-- fields: campos del modelo para cabecera de tabla
-- rows: filas preprocesadas con valores por objeto
-
-Uso en template:
-
-- construye una tabla dinamica con todos los campos del modelo
-- agrega acciones por fila (Editar, Eliminar)
-- muestra boton para crear nuevo registro
-
-### 3) crud/form.html
-
-Lo usan ModelCreateView y ModelUpdateView.
-
-Contexto principal:
-
-- form: formulario generado dinamicamente
-- modelo_nombre
-- model_slug
-
-Uso en template:
-
-- renderiza formulario con form.as_p
-- incluye proteccion CSRF
-- boton Guardar y enlace Cancelar
-
-### 4) crud/confirm_delete.html
-
-Lo usa ModelDeleteView.
-
-Contexto principal:
-
-- object: registro a eliminar
-- modelo_nombre
-- model_slug
-
-Uso en template:
-
-- muestra confirmacion
-- envia POST para eliminar
-- ofrece boton de cancelar
-
-## Flujo completo de renderizado
-
-1. El usuario entra a la URL.
-2. Django resuelve la ruta en urls.py.
-3. La vista correspondiente prepara datos de contexto.
-4. La vista renderiza el template indicado por template_name.
-5. El template hijo extiende base.html y llena bloques title/content.
-6. El navegador recibe HTML final.
-
-## Reutilizacion del CRUD por modelo
-
-El sistema evita crear un template distinto por cada tabla gracias a:
-
-- MODEL_REGISTRY en views.py
-- URL dinamica con model_slug
-- vistas genericas (ListView, CreateView, UpdateView, DeleteView)
-- templates CRUD comunes en carpeta crud/
-
-Resultado:
-
-- un solo conjunto de templates para multiples modelos
-- menos codigo duplicado
-- mantenimiento mas simple
-
-## Buenas practicas aplicadas
-
-- Herencia de templates (base + hijos)
-- URL nombradas con {% url %}
-- Proteccion CSRF en formularios POST
-- Plantillas reutilizables para CRUD
-- Separacion clara entre:
-  - vistas (logica)
-  - templates (presentacion)
-
-## Mejoras recomendadas
-
-- Agregar mensajes de exito/error con framework de messages en base.html.
-- Incluir paginacion visible en crud/list.html (actualmente paginate_by=25 en vista).
-- Crear un template de errores (404/500) personalizado.
-- Definir un bloque extra para scripts por pagina si se requiere JS futuro.
-
-## Resumen
-
-El sistema de templates esta implementado de forma modular y escalable:
-
-- base.html centraliza estructura y estilos
-- templates hijos definen contenido de cada pagina
-- CRUD dinamico reutiliza vistas y templates para todos los modelos registrados
-
-Esto facilita crecer el sistema sin duplicar codigo de interfaz.
+`MODULOS.md` (mapa de archivos), `ROLES.md` (quién ve cada sección), `Reestructuracion_Views.md` (vistas/forms por dominio).

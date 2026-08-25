@@ -1,5 +1,11 @@
 # Reestructuración de views y forms
 
+**Estado: hecho.** El monolito `GestorApp/views.py` ya no existe; el código vive en `GestorApp/views/` y `GestorApp/forms/`. Este documento explica el split para mantenimiento futuro.
+
+**Última revisión:** agosto 2026.
+
+---
+
 Documento de la partición del monolito `GestorApp/views.py` (~6 090 líneas) en el paquete `GestorApp/views/`, y de la extracción posterior de formularios al paquete `GestorApp/forms/`.
 
 ---
@@ -220,10 +226,11 @@ from GestorApp.forms.gobierno import CoberturaTicketsForm
 
 ## Próximos pasos sugeridos
 
-1. **Mover `GestorApp/urls.py`** e incluirlo desde el proyecto (achicar `GestorIT/urls.py`).
+1. **Mover rutas a `GestorApp/urls.py`** e incluirlo desde el proyecto (achicar `GestorIT/urls.py`).
 2. **Tests por dominio** importando desde `views.equipo` / `forms.equipo`, etc.
-3. Actualizar `MODULOS.md` con las rutas de archivos de vistas y forms.
-4. Opcional: eliminar el shim `gobierno_forms.py` cuando todos los imports apunten a `forms.gobierno`.
+3. Opcional: eliminar el shim `gobierno_forms.py` cuando todos los imports apunten a `forms.gobierno`.
+
+`MODULOS.md` ya describe los paquetes `views/` y `forms/`.
 
 ---
 

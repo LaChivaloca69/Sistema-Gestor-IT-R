@@ -1,6 +1,6 @@
 # Mantenimiento y Cierres — Guía de funcionamiento
 
-Documento de los cambios implementados en **Mantenimientos** y **Cierres** (antes “Agenda”), y de cómo opera el módulo actualmente.
+Documento de **Mantenimientos** y **Cierres** (modelo `AgendaMantenimiento`). **Última revisión:** agosto 2026.
 
 ---
 
@@ -33,7 +33,8 @@ Registro de ejecución: fechas inicio/fin, acciones, observaciones y **próxima 
 En código/URLs sigue el nombre histórico `AgendaMantenimiento`; en la UI se muestra como **Cierre**.
 
 ### Roles
-Hoy el módulo de mantenimiento es **solo staff** (`admin_required`).
+El módulo de mantenimiento es **operativo** (`operativo_required`: Tecnico IT o Administrador).  
+Borrar mantenimiento o cierre: **solo Admin** (`admin_required`). El Usuario pide mantenimiento con ticket tipo **MANTENIMIENTO**, no opera este módulo.
 
 ---
 
@@ -70,7 +71,7 @@ En Proceso (si había cierre) o Programado
 | Acción | Efecto en equipo |
 |--------|------------------|
 | Iniciar | Estado → `En Mantenimiento` + movimiento |
-| Completar / Cancelar | Restaura Disponible o Asignado (según asignación activa) + movimiento |
+| Completar / Cancelar | Restaura **En Stock** o Asignado (según asignación activa) + movimiento |
 | Si otro mantenimiento del mismo equipo sigue En Proceso | No restaura aún |
 
 ---
@@ -88,7 +89,7 @@ Ruta: `/MantenimientoEquipos/<id>/`
 
 ## 5. Avisos en home (sin email)
 
-Solo staff. Ventana de aviso corto: **7 días**. KPI de próximos activos: **30 días**.
+Solo operativo. Ventana de aviso corto: **7 días**. KPI de próximos activos: **30 días**.
 
 | Aviso | Criterio |
 |-------|----------|
@@ -159,19 +160,19 @@ También desde lista, home (sección de avisos) y accesos rápidos.
 
 | Ruta | Nombre | Quién |
 |------|--------|--------|
-| `/MantenimientoEquipos/` | `mantenimiento_list` | Staff |
-| `/MantenimientoEquipos/dashboard/` | `mantenimiento_dashboard` | Staff |
-| `/MantenimientoEquipos/create/` | `mantenimiento_create` | Staff |
-| `/MantenimientoEquipos/<id>/` | `mantenimiento_detail` | Staff |
-| `/MantenimientoEquipos/update/<id>/` | `mantenimiento_update` | Staff |
-| `/MantenimientoEquipos/delete/<id>/` | `mantenimiento_delete` | Staff |
-| `/MantenimientoEquipos/<id>/iniciar/` | `mantenimiento_iniciar` | Staff |
-| `/MantenimientoEquipos/<id>/cancelar/` | `mantenimiento_cancelar` | Staff |
-| `/MantenimientoEquipos/<id>/reabrir/` | `mantenimiento_reabrir` | Staff |
-| `/AgendaMantenimiento/` | `agendamantenimiento_list` | Staff (UI: Cierres) |
-| `/AgendaMantenimiento/create/` | `agendamantenimiento_create` | Staff |
-| `/AgendaMantenimiento/update/<id>/` | `agendamantenimiento_update` | Staff |
-| `/AgendaMantenimiento/delete/<id>/` | `agendamantenimiento_delete` | Staff |
+| `/MantenimientoEquipos/` | `mantenimiento_list` | Operativo |
+| `/MantenimientoEquipos/dashboard/` | `mantenimiento_dashboard` | Operativo |
+| `/MantenimientoEquipos/create/` | `mantenimiento_create` | Operativo |
+| `/MantenimientoEquipos/<id>/` | `mantenimiento_detail` | Operativo |
+| `/MantenimientoEquipos/update/<id>/` | `mantenimiento_update` | Operativo |
+| `/MantenimientoEquipos/delete/<id>/` | `mantenimiento_delete` | Admin |
+| `/MantenimientoEquipos/<id>/iniciar/` | `mantenimiento_iniciar` | Operativo |
+| `/MantenimientoEquipos/<id>/cancelar/` | `mantenimiento_cancelar` | Operativo |
+| `/MantenimientoEquipos/<id>/reabrir/` | `mantenimiento_reabrir` | Operativo |
+| `/AgendaMantenimiento/` | `agendamantenimiento_list` | Operativo (UI: Cierres) |
+| `/AgendaMantenimiento/create/` | `agendamantenimiento_create` | Operativo |
+| `/AgendaMantenimiento/update/<id>/` | `agendamantenimiento_update` | Operativo |
+| `/AgendaMantenimiento/delete/<id>/` | `agendamantenimiento_delete` | Admin |
 
 Prefill al programar desde un ciclo:  
 `/MantenimientoEquipos/create/?equipo=<id>&fecha=YYYY-MM-DD`
@@ -183,7 +184,8 @@ Prefill al programar desde un ciclo:
 | Archivo | Rol |
 |---------|-----|
 | `GestorApp/models.py` | `Mantenimiento`, `AgendaMantenimiento`, estados, métodos de flujo |
-| `GestorApp/views.py` | CRUD, sync equipo, avisos, lista, dashboard, ciclo automático |
+| `GestorApp/views/mantenimiento.py` | CRUD, sync equipo, avisos, lista, dashboard, ciclo automático |
+| `GestorApp/forms/mantenimiento.py` | Forms de orden y cierre |
 | `GestorApp/historial.py` | Historial (incluye serialización de fechas en metadata) |
 | `GestorIT/urls.py` | Rutas |
 | `GestorApp/Templates/mantenimiento/` | list, detail, form, dashboard, confirm_delete |
@@ -214,7 +216,7 @@ Constantes en vistas:
 
 - Notificaciones por **email**.
 - Técnico como FK a User/Proveedor (sigue siendo texto).
-- Permisos finos para no-staff (p. ej. ver solo sus equipos).
+- Permisos finos para no-operativo (p. ej. ver solo sus equipos).
 - Soft-delete.
 - Renombrar modelo/URLs `AgendaMantenimiento` en código (solo UI).
 

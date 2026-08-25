@@ -208,5 +208,23 @@ class SafeUploadTo:
 
 equipo_imagen_upload_to = SafeUploadTo("equipos")
 ticket_imagen_upload_to = SafeUploadTo("support")
+ticket_comentario_upload_to = SafeUploadTo("support/comentarios")
 plantilla_archivo_upload_to = SafeUploadTo("plantillas_orden_compra")
 orden_pdf_upload_to = SafeUploadTo("ordenes_compra")
+
+
+def validate_ticket_adjunto_upload(archivo):
+    """Imagen o PDF para comentarios de ticket."""
+    if not archivo:
+        return archivo
+    if not isinstance(archivo, UploadedFile):
+        return archivo
+    ext = normalize_extension(getattr(archivo, "name", "") or "")
+    cfg = _cfg()
+    if ext in cfg["image_extensions"]:
+        return validate_uploaded_file(archivo, kind="image")
+    if ext in cfg["pdf_extensions"]:
+        return validate_uploaded_file(archivo, kind="pdf")
+    raise ValidationError(
+        "Formato no permitido. Adjunta una imagen (JPG, PNG, GIF, WEBP) o un PDF."
+    )

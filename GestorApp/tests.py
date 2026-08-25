@@ -7,6 +7,7 @@ from GestorApp.models import (
     AsignacionEquipo,
     Bitacora,
     CategoriaEquipo,
+    ComentarioTicket,
     Equipo,
     EstadoAsignacion,
     EstadoEquipo,
@@ -15,6 +16,7 @@ from GestorApp.models import (
     ModuloHistorial,
     Personal,
     SeguimientoSolicitudEquipo,
+    SeguimientoTicket,
     SolicitudEquipo,
     TicketIT,
 )
@@ -159,6 +161,22 @@ class AuditoriaHistorialTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Evento de auditoria smoke")
         self.assertContains(resp, "audit_other")
+
+    def test_auditoria_list_survives_list_url_with_pk(self):
+        """Coberturas se guardaron con enlace_nombre=cobertura_list + pk; no debe 500."""
+        historial_mod.registrar_historial(
+            modulo=ModuloHistorial.GOBIERNO,
+            accion=historial_mod.AccionHistorial.CREACION,
+            titulo="Cobertura: suplente cubre a ausente",
+            usuario=self.other,
+            enlace_nombre="cobertura_list",
+            enlace_pk=1,
+        )
+        self.client.login(username="audit_admin", password=self.password)
+        resp = self.client.get(reverse("movimientoequipo_list"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Cobertura: suplente cubre a ausente")
+        self.assertContains(resp, reverse("cobertura_list"))
 
 
 class MediaHardeningTests(TestCase):
@@ -509,3 +527,146 @@ class BitacoraAnswerFlowTests(TestCase):
         response = self.client.post(reverse("bitacora_delete", args=[bitacora.pk]))
         self.assertEqual(response.status_code, 302)
         self.assertTrue(Bitacora.objects.filter(pk=bitacora.pk).exists())
+
+
+class TicketComentarioTests(TestCase):
+    PNG = (
+        b"\x89PNG\r\n\x1a\n"
+        b"\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde"
+        b"\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82"
+    )
+
+    def setUp(self):
+        ensure_role_groups()
+        self.password = "StrongPass123!"
+        self.user = User.objects.create_user(username="cmt_user", password=self.password)
+        set_user_role(self.user, ROLE_USUARIO)
+        self.tech = User.objects.create_user(username="cmt_tech", password=self.password)
+        set_user_role(self.tech, ROLE_TECNICO)
+        self.otro = User.objects.create_user(username="cmt_otro", password=self.password)
+        set_user_role(self.otro, ROLE_USUARIO)
+        self.ticket = TicketIT.objects.create(
+            descripcion="Pantalla en negro",
+            requerimiento="No enciende el monitor",
+            solicitado_por=self.user,
+        )
+
+    def _create_url(self):
+        return reverse("ticketit_comentario_create", args=[self.ticket.pk])
+
+    def test_solicitante_can_comment_on_own_ticket(self):
+        self.client.login(username="cmt_user", password=self.password)
+        detail = self.client.get(reverse("ticketit_detail", args=[self.ticket.pk]))
+        self.assertEqual(detail.status_code, 200)
+        self.assertContains(detail, "Comentarios")
+        self.assertContains(detail, "Publicar")
+
+        response = self.client.post(self._create_url(), {"mensaje": "Adjunto foto de la etiqueta."})
+        self.assertEqual(response.status_code, 302)
+        comentario = ComentarioTicket.objects.get(ticket=self.ticket)
+        self.assertEqual(comentario.mensaje, "Adjunto foto de la etiqueta.")
+        self.assertEqual(comentario.autor_id, self.user.id)
+        self.assertFalse(comentario.es_interno)
+        self.ticket.refresh_from_db()
+        self.assertEqual(self.ticket.status, "Abierto")
+
+    def test_stranger_cannot_comment(self):
+        self.client.login(username="cmt_otro", password=self.password)
+        response = self.client.post(self._create_url(), {"mensaje": "No deberia verse"})
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(ComentarioTicket.objects.filter(ticket=self.ticket).exists())
+
+    def test_empty_comment_is_rejected(self):
+        self.client.login(username="cmt_user", password=self.password)
+        response = self.client.post(self._create_url(), {"mensaje": "   "})
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(ComentarioTicket.objects.exists())
+        self.assertContains(response, "Escribe un comentario o adjunta un archivo")
+
+    def test_comment_with_image_attachment(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        self.client.login(username="cmt_user", password=self.password)
+        uploaded = SimpleUploadedFile("etiqueta.PNG", self.PNG, content_type="image/png")
+        response = self.client.post(
+            self._create_url(),
+            {"mensaje": "Foto de la etiqueta", "adjuntos": uploaded},
+        )
+        self.assertEqual(response.status_code, 302)
+        comentario = ComentarioTicket.objects.get()
+        adjunto = comentario.adjuntos.get()
+        self.assertTrue(adjunto.es_imagen)
+        self.assertEqual(adjunto.nombre_original, "etiqueta.PNG")
+        self.assertTrue(adjunto.archivo.name.endswith(".png"))
+        self.assertNotIn("etiqueta", adjunto.archivo.name.lower())
+
+    def test_rejects_exe_as_attachment(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        self.client.login(username="cmt_user", password=self.password)
+        fake = SimpleUploadedFile(
+            "malware.pdf",
+            b"MZ\x90\x00this-is-not-a-pdf",
+            content_type="application/pdf",
+        )
+        response = self.client.post(self._create_url(), {"adjuntos": fake})
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(ComentarioTicket.objects.exists())
+
+    def test_solicitante_cannot_comment_when_closed(self):
+        SeguimientoTicket.objects.create(
+            ticket=self.ticket,
+            usuario=self.tech,
+            solucion="Se cambio el cable",
+            ya_terminado=True,
+        )
+        self.ticket.refresh_from_db()
+        self.assertEqual(self.ticket.status, "Cerrado")
+
+        self.client.login(username="cmt_user", password=self.password)
+        detail = self.client.get(reverse("ticketit_detail", args=[self.ticket.pk]))
+        self.assertContains(detail, "El ticket esta cerrado")
+        self.assertNotContains(detail, "Publicar")
+
+        response = self.client.post(self._create_url(), {"mensaje": "Sigue fallando"})
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(ComentarioTicket.objects.exists())
+
+    def test_tecnico_can_comment_when_closed(self):
+        SeguimientoTicket.objects.create(
+            ticket=self.ticket,
+            usuario=self.tech,
+            solucion="Se cambio el cable",
+            ya_terminado=True,
+        )
+        self.client.login(username="cmt_tech", password=self.password)
+        response = self.client.post(self._create_url(), {"mensaje": "Nota interna de cierre"})
+        self.assertEqual(response.status_code, 302)
+        comentario = ComentarioTicket.objects.get()
+        self.assertTrue(comentario.es_interno)
+
+    def test_author_can_delete_own_comment(self):
+        comentario = ComentarioTicket.objects.create(
+            ticket=self.ticket,
+            autor=self.user,
+            mensaje="Borrar esto",
+        )
+        self.client.login(username="cmt_user", password=self.password)
+        response = self.client.post(
+            reverse("ticketit_comentario_delete", args=[self.ticket.pk, comentario.pk])
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(ComentarioTicket.objects.filter(pk=comentario.pk).exists())
+
+    def test_other_user_cannot_delete_comment(self):
+        comentario = ComentarioTicket.objects.create(
+            ticket=self.ticket,
+            autor=self.user,
+            mensaje="No borrar",
+        )
+        self.client.login(username="cmt_otro", password=self.password)
+        response = self.client.post(
+            reverse("ticketit_comentario_delete", args=[self.ticket.pk, comentario.pk])
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(ComentarioTicket.objects.filter(pk=comentario.pk).exists())
