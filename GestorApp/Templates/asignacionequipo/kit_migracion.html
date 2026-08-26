@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}Migrar perifericos al kit{% endblock %}
+
+{% block content %}
+{% include "partials/page_header_open.html" with title="Migrar perifericos al kit" description="Convierte asignaciones sueltas de mouse/teclado/RAM en vinculos del equipo principal." %}
+	<a class="btn btn-outline-secondary" href="{% url 'asignacionequipo_list' %}">Volver</a>
+{% include "partials/page_header_close.html" %}
+
+{% if total %}
+<p class="text-muted mb-3">
+	{{ total }} periferico(s) con asignacion activa suelta.
+	{% if auto_count %}{{ auto_count }} con sugerencia automatica.{% endif %}
+</p>
+
+<form method="post">
+	{% csrf_token %}
+	<div class="table-responsive">
+		<table class="table table-striped table-hover align-middle">
+			<thead class="table-light">
+				<tr>
+					<th>
+						<input type="checkbox" id="check-all" title="Seleccionar todos" />
+					</th>
+					<th>Periferico</th>
+					<th>Personal</th>
+					<th>Equipo destino (kit)</th>
+					<th>Estado</th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for s in sugerencias %}
+				<tr>
+					<td>
+						{% if s.puede_auto or s.candidatos %}
+						<input
+							type="checkbox"
+							name="asignacion_id"
+							value="{{ s.asignacion.pk }}"
+							{% if s.puede_auto %}checked{% endif %}
+						/>
+						{% else %}
+						—
+						{% endif %}
+					</td>
+					<td>
+						<strong>{{ s.periferico.codigo_inventario }}</strong>
+						<div class="text-muted small">{{ s.periferico.categoria }}</div>
+					</td>
+					<td>{{ s.personal }}</td>
+					<td>
+						{% if s.ya_vinculado %}
+						<span class="text-muted">Ya vinculado a</span>
+						<a href="{% url 'equipo_detail' s.periferico.equipo_padre_id %}">{{ s.periferico.equipo_padre.codigo_inventario }}</a>
+						<div class="text-muted small">Solo se cerrara la asignacion suelta.</div>
+						{% elif s.candidatos|length == 1 %}
+						<input type="hidden" name="padre_{{ s.asignacion.pk }}" value="{{ s.sugerido.pk }}" />
+						<a href="{% url 'equipo_detail' s.sugerido.pk %}">{{ s.sugerido.codigo_inventario }}</a>
+						· {{ s.sugerido.categoria }}
+						{% elif s.candidatos %}
+						<select name="padre_{{ s.asignacion.pk }}" class="form-select form-select-sm">
+							<option value="">Elegir equipo…</option>
+							{% for eq in s.candidatos %}
+							<option value="{{ eq.pk }}">{{ eq.codigo_inventario }} · {{ eq.categoria }}</option>
+							{% endfor %}
+						</select>
+						{% else %}
+						<span class="text-muted">Sin equipo principal asignado a esta persona</span>
+						{% endif %}
+					</td>
+					<td>
+						{% if s.ya_vinculado %}
+						<span class="status-badge status-badge--asignado">En kit</span>
+						{% elif s.puede_auto %}
+						<span class="status-badge status-badge--en-stock">Listo</span>
+						{% elif s.candidatos %}
+						<span class="status-badge status-badge--en-mantenimiento">Elegir</span>
+						{% else %}
+						<span class="status-badge status-badge--baja">Sin padre</span>
+						{% endif %}
+					</td>
+				</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+	</div>
+	<div class="actions mt-3">
+		<a class="btn btn-outline-secondary" href="{% url 'asignacionequipo_list' %}">Cancelar</a>
+		<button class="btn btn-primary" type="submit">Aplicar seleccion</button>
+	</div>
+</form>
+{% else %}
+<div class="alert alert-success">
+	No hay asignaciones sueltas de perifericos. El inventario de asignaciones ya esta limpio.
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+	const all = document.getElementById("check-all");
+	if (!all) return;
+	all.addEventListener("change", function () {
+		document.querySelectorAll('input[name="asignacion_id"]').forEach((el) => {
+			el.checked = all.checked;
+		});
+	});
+})();
+</script>
+{% endblock %}

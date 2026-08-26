@@ -33,3 +33,10 @@ def nav_badges(request):
         "nav_notifications_total": total,
     }
 
+
+def inventario_nav(request):
+    """Resalta Equipos/Perifericos/Herramientas segun el tipo de la pantalla actual."""
+    return {
+        "inventario_list_url_name": getattr(request, "inventario_list_url_name", None),
+    }
+

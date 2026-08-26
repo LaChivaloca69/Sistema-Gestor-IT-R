@@ -1,15 +1,17 @@
 {% extends "base.html" %}
 
-{% block title %}Equipos{% endblock %}
+{% block title %}{{ inv.plural }}{% endblock %}
 
 {% block content %}
-{% include "partials/page_header_open.html" with title="Equipos" description="Inventario unitario, estados y ubicacion." %}
+{% include "partials/page_header_open.html" with title=inv.plural description=inv.description %}
+	{% if inv.tipo == "Equipo" %}
 	<a class="btn btn-outline-secondary" href="{% url 'equipo_dashboard' %}">Dashboard</a>
+	{% endif %}
 	<a
 		class="btn btn-outline-secondary"
 		href="?export=csv{% for key, value in request.GET.items %}{% if key != 'export' and key != 'page' %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}"
 	>Exportar CSV</a>
-	<a class="btn btn-primary" href="{% url 'equipo_create' %}">Nuevo equipo</a>
+	<a class="btn btn-primary" href="{% url inv.create_url %}">{{ inv.nuevo_label }}</a>
 {% include "partials/page_header_close.html" %}
 
 {% if selected_alerta %}
@@ -18,9 +20,9 @@
 	<div class="dash-alert dash-alert--warn">
 		<div>
 			<strong>Filtro: sin ubicacion</strong>
-			<p class="mb-0">Equipos activos sin lugar fisico asignado.</p>
+			<p class="mb-0">Registros activos sin lugar fisico asignado.</p>
 		</div>
-		<a class="btn btn-sm btn-outline-secondary" href="{% url 'equipo_list' %}">Quitar filtro</a>
+		<a class="btn btn-sm btn-outline-secondary" href="{% url inv.list_url %}">Quitar filtro</a>
 	</div>
 	{% elif selected_alerta == "mant_largo" %}
 	<div class="dash-alert dash-alert--warn">
@@ -28,7 +30,7 @@
 			<strong>Filtro: mantenimiento prolongado</strong>
 			<p class="mb-0">En Mantenimiento por mas de {{ equipos_mant_largo_dias }} dias.</p>
 		</div>
-		<a class="btn btn-sm btn-outline-secondary" href="{% url 'equipo_list' %}">Quitar filtro</a>
+		<a class="btn btn-sm btn-outline-secondary" href="{% url inv.list_url %}">Quitar filtro</a>
 	</div>
 	{% elif selected_alerta == "asignacion_antigua" %}
 	<div class="dash-alert dash-alert--warn">
@@ -36,15 +38,15 @@
 			<strong>Filtro: asignaciones antiguas</strong>
 			<p class="mb-0">Asignacion activa con mas de {{ equipos_asignacion_alerta_dias }} dias.</p>
 		</div>
-		<a class="btn btn-sm btn-outline-secondary" href="{% url 'equipo_list' %}">Quitar filtro</a>
+		<a class="btn btn-sm btn-outline-secondary" href="{% url inv.list_url %}">Quitar filtro</a>
 	</div>
 	{% elif selected_alerta == "baja" %}
 	<div class="dash-alert dash-alert--danger">
 		<div>
 			<strong>Filtro: baja</strong>
-			<p class="mb-0">Equipos dados de baja.</p>
+			<p class="mb-0">Registros dados de baja.</p>
 		</div>
-		<a class="btn btn-sm btn-outline-secondary" href="{% url 'equipo_list' %}">Quitar filtro</a>
+		<a class="btn btn-sm btn-outline-secondary" href="{% url inv.list_url %}">Quitar filtro</a>
 	</div>
 	{% endif %}
 </div>
@@ -68,7 +70,9 @@
 			<option value="" {% if not selected_alerta %}selected{% endif %}>Todos</option>
 			<option value="sin_ubicacion" {% if selected_alerta == "sin_ubicacion" %}selected{% endif %}>Sin ubicacion</option>
 			<option value="mant_largo" {% if selected_alerta == "mant_largo" %}selected{% endif %}>Mant. prolongado</option>
+			{% if inv.permite_asignacion %}
 			<option value="asignacion_antigua" {% if selected_alerta == "asignacion_antigua" %}selected{% endif %}>Asignacion antigua</option>
+			{% endif %}
 			<option value="baja" {% if selected_alerta == "baja" %}selected{% endif %}>Baja</option>
 		</select>
 	</div>
@@ -90,6 +94,16 @@
 			{% endfor %}
 		</select>
 	</div>
+	{% if inv.tipo == "Periferico" %}
+	<div>
+		<label for="filter_vinculo">Vinculo</label>
+		<select id="filter_vinculo" name="vinculo" data-chip-label="Vinculo">
+			<option value="" {% if not selected_vinculo %}selected{% endif %}>Todos</option>
+			<option value="libre" {% if selected_vinculo == "libre" %}selected{% endif %}>Sin vincular</option>
+			<option value="vinculado" {% if selected_vinculo == "vinculado" %}selected{% endif %}>Vinculados</option>
+		</select>
+	</div>
+	{% endif %}
 	<div>
 		<label for="filter_ubicacion">Ubicacion</label>
 		<select id="filter_ubicacion" name="ubicacion" data-chip-label="Ubicacion">
@@ -140,7 +154,7 @@
 	</div>
 	<div class="filters-actions">
 		<button class="btn btn-primary" type="submit">Filtrar</button>
-		<a class="btn btn-outline-secondary" href="{% url 'equipo_list' %}">Limpiar</a>
+		<a class="btn btn-outline-secondary" href="{% url inv.list_url %}">Limpiar</a>
 	</div>
 </form>
 
@@ -153,6 +167,11 @@
 				<th>Categoria</th>
 				<th>Marca / modelo</th>
 				<th>Estado</th>
+				{% if inv.tipo == "Equipo" %}
+				<th>Kit</th>
+				{% elif inv.tipo == "Periferico" %}
+				<th>Equipo padre</th>
+				{% endif %}
 				<th>Ubicacion</th>
 				<th>Activo</th>
 				<th>Alta</th>
@@ -168,6 +187,17 @@
 				<td>{{ item.categoria }}</td>
 				<td>{{ item.marca|default:"-" }} {{ item.modelo|default:"" }}</td>
 				<td><span class="status-badge status-badge--{{ item.estado_equipo|slugify }}">{{ item.estado_equipo }}</span></td>
+				{% if inv.tipo == "Equipo" %}
+				<td>{{ item.perifericos_count|default:0 }}</td>
+				{% elif inv.tipo == "Periferico" %}
+				<td>
+					{% if item.equipo_padre_id %}
+					<a href="{% url 'equipo_detail' item.equipo_padre_id %}">{{ item.equipo_padre.codigo_inventario }}</a>
+					{% else %}
+					<span class="text-muted">Sin vincular</span>
+					{% endif %}
+				</td>
+				{% endif %}
 				<td>{{ item.ubicacion|default:"-" }}</td>
 				<td>
 					{% if item.activo %}
@@ -192,7 +222,13 @@
 							<ul class="dropdown-menu dropdown-menu-end">
 								<li><a class="dropdown-item" href="{% url 'equipo_detail' item.pk %}">Ver detalle</a></li>
 								<li><a class="dropdown-item" href="{% url 'equipo_update' item.pk %}">Editar</a></li>
-								{% if item.puede_asignarse %}
+								{% if inv.tipo == "Equipo" and item.puede_vincular_perifericos %}
+								<li><a class="dropdown-item" href="{% url 'equipo_vincular_periferico' item.pk %}">Vincular periferico</a></li>
+								{% endif %}
+								{% if inv.tipo == "Periferico" and item.puede_vincularse_a_equipo %}
+								<li><a class="dropdown-item" href="{% url 'periferico_vincular_equipo' item.pk %}">Vincular a equipo</a></li>
+								{% endif %}
+								{% if inv.permite_asignacion and item.puede_asignarse %}
 								<li><a class="dropdown-item" href="{% url 'equipo_asignar' item.pk %}">Asignar</a></li>
 								{% endif %}
 								{% if item.puede_dar_de_baja and is_admin_role %}
@@ -209,9 +245,9 @@
 			</tr>
 			{% empty %}
 			<tr>
-				<td colspan="10" class="text-center py-4">
-					{% url 'equipo_create' as empty_action_url %}
-					{% include "partials/empty_state.html" with title="Sin equipos" description="Registra el primer equipo o ajusta los filtros." action_url=empty_action_url action_label="Nuevo equipo" icon="bi-pc-display" compact=1 %}
+				<td colspan="{% if inv.tipo == 'Equipo' or inv.tipo == 'Periferico' %}11{% else %}10{% endif %}" class="text-center py-4">
+					{% url inv.create_url as empty_action_url %}
+					{% include "partials/empty_state.html" with title=inv.empty_title description=inv.empty_description action_url=empty_action_url action_label=inv.nuevo_label icon=inv.icon compact=1 %}
 				</td>
 			</tr>
 			{% endfor %}
@@ -220,10 +256,10 @@
 </div>
 
 {% if page_obj.paginator.num_pages > 1 %}
-<nav class="list-pagination" aria-label="Paginacion de equipos">
+<nav class="list-pagination" aria-label="Paginacion de {{ inv.plural|lower }}">
 	<span class="text-muted">
 		Pagina {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
-		· {{ page_obj.paginator.count }} equipos
+		· {{ page_obj.paginator.count }} {{ inv.plural|lower }}
 	</span>
 	<div class="d-flex gap-2">
 		{% if page_obj.has_previous %}

@@ -24,6 +24,10 @@ from ..forms.equipo import (
     EquipoBajaForm,
     EquipoForm,
     EquipoUbicacionForm,
+    EquipoVincularPerifericoForm,
+    PerifericoDesvincularForm,
+    PerifericoReemplazarForm,
+    PerifericoVincularEquipoForm,
 )
 from ..roles import (
     ROLE_ADMIN,
@@ -37,6 +41,7 @@ from ..roles import (
     operativo_required,
     set_user_role,
 )
+from ..inventory_types import get_inventario_ui, inventario_ui_for_equipo, resolve_inventario_tipo
 from ..models import (
     AccionHistorial,
     AgendaMantenimiento,
@@ -70,6 +75,7 @@ from ..models import (
     SLA_HORAS_POR_PRIORIDAD,
     SeguimientoTicket,
     TicketIT,
+    TipoCategoriaInventario,
     TipoMoneda,
     TipoMovimiento,
     TipoMantenimiento,
@@ -84,6 +90,7 @@ from .helpers import (
     _cerrar_asignaciones_activas,
     _crear_movimiento,
     _deny_ticket_access,
+    _desvincular_periferico,
     _end_of_month,
     _get_equipo_asignacion_activa,
     _get_equipo_responsable,
@@ -92,12 +99,15 @@ from .helpers import (
     _parse_date,
     _quick_range_bounds,
     _reconciliar_estado_equipo,
+    _reemplazar_periferico,
+    _sync_perifericos_con_padre,
     _ticket_dashboard_context,
     _ticket_has_seguimientos,
     _tickets_abiertos_qs,
     _tickets_for_user,
     _tickets_sla_por_vencer_q,
     _tickets_sla_vencidos_q,
+    _vincular_periferico_a_equipo,
     user_can_delete_ticket,
     user_can_edit_ticket,
     user_can_manage_orden,
@@ -110,6 +120,11 @@ EQUIPO_ASIGNACION_ALERTA_DIAS = 180
 EQUIPO_MANTENIMIENTO_LARGO_DIAS = 14
 
 
+def _mark_inventario_nav(request, inv):
+    request.inventario_list_url_name = inv["list_url"]
+    return inv
+
+
 def _equipo_queryset():
     return Equipo.objects.select_related(
         "categoria",
@@ -119,22 +134,27 @@ def _equipo_queryset():
         "ubicacion__zona",
         "orden_compra",
         "detalle_orden",
-    )
+        "equipo_padre",
+        "equipo_padre__categoria",
+    ).annotate(perifericos_count=Count("perifericos", distinct=True))
 
 
-def _equipos_sin_ubicacion_qs():
-    return (
+def _equipos_sin_ubicacion_qs(tipo=None):
+    qs = (
         _equipo_queryset()
         .filter(ubicacion__isnull=True)
         .exclude(estado_equipo=EstadoEquipo.BAJA)
         .filter(activo=True)
     )
+    if tipo:
+        qs = qs.filter(categoria__tipo=tipo)
+    return qs
 
 
-def _equipos_mantenimiento_largo_qs(now=None, dias=EQUIPO_MANTENIMIENTO_LARGO_DIAS):
+def _equipos_mantenimiento_largo_qs(now=None, dias=EQUIPO_MANTENIMIENTO_LARGO_DIAS, tipo=None):
     now = now or timezone.now()
     limite = now - timedelta(days=dias)
-    return (
+    qs = (
         _equipo_queryset()
         .filter(estado_equipo=EstadoEquipo.EN_MANTENIMIENTO)
         .annotate(
@@ -146,12 +166,15 @@ def _equipos_mantenimiento_largo_qs(now=None, dias=EQUIPO_MANTENIMIENTO_LARGO_DI
         .filter(Q(ultimo_inicio_mant__lte=limite) | Q(ultimo_inicio_mant__isnull=True))
         .order_by(F("ultimo_inicio_mant").asc(nulls_first=True), "codigo_inventario")
     )
+    if tipo:
+        qs = qs.filter(categoria__tipo=tipo)
+    return qs
 
 
-def _asignaciones_antiguas_qs(today=None, dias=EQUIPO_ASIGNACION_ALERTA_DIAS):
+def _asignaciones_antiguas_qs(today=None, dias=EQUIPO_ASIGNACION_ALERTA_DIAS, tipo=None):
     today = today or timezone.localdate()
     cutoff = today - timedelta(days=dias)
-    return (
+    qs = (
         AsignacionEquipo.objects.select_related("equipo", "personal", "equipo__categoria")
         .filter(
             estado_asignacion=EstadoAsignacion.ACTIVA,
@@ -160,17 +183,21 @@ def _asignaciones_antiguas_qs(today=None, dias=EQUIPO_ASIGNACION_ALERTA_DIAS):
         .exclude(equipo__estado_equipo=EstadoEquipo.BAJA)
         .order_by("fecha_asignacion", "pk")
     )
+    if tipo:
+        qs = qs.filter(equipo__categoria__tipo=tipo)
+    return qs
 
 
 def _equipos_alerta_context(
     today=None,
     asignacion_dias=EQUIPO_ASIGNACION_ALERTA_DIAS,
     mant_dias=EQUIPO_MANTENIMIENTO_LARGO_DIAS,
+    tipo=TipoCategoriaInventario.EQUIPO,
 ):
     today = today or timezone.localdate()
-    sin_ubicacion_qs = _equipos_sin_ubicacion_qs().order_by("codigo_inventario")
-    mant_largo_qs = _equipos_mantenimiento_largo_qs(dias=mant_dias)
-    asign_antiguas_qs = _asignaciones_antiguas_qs(today=today, dias=asignacion_dias)
+    sin_ubicacion_qs = _equipos_sin_ubicacion_qs(tipo=tipo).order_by("codigo_inventario")
+    mant_largo_qs = _equipos_mantenimiento_largo_qs(dias=mant_dias, tipo=tipo)
+    asign_antiguas_qs = _asignaciones_antiguas_qs(today=today, dias=asignacion_dias, tipo=tipo)
     return {
         "equipos_sin_ubicacion": list(sin_ubicacion_qs[:8]),
         "equipos_sin_ubicacion_count": sin_ubicacion_qs.count(),
@@ -183,10 +210,10 @@ def _equipos_alerta_context(
     }
 
 
-def _equipo_dashboard_context(today=None):
+def _equipo_dashboard_context(today=None, tipo=TipoCategoriaInventario.EQUIPO):
     today = today or timezone.localdate()
-    alerta = _equipos_alerta_context(today=today)
-    qs = _equipo_queryset()
+    alerta = _equipos_alerta_context(today=today, tipo=tipo)
+    qs = _equipo_queryset().filter(categoria__tipo=tipo)
 
     por_estado = []
     for value, label in EstadoEquipo.choices:
@@ -250,8 +277,10 @@ def equipo_dashboard(request):
     )
 
 
-def _filtrar_equipos(request):
+def _filtrar_equipos(request, tipo=None):
     items = _equipo_queryset().order_by("-fecha_alta", "-pk")
+    if tipo:
+        items = items.filter(categoria__tipo=tipo)
     search_query = (request.GET.get("q") or "").strip()
     selected_categoria = request.GET.get("categoria", "")
     selected_estado = request.GET.get("estado_equipo", "")
@@ -261,6 +290,7 @@ def _filtrar_equipos(request):
     selected_alerta = (request.GET.get("alerta") or "").strip()
     selected_origen = request.GET.get("origen_alta", "")
     selected_sin_oc = request.GET.get("sin_oc", "")
+    selected_vinculo = (request.GET.get("vinculo") or "").strip()
     fecha_desde_raw = request.GET.get("fecha_alta_desde", "")
     fecha_hasta_raw = request.GET.get("fecha_alta_hasta", "")
     fecha_mes = request.GET.get("fecha_alta_mes", "")
@@ -275,6 +305,7 @@ def _filtrar_equipos(request):
             | Q(modelo__icontains=search_query)
             | Q(descripcion_equipo__icontains=search_query)
             | Q(Numero_Pedimiento__icontains=search_query)
+            | Q(equipo_padre__codigo_inventario__icontains=search_query)
         )
     if selected_categoria:
         items = items.filter(categoria_id=selected_categoria)
@@ -293,13 +324,22 @@ def _filtrar_equipos(request):
     elif selected_ubicacion:
         items = items.filter(ubicacion_id=selected_ubicacion)
 
+    if tipo == TipoCategoriaInventario.PERIFERICO:
+        if selected_vinculo == "libre":
+            items = items.filter(equipo_padre__isnull=True)
+        elif selected_vinculo == "vinculado":
+            items = items.filter(equipo_padre__isnull=False)
+
     if selected_alerta == "sin_ubicacion":
-        items = _equipos_sin_ubicacion_qs().order_by("codigo_inventario")
+        items = _equipos_sin_ubicacion_qs(tipo=tipo).order_by("codigo_inventario")
     elif selected_alerta == "mant_largo":
-        items = _equipos_mantenimiento_largo_qs()
+        items = _equipos_mantenimiento_largo_qs(tipo=tipo)
     elif selected_alerta == "asignacion_antigua":
-        ids = _asignaciones_antiguas_qs(today=today).values_list("equipo_id", flat=True)
-        items = _equipo_queryset().filter(pk__in=ids).order_by("codigo_inventario")
+        ids = _asignaciones_antiguas_qs(today=today, tipo=tipo).values_list("equipo_id", flat=True)
+        items = _equipo_queryset().filter(pk__in=ids)
+        if tipo:
+            items = items.filter(categoria__tipo=tipo)
+        items = items.order_by("codigo_inventario")
     elif selected_alerta == "baja":
         items = items.filter(estado_equipo=EstadoEquipo.BAJA).order_by("-fecha_baja", "-pk")
 
@@ -326,6 +366,7 @@ def _filtrar_equipos(request):
         "selected_alerta": selected_alerta,
         "selected_origen": selected_origen,
         "selected_sin_oc": selected_sin_oc,
+        "selected_vinculo": selected_vinculo,
         "origen_choices": OrigenAltaEquipo.choices,
         "fecha_alta_desde": fecha_desde_raw,
         "fecha_alta_hasta": fecha_hasta_raw,
@@ -335,9 +376,10 @@ def _filtrar_equipos(request):
     return items, filters
 
 
-def _export_equipos_csv(queryset):
+def _export_equipos_csv(queryset, inv=None):
+    inv = inv or get_inventario_ui(TipoCategoriaInventario.EQUIPO)
     response = HttpResponse(content_type="text/csv; charset=utf-8")
-    response["Content-Disposition"] = 'attachment; filename="inventario_equipos.csv"'
+    response["Content-Disposition"] = f'attachment; filename="{inv["csv_filename"]}"'
     response.write("\ufeff")
     writer = csv.writer(response)
     writer.writerow(
@@ -347,6 +389,8 @@ def _export_equipos_csv(queryset):
             "Marca",
             "Modelo",
             "Categoria",
+            "Tipo",
+            "Equipo padre",
             "Estado",
             "Activo",
             "Ubicacion",
@@ -357,7 +401,7 @@ def _export_equipos_csv(queryset):
             "Motivo baja",
         ]
     )
-    for equipo in queryset.select_related("categoria", "proveedor", "ubicacion"):
+    for equipo in queryset.select_related("categoria", "proveedor", "ubicacion", "equipo_padre"):
         writer.writerow(
             [
                 equipo.codigo_inventario,
@@ -365,6 +409,8 @@ def _export_equipos_csv(queryset):
                 equipo.marca or "",
                 equipo.modelo or "",
                 str(equipo.categoria) if equipo.categoria_id else "",
+                equipo.categoria.tipo if equipo.categoria_id else "",
+                equipo.equipo_padre.codigo_inventario if equipo.equipo_padre_id else "",
                 equipo.estado_equipo,
                 "Si" if equipo.activo else "No",
                 str(equipo.ubicacion) if equipo.ubicacion_id else "",
@@ -423,10 +469,12 @@ def equipo_detalle_orden_choices(request):
     )
 
 
-def equipo_list(request):
-    items, filters = _filtrar_equipos(request)
+def equipo_list(request, tipo=None):
+    tipo = resolve_inventario_tipo(tipo or TipoCategoriaInventario.EQUIPO)
+    inv = _mark_inventario_nav(request, get_inventario_ui(tipo))
+    items, filters = _filtrar_equipos(request, tipo=tipo)
     if (request.GET.get("export") or "").lower() == "csv":
-        return _export_equipos_csv(items)
+        return _export_equipos_csv(items, inv=inv)
 
     paginator = Paginator(items, EQUIPO_LIST_PAGE_SIZE)
     page_obj = paginator.get_page(request.GET.get("page"))
@@ -439,9 +487,10 @@ def equipo_list(request):
     context = {
         "items": page_obj,
         "page_obj": page_obj,
-        "categoria_choices": CategoriaEquipo.objects.order_by(
-            "nombre_categoria"
-        ).values_list("id", "nombre_categoria"),
+        "inv": inv,
+        "categoria_choices": CategoriaEquipo.objects.filter(tipo=tipo)
+        .order_by("nombre_categoria")
+        .values_list("id", "nombre_categoria"),
         "estado_choices": EstadoEquipo.choices,
         "ubicacion_choices": [(ubicacion.pk, str(ubicacion)) for ubicacion in ubicaciones],
         "equipos_asignacion_alerta_dias": EQUIPO_ASIGNACION_ALERTA_DIAS,
@@ -453,7 +502,11 @@ def equipo_list(request):
 
 def equipo_detail(request, pk):
     equipo = get_object_or_404(_equipo_queryset(), pk=pk)
+    inv = _mark_inventario_nav(request, inventario_ui_for_equipo(equipo))
     asignacion_activa = _get_equipo_asignacion_activa(equipo)
+    perifericos = []
+    if equipo.es_equipo_principal:
+        perifericos = list(equipo.perifericos_activos)
     movimientos = (
         MovimientoEquipo.objects.select_related("responsable")
         .filter(equipo=equipo)
@@ -479,16 +532,24 @@ def equipo_detail(request, pk):
         "equipo/detail.html",
         {
             "object": equipo,
+            "inv": inv,
             "asignacion_activa": asignacion_activa,
+            "perifericos": perifericos,
             "movimientos": movimientos,
             "asignaciones": asignaciones,
             "mantenimientos": mantenimientos,
             "tickets": tickets,
+            "mostrar_asignacion": inv["permite_asignacion"] and not (
+                equipo.es_periferico and equipo.equipo_padre_id
+            ),
+            "mostrar_kit": equipo.es_equipo_principal,
         },
     )
 
 
-def equipo_create(request):
+def equipo_create(request, tipo=None):
+    tipo = resolve_inventario_tipo(tipo or TipoCategoriaInventario.EQUIPO)
+    inv = _mark_inventario_nav(request, get_inventario_ui(tipo))
     orden = None
     detalle = None
     orden_id = (request.GET.get("orden") or request.POST.get("orden_compra") or "").strip()
@@ -518,7 +579,7 @@ def equipo_create(request):
         detalle = DetalleOrdenCompra.objects.filter(pk=detalle_id).select_related("orden").prefetch_related("equipos").first()
         if detalle and orden and detalle.orden_id != orden.pk:
             messages.error(request, "La linea no pertenece a la orden indicada.")
-            return redirect("equipo_create")
+            return redirect(inv["create_url"])
         if detalle and orden is None:
             orden = detalle.orden
             if not orden.lista_para_inventario:
@@ -536,20 +597,21 @@ def equipo_create(request):
             return redirect("ordencompra_update", pk=detalle.orden_id)
 
     if request.method == "POST":
-        form = EquipoForm(request.POST, request.FILES)
+        form = EquipoForm(request.POST, request.FILES, tipo=tipo)
         if form.is_valid():
             equipo = form.save()
             _reconciliar_estado_equipo(equipo)
             historial.registrar_creacion(
                 request,
                 modulo=ModuloHistorial.EQUIPO,
-                titulo=f"Equipo dado de alta: {equipo.codigo_inventario}",
+                titulo=f"{inv['singular_title']} dado de alta: {equipo.codigo_inventario}",
                 objeto=equipo,
                 enlace_nombre="equipo_detail",
                 metadata={
                     "origen_alta": equipo.origen_alta,
                     "orden_compra_id": equipo.orden_compra_id,
                     "detalle_orden_id": equipo.detalle_orden_id,
+                    "tipo_inventario": tipo,
                 },
             )
             _crear_movimiento(
@@ -560,7 +622,7 @@ def equipo_create(request):
                 responsable=_get_equipo_responsable(equipo),
                 request=request,
             )
-            messages.success(request, "Equipo creado correctamente.")
+            messages.success(request, f"{inv['singular_title']} creado correctamente.")
             return redirect("equipo_detail", pk=equipo.pk)
     else:
         initial = {}
@@ -576,13 +638,14 @@ def equipo_create(request):
                 initial["descripcion_equipo"] = (detalle.descripcion or "")[:255]
         else:
             initial = {"origen_alta": OrigenAltaEquipo.LEGADO}
-        form = EquipoForm(initial=initial)
+        form = EquipoForm(initial=initial, tipo=tipo)
 
     return render(
         request,
         "equipo/form.html",
         {
             "form": form,
+            "inv": inv,
             "orden_vinculada": orden,
             "detalle_vinculado": detalle,
         },
@@ -591,17 +654,19 @@ def equipo_create(request):
 
 def equipo_update(request, pk):
     equipo = get_object_or_404(_equipo_queryset(), pk=pk)
+    inv = _mark_inventario_nav(request, inventario_ui_for_equipo(equipo))
+    tipo = equipo.tipo_inventario
     ubicacion_anterior = equipo.ubicacion
     estado_anterior = equipo.estado_equipo
     if request.method == "POST":
-        form = EquipoForm(request.POST, request.FILES, instance=equipo)
+        form = EquipoForm(request.POST, request.FILES, instance=equipo, tipo=tipo)
         if form.is_valid():
             equipo = form.save()
             _reconciliar_estado_equipo(equipo)
             historial.registrar_actualizacion(
                 request,
                 modulo=ModuloHistorial.EQUIPO,
-                titulo=f"Equipo actualizado: {equipo.codigo_inventario}",
+                titulo=f"{inv['singular_title']} actualizado: {equipo.codigo_inventario}",
                 objeto=equipo,
                 form=form,
                 enlace_nombre="equipo_detail",
@@ -630,40 +695,46 @@ def equipo_update(request, pk):
                     responsable=_get_equipo_responsable(equipo),
                     request=request,
                 )
-            messages.success(request, "Equipo actualizado correctamente.")
+            messages.success(request, f"{inv['singular_title']} actualizado correctamente.")
             return redirect("equipo_detail", pk=equipo.pk)
     else:
-        form = EquipoForm(instance=equipo)
-    return render(request, "equipo/form.html", {"form": form, "object": equipo})
+        form = EquipoForm(instance=equipo, tipo=tipo)
+    return render(
+        request,
+        "equipo/form.html",
+        {"form": form, "object": equipo, "inv": inv},
+    )
 
 
 def equipo_delete(request, pk):
     equipo = get_object_or_404(_equipo_queryset(), pk=pk)
+    inv = _mark_inventario_nav(request, inventario_ui_for_equipo(equipo))
     if not equipo.puede_eliminar_fisico:
         messages.error(
             request,
-            "No se puede eliminar: el equipo tiene historial (asignaciones, "
+            "No se puede eliminar: el registro tiene historial (asignaciones, "
             "mantenimientos, tickets o movimientos). Usa Dar de baja.",
         )
         return redirect("equipo_detail", pk=pk)
 
     if request.method == "POST":
         etiqueta = equipo.codigo_inventario
+        list_url = inv["list_url"]
         historial.registrar_eliminacion(
             request,
             modulo=ModuloHistorial.EQUIPO,
-            titulo=f"Equipo eliminado: {etiqueta}",
+            titulo=f"{inv['singular_title']} eliminado: {etiqueta}",
             objeto=equipo,
-            metadata={"codigo_inventario": etiqueta},
+            metadata={"codigo_inventario": etiqueta, "tipo_inventario": equipo.tipo_inventario},
             nivel=NivelHistorial.CRITICO,
         )
         equipo.delete()
-        messages.success(request, "Equipo eliminado correctamente.")
-        return redirect("equipo_list")
+        messages.success(request, f"{inv['singular_title']} eliminado correctamente.")
+        return redirect(list_url)
     return render(
         request,
         "equipo/confirm_delete.html",
-        {"object": equipo, "puede_eliminar": True},
+        {"object": equipo, "inv": inv, "puede_eliminar": True},
     )
 
 
@@ -785,6 +856,7 @@ def equipo_devolver(request, pk):
     asignacion.fecha_devolucion = timezone.now()
     asignacion.save(update_fields=["estado_asignacion", "fecha_devolucion"])
     _reconciliar_estado_equipo(equipo)
+    _sync_perifericos_con_padre(equipo, request=request)
     _crear_movimiento(
         equipo,
         TipoMovimiento.CAMBIO_ASIGNACION,
@@ -813,7 +885,8 @@ def equipo_asignar(request, pk):
     if not equipo.puede_asignarse:
         messages.error(
             request,
-            "No se puede asignar este equipo (Baja, En Mantenimiento o inactivo).",
+            "No se puede asignar: solo maquinas principales (Equipos). "
+            "Perifericos van en el kit; herramientas no se asignan.",
         )
         return redirect("equipo_detail", pk=pk)
 
@@ -835,6 +908,7 @@ def equipo_asignar(request, pk):
                 observaciones=observaciones or None,
             )
             _reconciliar_estado_equipo(equipo)
+            _sync_perifericos_con_padre(equipo, request=request)
             _crear_movimiento(
                 equipo,
                 TipoMovimiento.CAMBIO_ASIGNACION if existente else TipoMovimiento.ASIGNACION,
@@ -883,6 +957,7 @@ def equipo_cambiar_ubicacion(request, pk):
                 return redirect("equipo_detail", pk=pk)
             equipo.ubicacion = nueva
             equipo.save(update_fields=["ubicacion"])
+            _sync_perifericos_con_padre(equipo, request=request)
             _crear_movimiento(
                 equipo,
                 TipoMovimiento.CAMBIO_UBICACION,
@@ -916,4 +991,175 @@ def equipo_cambiar_ubicacion(request, pk):
         {"object": equipo, "form": form},
     )
 
-# ============  MovimientoEquipo views ==============
+
+def equipo_vincular_periferico(request, pk):
+    """Desde un equipo: agregar periferico libre al kit."""
+    equipo = get_object_or_404(_equipo_queryset(), pk=pk)
+    inv = _mark_inventario_nav(request, inventario_ui_for_equipo(equipo))
+    if not equipo.puede_vincular_perifericos:
+        messages.error(request, "Este equipo no puede recibir perifericos.")
+        return redirect("equipo_detail", pk=pk)
+
+    if request.method == "POST":
+        form = EquipoVincularPerifericoForm(request.POST)
+        if form.is_valid():
+            periferico = form.cleaned_data["periferico"]
+            obs = form.cleaned_data.get("observaciones") or ""
+            try:
+                _vincular_periferico_a_equipo(
+                    periferico,
+                    equipo,
+                    request=request,
+                    observaciones=obs or None,
+                )
+            except ValidationError as exc:
+                messages.error(request, "; ".join(exc.messages) if hasattr(exc, "messages") else str(exc))
+            else:
+                messages.success(
+                    request,
+                    f"{periferico.codigo_inventario} vinculado a {equipo.codigo_inventario}.",
+                )
+                return redirect("equipo_detail", pk=pk)
+    else:
+        form = EquipoVincularPerifericoForm()
+
+    return render(
+        request,
+        "equipo/vincular_periferico.html",
+        {
+            "object": equipo,
+            "form": form,
+            "inv": inv,
+            "modo": "desde_equipo",
+        },
+    )
+
+
+def periferico_vincular_equipo(request, pk):
+    """Desde un periferico libre: elegir equipo padre."""
+    periferico = get_object_or_404(_equipo_queryset(), pk=pk)
+    inv = _mark_inventario_nav(request, inventario_ui_for_equipo(periferico))
+    if not periferico.puede_vincularse_a_equipo:
+        messages.error(
+            request,
+            "Este periferico no se puede vincular (ya tiene padre, baja o mantenimiento).",
+        )
+        return redirect("equipo_detail", pk=pk)
+
+    if request.method == "POST":
+        form = PerifericoVincularEquipoForm(request.POST)
+        if form.is_valid():
+            padre = form.cleaned_data["equipo_padre"]
+            obs = form.cleaned_data.get("observaciones") or ""
+            try:
+                _vincular_periferico_a_equipo(
+                    periferico,
+                    padre,
+                    request=request,
+                    observaciones=obs or None,
+                )
+            except ValidationError as exc:
+                messages.error(request, "; ".join(exc.messages) if hasattr(exc, "messages") else str(exc))
+            else:
+                messages.success(
+                    request,
+                    f"{periferico.codigo_inventario} vinculado a {padre.codigo_inventario}.",
+                )
+                return redirect("equipo_detail", pk=padre.pk)
+    else:
+        form = PerifericoVincularEquipoForm()
+
+    return render(
+        request,
+        "equipo/vincular_periferico.html",
+        {
+            "object": periferico,
+            "form": form,
+            "inv": inv,
+            "modo": "desde_periferico",
+        },
+    )
+
+
+def periferico_desvincular(request, pk):
+    periferico = get_object_or_404(_equipo_queryset(), pk=pk)
+    inv = _mark_inventario_nav(request, inventario_ui_for_equipo(periferico))
+    if not periferico.puede_desvincularse:
+        messages.error(request, "Este periferico no esta vinculado o no se puede desvincular.")
+        return redirect("equipo_detail", pk=pk)
+
+    padre = periferico.equipo_padre
+    if request.method == "POST":
+        form = PerifericoDesvincularForm(request.POST)
+        if form.is_valid():
+            obs = form.cleaned_data.get("observaciones") or ""
+            try:
+                _desvincular_periferico(
+                    periferico,
+                    request=request,
+                    observaciones=obs or None,
+                )
+            except ValidationError as exc:
+                messages.error(request, "; ".join(exc.messages) if hasattr(exc, "messages") else str(exc))
+                return redirect("equipo_detail", pk=pk)
+            messages.success(
+                request,
+                f"{periferico.codigo_inventario} desvinculado del kit.",
+            )
+            return redirect("equipo_detail", pk=padre.pk if padre else pk)
+    else:
+        form = PerifericoDesvincularForm()
+
+    return render(
+        request,
+        "equipo/desvincular_periferico.html",
+        {
+            "object": periferico,
+            "padre": padre,
+            "form": form,
+            "inv": inv,
+        },
+    )
+
+
+def periferico_reemplazar(request, pk):
+    periferico = get_object_or_404(_equipo_queryset(), pk=pk)
+    inv = _mark_inventario_nav(request, inventario_ui_for_equipo(periferico))
+    if not periferico.puede_desvincularse:
+        messages.error(request, "Solo se pueden reemplazar perifericos vinculados al kit.")
+        return redirect("equipo_detail", pk=pk)
+
+    padre = periferico.equipo_padre
+    if request.method == "POST":
+        form = PerifericoReemplazarForm(request.POST, periferico_actual=periferico)
+        if form.is_valid():
+            nuevo = form.cleaned_data["periferico_nuevo"]
+            motivo = form.cleaned_data.get("motivo") or ""
+            try:
+                _reemplazar_periferico(
+                    periferico,
+                    nuevo,
+                    request=request,
+                    motivo=motivo or None,
+                )
+            except ValidationError as exc:
+                messages.error(request, "; ".join(exc.messages) if hasattr(exc, "messages") else str(exc))
+            else:
+                messages.success(
+                    request,
+                    f"Reemplazo: {periferico.codigo_inventario} → {nuevo.codigo_inventario}.",
+                )
+                return redirect("equipo_detail", pk=padre.pk)
+    else:
+        form = PerifericoReemplazarForm(periferico_actual=periferico)
+
+    return render(
+        request,
+        "equipo/reemplazar_periferico.html",
+        {
+            "object": periferico,
+            "padre": padre,
+            "form": form,
+            "inv": inv,
+        },
+    )

@@ -131,13 +131,19 @@ class ZonaEdificioForm(forms.ModelForm):
 class CategoriaEquipoForm(forms.ModelForm):
     class Meta:
         model = CategoriaEquipo
-        fields = "__all__"
+        fields = ["nombre_categoria", "descripcion_categoria", "tipo", "activo"]
         labels = {
             "nombre_categoria": "Nombre de la categoría",
             "descripcion_categoria": "Descripción",
+            "tipo": "Tipo de inventario",
+            "activo": "Activo",
         }
         help_texts = {
             "descripcion_categoria": "Breve descripción de la categoría.",
+            "tipo": (
+                "Equipo = maquina principal. Periferico = mouse, monitor, RAM, etc. "
+                "Herramienta = taller IT. Consumible = stock por cantidad (modulo posterior)."
+            ),
         }
         widgets = {
             "descripcion_categoria": forms.Textarea(attrs={"rows": 3}),

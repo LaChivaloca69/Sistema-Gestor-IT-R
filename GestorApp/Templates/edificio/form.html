@@ -5,7 +5,21 @@
 
 {% block content %}
 {% if object %}
-{% include "partials/page_header_open.html" with title="Editar edificio" description="Captura la informacion principal del edificio." %}
+{% include "partials/page_header_open.html" with title="Editar edificio" description="Si ya hay ubicaciones, desactiva en lugar de eliminar." %}
+	{% if object.activo %}
+	<form method="post" action="{% url 'edificio_toggle_activo' object.pk %}" class="d-inline">
+		{% csrf_token %}
+		<button class="btn btn-outline-warning" type="submit">Desactivar</button>
+	</form>
+	{% else %}
+	<form method="post" action="{% url 'edificio_toggle_activo' object.pk %}" class="d-inline">
+		{% csrf_token %}
+		<button class="btn btn-outline-success" type="submit">Reactivar</button>
+	</form>
+	{% endif %}
+	{% if is_admin_role %}
+	<a class="btn btn-outline-danger" href="{% url 'edificio_delete' object.pk %}">Eliminar</a>
+	{% endif %}
 {% else %}
 {% include "partials/page_header_open.html" with title="Nuevo edificio" description="Captura la informacion principal del edificio." %}
 {% endif %}

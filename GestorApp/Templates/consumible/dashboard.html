@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard consumibles{% endblock %}
+
+{% block content %}
+{% include "partials/page_header_open.html" with title="Dashboard de consumibles" description="Stock, alertas y movimientos recientes." %}
+	<a class="btn btn-outline-secondary" href="{% url 'producto_consumible_list' %}">Lista</a>
+	<a class="btn btn-outline-secondary" href="{% url 'movimiento_stock_list' %}">Kardex</a>
+	<a class="btn btn-primary" href="{% url 'producto_consumible_create' %}">Nuevo producto</a>
+{% include "partials/page_header_close.html" %}
+
+<section class="kpi-grid kpi-grid--ops mb-4">
+	<a class="kpi-card" href="{% url 'producto_consumible_list' %}?activo=true">
+		<span class="kpi-card__label">Productos activos</span>
+		<strong class="kpi-card__value">{{ total }}</strong>
+		<small>En catalogo</small>
+	</a>
+	<a class="kpi-card" href="{% url 'producto_consumible_list' %}?alerta=bajo&amp;activo=true">
+		<span class="kpi-card__label">Stock bajo / agotado</span>
+		<strong class="kpi-card__value">{{ bajo_count }}</strong>
+		<small>Requieren atencion</small>
+	</a>
+	<div class="kpi-card">
+		<span class="kpi-card__label">Valor estimado</span>
+		<strong class="kpi-card__value">{{ valor_estimado|floatformat:2 }}</strong>
+		<small>Stock × costo approx.</small>
+	</div>
+</section>
+
+<section class="dash-panels mb-4">
+	<div class="section-block dash-panel">
+		<div class="section-block__header">
+			<div>
+				<h2>Alertas de stock</h2>
+			</div>
+			<a class="btn btn-sm btn-outline-secondary" href="{% url 'producto_consumible_list' %}?alerta=bajo&amp;activo=true">Ver todos</a>
+		</div>
+		<div class="table-responsive">
+			<table class="table table-sm align-middle mb-0">
+				<thead>
+					<tr>
+						<th>SKU</th>
+						<th>Nombre</th>
+						<th>Stock</th>
+						<th>Minimo</th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for p in bajo %}
+					<tr class="table-row-click" data-href="{% url 'producto_consumible_detail' p.pk %}">
+						<td><code>{{ p.sku }}</code></td>
+						<td>{{ p.nombre }}</td>
+						<td>{{ p.stock_actual }} {{ p.get_unidad_display }}</td>
+						<td>{{ p.stock_minimo }}</td>
+					</tr>
+					{% empty %}
+					<tr>
+						<td colspan="4" class="text-muted text-center py-3">Sin alertas.</td>
+					</tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		</div>
+	</div>
+
+	<div class="section-block dash-panel">
+		<div class="section-block__header">
+			<div>
+				<h2>Movimientos recientes</h2>
+			</div>
+			<a class="btn btn-sm btn-outline-secondary" href="{% url 'movimiento_stock_list' %}">Kardex</a>
+		</div>
+		<div class="table-responsive">
+			<table class="table table-sm align-middle mb-0">
+				<thead>
+					<tr>
+						<th>Fecha</th>
+						<th>Producto</th>
+						<th>Tipo</th>
+						<th>Cant.</th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for mov in recientes %}
+					<tr class="table-row-click" data-href="{% url 'producto_consumible_detail' mov.producto_id %}">
+						<td class="text-nowrap">{{ mov.fecha_movimiento|date:"d/m H:i" }}</td>
+						<td>{{ mov.producto.sku }}</td>
+						<td>{{ mov.tipo_movimiento }}</td>
+						<td>{{ mov.cantidad }}</td>
+					</tr>
+					{% empty %}
+					<tr>
+						<td colspan="4" class="text-muted text-center py-3">Sin movimientos.</td>
+					</tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		</div>
+	</div>
+</section>
+{% endblock %}

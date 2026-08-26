@@ -1,18 +1,18 @@
 {% extends "base.html" %}
 {% load django_bootstrap5 %}
 
-{% block title %}{% if object %}Editar Equipo{% else %}Nuevo Equipo{% endif %}{% endblock %}
+{% block title %}{% if object %}Editar {{ inv.singular_title }}{% else %}{{ inv.nuevo_label }}{% endif %}{% endblock %}
 
 {% block content %}
 {% if object %}
-{% include "partials/page_header_open.html" with title="Editar equipo" description="Captura la informacion principal del equipo. Los datos de OC solo aparecen si el origen es Compra." %}
+{% include "partials/page_header_open.html" with title=inv.editar_label description="Editar informacion. Los datos de OC solo aparecen si el origen es Compra." %}
 {% else %}
-{% include "partials/page_header_open.html" with title="Nuevo equipo" description="Captura la informacion principal del equipo. Los datos de OC solo aparecen si el origen es Compra." %}
+{% include "partials/page_header_open.html" with title=inv.nuevo_label description="Captura la informacion principal. Los datos de OC solo aparecen si el origen es Compra." %}
 {% endif %}
 	{% if object %}
 	<a class="btn btn-outline-primary" href="{% url 'equipo_detail' object.pk %}">Ver detalle</a>
 	{% endif %}
-	<a class="btn btn-outline-secondary" href="{% url 'equipo_list' %}">Volver</a>
+	<a class="btn btn-outline-secondary" href="{% url inv.list_url %}">Volver</a>
 {% include "partials/page_header_close.html" %}
 
 {% if orden_vinculada %}
@@ -26,9 +26,9 @@
 <form method="post" enctype="multipart/form-data" id="equipo-form">
 			{% csrf_token %}
 			{{ form.non_field_errors }}
-			{% include "partials/form_fieldset.html" with legend="Datos del equipo" %}
+			{% include "partials/form_fieldset.html" with legend="Datos" %}
 			<div class="actions">
-				<a class="btn btn-outline-secondary" href="{% if object %}{% url 'equipo_detail' object.pk %}{% else %}{% url 'equipo_list' %}{% endif %}">Cancelar</a>
+				<a class="btn btn-outline-secondary" href="{% if object %}{% url 'equipo_detail' object.pk %}{% else %}{% url inv.list_url %}{% endif %}">Cancelar</a>
 				<button class="btn btn-primary" type="submit">Guardar</button>
 			</div>
 		</form>

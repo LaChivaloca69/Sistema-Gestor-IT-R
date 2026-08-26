@@ -336,6 +336,7 @@ def _asignar_equipo_desde_solicitud(request, solicitud, equipo):
         _crear_movimiento,
         _get_equipo_asignacion_activa,
         _reconciliar_estado_equipo,
+        _sync_perifericos_con_padre,
     )
 
     personal = solicitud.personal
@@ -357,6 +358,7 @@ def _asignar_equipo_desde_solicitud(request, solicitud, equipo):
         observaciones=f"Desde solicitud {solicitud.folio}",
     )
     _reconciliar_estado_equipo(equipo)
+    _sync_perifericos_con_padre(equipo, request=request)
     _crear_movimiento(
         equipo,
         TipoMovimiento.CAMBIO_ASIGNACION if existente else TipoMovimiento.ASIGNACION,

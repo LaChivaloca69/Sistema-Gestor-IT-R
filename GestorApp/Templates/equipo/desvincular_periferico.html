@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% load django_bootstrap5 %}
+
+{% block title %}Desvincular {{ object.codigo_inventario }}{% endblock %}
+
+{% block content %}
+{% include "partials/page_header_open.html" with title="Desvincular periferico" description="El periferico vuelve a stock libre (sin equipo padre)." %}
+	<a class="btn btn-outline-secondary" href="{% url 'equipo_detail' object.pk %}">Volver</a>
+{% include "partials/page_header_close.html" %}
+
+<p class="mb-3">
+	<strong>{{ object.codigo_inventario }}</strong> ({{ object.categoria }})
+	se desvinculara de
+	<strong>{% if padre %}<a href="{% url 'equipo_detail' padre.pk %}">{{ padre.codigo_inventario }}</a>{% else %}—{% endif %}</strong>.
+</p>
+
+<form method="post">
+	{% csrf_token %}
+	{{ form.non_field_errors }}
+	{% include "partials/form_fieldset.html" with legend="Confirmacion" %}
+	<div class="actions">
+		<a class="btn btn-outline-secondary" href="{% url 'equipo_detail' object.pk %}">Cancelar</a>
+		<button class="btn btn-primary" type="submit">Desvincular</button>
+	</div>
+</form>
+{% endblock %}

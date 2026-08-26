@@ -175,10 +175,29 @@ class Ubicacion(models.Model):
 
 # ------------ MODELOS DE EQUIPO(CATEGORIA, ESTADO, TIPO, ETC) ------------
 # --- Categoria de equipo ------
+class TipoCategoriaInventario(models.TextChoices):
+    EQUIPO = "Equipo", "Equipo"
+    PERIFERICO = "Periferico", "Periferico"
+    HERRAMIENTA = "Herramienta", "Herramienta"
+    CONSUMIBLE = "Consumible", "Consumible"
+
+
 class CategoriaEquipo(models.Model):
     nombre_categoria = models.CharField(max_length=100)
     descripcion_categoria = models.CharField(max_length=255, blank=True, null=True)
+    tipo = models.CharField(
+        max_length=20,
+        choices=TipoCategoriaInventario.choices,
+        default=TipoCategoriaInventario.EQUIPO,
+        db_index=True,
+        verbose_name="Tipo de inventario",
+    )
     activo = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["tipo", "nombre_categoria"]
+        verbose_name = "Categoria de inventario"
+        verbose_name_plural = "Categorias de inventario"
 
     def __str__(self):
         return self.nombre_categoria
@@ -235,6 +254,15 @@ class Equipo(models.Model):
     )
     estado_equipo = models.CharField(max_length=30, choices=EstadoEquipo.choices, default=EstadoEquipo.DISPONIBLE)
     ubicacion = models.ForeignKey(Ubicacion, on_delete=models.SET_NULL, null=True, blank=True)
+    equipo_padre = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="perifericos",
+        verbose_name="Equipo padre",
+        help_text="Solo perifericos: maquina a la que estan vinculados.",
+    )
     fecha_alta = models.DateField(default=timezone.now)
     fecha_baja = models.DateField(blank=True, null=True)
     motivo_baja = models.CharField(max_length=255, blank=True, null=True)
@@ -243,6 +271,54 @@ class Equipo(models.Model):
 
     def __str__(self):
         return self.codigo_inventario
+
+    def clean(self):
+        super().clean()
+        tipo = None
+        if self.categoria_id:
+            tipo = self.categoria.tipo
+        if self.equipo_padre_id:
+            if tipo != TipoCategoriaInventario.PERIFERICO:
+                raise ValidationError(
+                    {"equipo_padre": "Solo un periferico puede vincularse a un equipo."}
+                )
+            padre = self.equipo_padre
+            if padre and padre.tipo_inventario != TipoCategoriaInventario.EQUIPO:
+                raise ValidationError(
+                    {"equipo_padre": "El equipo padre debe ser de tipo Equipo."}
+                )
+            if padre and padre.pk == self.pk:
+                raise ValidationError(
+                    {"equipo_padre": "Un registro no puede ser padre de si mismo."}
+                )
+        elif tipo == TipoCategoriaInventario.HERRAMIENTA and self.equipo_padre_id:
+            raise ValidationError(
+                {"equipo_padre": "Las herramientas no se vinculan a un equipo."}
+            )
+
+    @property
+    def tipo_inventario(self):
+        cat = getattr(self, "categoria", None)
+        if cat is not None:
+            return cat.tipo
+        return TipoCategoriaInventario.EQUIPO
+
+    @property
+    def es_equipo_principal(self):
+        return self.tipo_inventario == TipoCategoriaInventario.EQUIPO
+
+    @property
+    def es_periferico(self):
+        return self.tipo_inventario == TipoCategoriaInventario.PERIFERICO
+
+    @property
+    def perifericos_activos(self):
+        return (
+            self.perifericos.select_related("categoria", "ubicacion")
+            .filter(activo=True)
+            .exclude(estado_equipo=EstadoEquipo.BAJA)
+            .order_by("categoria__nombre_categoria", "codigo_inventario")
+        )
 
     @property
     def asignacion_activa(self):
@@ -257,10 +333,38 @@ class Equipo(models.Model):
     def puede_asignarse(self):
         if not self.activo:
             return False
+        # Solo maquinas principales se asignan a personal.
+        if self.tipo_inventario != TipoCategoriaInventario.EQUIPO:
+            return False
         return self.estado_equipo not in {
             EstadoEquipo.BAJA,
             EstadoEquipo.EN_MANTENIMIENTO,
         }
+
+    @property
+    def puede_vincular_perifericos(self):
+        """Un equipo principal puede recibir perifericos en su kit."""
+        if not self.es_equipo_principal or not self.activo:
+            return False
+        return self.estado_equipo != EstadoEquipo.BAJA
+
+    @property
+    def puede_vincularse_a_equipo(self):
+        """Un periferico libre puede vincularse a un equipo."""
+        if not self.es_periferico or not self.activo:
+            return False
+        if self.equipo_padre_id:
+            return False
+        return self.estado_equipo not in {
+            EstadoEquipo.BAJA,
+            EstadoEquipo.EN_MANTENIMIENTO,
+        }
+
+    @property
+    def puede_desvincularse(self):
+        if not self.es_periferico or not self.equipo_padre_id:
+            return False
+        return self.estado_equipo != EstadoEquipo.BAJA
 
     @property
     def puede_devolver(self):
@@ -289,6 +393,8 @@ class Equipo(models.Model):
             return False
         if self.ticketit_set.exists():
             return False
+        if self.perifericos.exists():
+            return False
         return not self.movimientos.exclude(
             tipo_movimiento=TipoMovimiento.DADA_DE_ALTA
         ).exists()
@@ -301,11 +407,14 @@ class TipoMovimiento(models.TextChoices):
     CAMBIO_ASIGNACION = "Cambio de asignacion", "Cambio de asignacion"
     MANTENIMIENTO = "En mantenimiento", "En mantenimiento"
     CAMBIO_UBICACION = "Cambio de ubicacion", "Cambio de ubicacion"
+    VINCULAR_PERIFERICO = "Vincular periferico", "Vincular periferico"
+    DESVINCULAR_PERIFERICO = "Desvincular periferico", "Desvincular periferico"
+    REEMPLAZAR_PERIFERICO = "Reemplazar periferico", "Reemplazar periferico"
 
 
 class MovimientoEquipo(models.Model):
     equipo = models.ForeignKey(Equipo, on_delete=models.CASCADE, related_name='movimientos')
-    tipo_movimiento = models.CharField(max_length=20, choices=TipoMovimiento.choices)
+    tipo_movimiento = models.CharField(max_length=40, choices=TipoMovimiento.choices)
     fecha_movimiento = models.DateTimeField(auto_now_add=True)
     origen = models.CharField(max_length=150, blank=True, null=True)
     destino = models.CharField(max_length=150, blank=True, null=True)
@@ -1186,6 +1295,144 @@ class DetalleOrdenCompra(models.Model):
         )
 
 
+# ------------ CONSUMIBLES (stock por cantidad) ------------
+class UnidadConsumible(models.TextChoices):
+    PIEZA = "pza", "Pieza"
+    CAJA = "caja", "Caja"
+    ML = "ml", "Mililitro"
+    LITRO = "L", "Litro"
+    METRO = "m", "Metro"
+    ROLLO = "rollo", "Rollo"
+    OTRO = "otro", "Otro"
+
+
+class TipoMovimientoStock(models.TextChoices):
+    ENTRADA = "Entrada", "Entrada"
+    SALIDA = "Salida", "Salida"
+    AJUSTE = "Ajuste", "Ajuste"
+
+
+class ProductoConsumible(models.Model):
+    sku = models.CharField(max_length=40, unique=True, verbose_name="SKU / codigo")
+    nombre = models.CharField(max_length=160)
+    descripcion = models.CharField(max_length=255, blank=True, null=True)
+    categoria = models.ForeignKey(
+        CategoriaEquipo,
+        on_delete=models.PROTECT,
+        related_name="productos_consumibles",
+        limit_choices_to={"tipo": TipoCategoriaInventario.CONSUMIBLE},
+    )
+    unidad = models.CharField(
+        max_length=10,
+        choices=UnidadConsumible.choices,
+        default=UnidadConsumible.PIEZA,
+    )
+    stock_actual = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    stock_minimo = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    costo_aproximado = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+        verbose_name="Costo unitario approx.",
+    )
+    ubicacion = models.ForeignKey(
+        Ubicacion,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="productos_consumibles",
+    )
+    proveedor = models.ForeignKey(
+        Proveedor,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="productos_consumibles",
+    )
+    activo = models.BooleanField(default=True)
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    fecha_actualizacion = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["nombre", "sku"]
+        verbose_name = "Producto consumible"
+        verbose_name_plural = "Productos consumibles"
+
+    def __str__(self):
+        return f"{self.sku} — {self.nombre}"
+
+    @property
+    def esta_bajo_minimo(self):
+        from decimal import Decimal
+
+        minimo = self.stock_minimo or Decimal("0")
+        if minimo <= 0:
+            return False
+        return (self.stock_actual or Decimal("0")) <= minimo
+
+    @property
+    def semaforo(self):
+        from decimal import Decimal
+
+        stock = self.stock_actual or Decimal("0")
+        minimo = self.stock_minimo or Decimal("0")
+        if stock <= 0:
+            return "critico"
+        if minimo > 0 and stock <= minimo:
+            return "bajo"
+        return "ok"
+
+    def clean(self):
+        super().clean()
+        if self.categoria_id and self.categoria.tipo != TipoCategoriaInventario.CONSUMIBLE:
+            raise ValidationError(
+                {"categoria": "La categoria debe ser de tipo Consumible."}
+            )
+        if self.stock_actual is not None and self.stock_actual < 0:
+            raise ValidationError({"stock_actual": "El stock no puede ser negativo."})
+        if self.stock_minimo is not None and self.stock_minimo < 0:
+            raise ValidationError({"stock_minimo": "El minimo no puede ser negativo."})
+
+
+class MovimientoStock(models.Model):
+    producto = models.ForeignKey(
+        ProductoConsumible,
+        on_delete=models.CASCADE,
+        related_name="movimientos",
+    )
+    tipo_movimiento = models.CharField(
+        max_length=20,
+        choices=TipoMovimientoStock.choices,
+    )
+    cantidad = models.DecimalField(max_digits=12, decimal_places=2)
+    stock_antes = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    stock_despues = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    motivo = models.CharField(max_length=255, blank=True, null=True)
+    responsable = models.ForeignKey(
+        Personal,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="movimientos_stock",
+    )
+    orden_compra = models.ForeignKey(
+        "OrdenCompra",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="movimientos_stock",
+    )
+    fecha_movimiento = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-fecha_movimiento", "-pk"]
+        verbose_name = "Movimiento de stock"
+        verbose_name_plural = "Movimientos de stock"
+
+    def __str__(self):
+        return f"{self.tipo_movimiento} {self.cantidad} · {self.producto.sku}"
+
+
 # ------------ HISTORIAL GENERAL DE ACTIVIDAD ------------
 class ModuloHistorial(models.TextChoices):
     TICKET = "ticket", "Tickets de soporte"
@@ -1193,6 +1440,7 @@ class ModuloHistorial(models.TextChoices):
     EQUIPO = "equipo", "Equipos"
     ASIGNACION = "asignacion", "Asignaciones de equipo"
     MOVIMIENTO_EQUIPO = "movimiento_equipo", "Movimientos de equipo"
+    CONSUMIBLE = "consumible", "Consumibles"
     PERSONAL = "personal", "Personal"
     MANTENIMIENTO = "mantenimiento", "Mantenimiento"
     ORDEN_COMPRA = "orden_compra", "Ordenes de compra"

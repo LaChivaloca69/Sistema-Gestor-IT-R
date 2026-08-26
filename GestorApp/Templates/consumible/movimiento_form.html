@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+{% include "partials/page_header_open.html" with title=titulo description=object %}
+	<a class="btn btn-outline-secondary" href="{% url 'producto_consumible_detail' object.pk %}">Volver</a>
+{% include "partials/page_header_close.html" %}
+
+<p class="text-muted mb-3">
+	Stock actual: <strong>{{ object.stock_actual }} {{ object.get_unidad_display }}</strong>
+	· Minimo: <strong>{{ object.stock_minimo }}</strong>
+</p>
+
+<form method="post">
+	{% csrf_token %}
+	{{ form.non_field_errors }}
+	{% include "partials/form_fieldset.html" with legend="Movimiento" %}
+	<div class="actions">
+		<a class="btn btn-outline-secondary" href="{% url 'producto_consumible_detail' object.pk %}">Cancelar</a>
+		<button class="btn btn-primary" type="submit">Registrar</button>
+	</div>
+</form>
+{% endblock %}

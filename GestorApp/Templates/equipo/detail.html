@@ -3,16 +3,22 @@
 {% block title %}{{ object.codigo_inventario }}{% endblock %}
 
 {% block content %}
-{% include "partials/page_header_open.html" with title=object.codigo_inventario description="Detalle del equipo en inventario." %}
-	<a class="btn btn-outline-secondary" href="{% url 'equipo_list' %}">Volver</a>
+{% include "partials/page_header_open.html" with title=object.codigo_inventario description="Detalle en inventario." %}
+	<a class="btn btn-outline-secondary" href="{% url inv.list_url %}">Volver</a>
 	<a class="btn btn-outline-primary" href="{% url 'equipo_update' object.pk %}">Editar</a>
 	{% if object.puede_cambiar_ubicacion %}
 	<a class="btn btn-outline-secondary" href="{% url 'equipo_cambiar_ubicacion' object.pk %}">Ubicacion</a>
 	{% endif %}
-	{% if object.puede_asignarse %}
+	{% if mostrar_kit and object.puede_vincular_perifericos %}
+	<a class="btn btn-outline-primary" href="{% url 'equipo_vincular_periferico' object.pk %}">Vincular periferico</a>
+	{% endif %}
+	{% if object.es_periferico and object.puede_vincularse_a_equipo %}
+	<a class="btn btn-outline-primary" href="{% url 'periferico_vincular_equipo' object.pk %}">Vincular a equipo</a>
+	{% endif %}
+	{% if mostrar_asignacion and object.puede_asignarse %}
 	<a class="btn btn-primary" href="{% url 'equipo_asignar' object.pk %}">Asignar</a>
 	{% endif %}
-	{% if object.puede_devolver %}
+	{% if mostrar_asignacion and object.puede_devolver %}
 	<form method="post" action="{% url 'equipo_devolver' object.pk %}">
 		{% csrf_token %}
 		<button class="btn btn-outline-secondary" type="submit">Devolver</button>
@@ -31,8 +37,16 @@
 {% include "partials/page_header_close.html" %}
 
 <p class="text-muted small mb-3">
+	<span class="status-badge status-badge--en-stock">{{ object.categoria.get_tipo_display }}</span>
+	{% if object.es_periferico and object.equipo_padre_id %}
+	Este periferico forma parte del kit de
+	<a href="{% url 'equipo_detail' object.equipo_padre_id %}">{{ object.equipo_padre.codigo_inventario }}</a>.
+	{% elif mostrar_asignacion %}
 	<strong>Disponible / Asignado</strong> se sincronizan con la asignacion activa.
 	<strong>En Mantenimiento</strong> y <strong>Baja</strong> prevalecen sobre la asignacion.
+	{% elif inv.tipo == "Herramienta" %}
+	Las herramientas se inventarian por ubicacion y estado; no se asignan a personal.
+	{% endif %}
 </p>
 
 <div class="ticket-detail-layout">
@@ -79,6 +93,24 @@
 				<span class="ticket-meta__label">Ubicacion</span>
 				<strong>{{ object.ubicacion|default:"-" }}</strong>
 			</div>
+			{% if object.es_equipo_principal %}
+			<div>
+				<span class="ticket-meta__label">Perifericos en kit</span>
+				<strong>{{ object.perifericos_count|default:0 }}</strong>
+			</div>
+			{% endif %}
+			{% if object.es_periferico %}
+			<div>
+				<span class="ticket-meta__label">Equipo padre</span>
+				<strong>
+					{% if object.equipo_padre_id %}
+					<a href="{% url 'equipo_detail' object.equipo_padre_id %}">{{ object.equipo_padre.codigo_inventario }}</a>
+					{% else %}
+					Sin vincular
+					{% endif %}
+				</strong>
+			</div>
+			{% endif %}
 			<div>
 				<span class="ticket-meta__label">Fecha alta</span>
 				<strong>{{ object.fecha_alta }}</strong>
@@ -123,14 +155,24 @@
 	<section class="ticket-panel">
 		<div class="ticket-panel__header">
 			<h2 class="h5 mb-0">Asignacion actual</h2>
-			{% if asignacion_activa %}
+			{% if not mostrar_asignacion %}
+			<span class="text-muted small">No aplica</span>
+			{% elif asignacion_activa %}
 			<span class="status-badge status-badge--asignado">Activa</span>
 			{% else %}
 			<span class="text-muted small">Sin asignacion</span>
 			{% endif %}
 		</div>
 
-		{% if asignacion_activa %}
+		{% if not mostrar_asignacion %}
+		<p class="text-muted mb-0">
+			{% if object.es_periferico and object.equipo_padre_id %}
+			La asignacion se gestiona en el equipo padre del kit.
+			{% else %}
+			Este tipo de inventario no se asigna a personal.
+			{% endif %}
+		</p>
+		{% elif asignacion_activa %}
 		<div class="ticket-meta">
 			<div>
 				<span class="ticket-meta__label">Personal</span>
@@ -152,7 +194,7 @@
 			<a class="btn btn-outline-secondary btn-sm" href="{% url 'asignacionequipo_update' asignacion_activa.pk %}">Editar asignacion</a>
 		</div>
 		{% else %}
-		<p class="text-muted mb-3">Este equipo no tiene asignacion activa.</p>
+		<p class="text-muted mb-3">Este registro no tiene asignacion activa.</p>
 		{% if object.puede_asignarse %}
 		<a class="btn btn-primary btn-sm" href="{% url 'equipo_asignar' object.pk %}">Asignar ahora</a>
 		{% endif %}
@@ -160,10 +202,88 @@
 	</section>
 </div>
 
+{% if mostrar_kit %}
 <section class="section-block mt-4">
 	<div class="section-block__header">
 		<div>
-			<h2>Movimientos recientes {% include "partials/info_hint.html" with text="Ultimos cambios de alta, ubicacion, asignacion o mantenimiento." %}</h2>
+			<h2>Perifericos del kit {% include "partials/info_hint.html" with text="Perifericos y componentes vinculados a este equipo. Al asignar o mover el equipo, el kit se alinea." %}</h2>
+		</div>
+		{% if object.puede_vincular_perifericos %}
+		<a class="btn btn-primary btn-sm" href="{% url 'equipo_vincular_periferico' object.pk %}">Vincular periferico</a>
+		{% endif %}
+	</div>
+	<div class="table-responsive">
+		<table class="table table-sm align-middle mb-0">
+			<thead>
+				<tr>
+					<th>Codigo</th>
+					<th>Categoria</th>
+					<th>Marca / modelo</th>
+					<th>Estado</th>
+					<th class="text-nowrap">Acciones</th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for item in perifericos %}
+				<tr>
+					<td><a href="{% url 'equipo_detail' item.pk %}"><strong>{{ item.codigo_inventario }}</strong></a></td>
+					<td>{{ item.categoria }}</td>
+					<td>{{ item.marca|default:"-" }} {{ item.modelo|default:"" }}</td>
+					<td><span class="status-badge status-badge--{{ item.estado_equipo|slugify }}">{{ item.estado_equipo }}</span></td>
+					<td>
+						<div class="row-actions">
+							<a class="btn btn-outline-secondary btn-sm" href="{% url 'equipo_detail' item.pk %}">Abrir</a>
+							<a class="btn btn-outline-primary btn-sm" href="{% url 'periferico_reemplazar' item.pk %}">Reemplazar</a>
+							<a class="btn btn-outline-secondary btn-sm" href="{% url 'periferico_desvincular' item.pk %}">Desvincular</a>
+						</div>
+					</td>
+				</tr>
+				{% empty %}
+				<tr>
+					<td colspan="5" class="text-center text-muted py-3">
+						Sin perifericos vinculados.
+						{% if object.puede_vincular_perifericos %}
+						<a href="{% url 'equipo_vincular_periferico' object.pk %}">Agregar el primero</a>
+						{% endif %}
+					</td>
+				</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+	</div>
+</section>
+{% elif object.es_periferico %}
+<section class="section-block mt-4">
+	<div class="section-block__header">
+		<div>
+			<h2>Vinculo a equipo</h2>
+		</div>
+		{% if object.puede_vincularse_a_equipo %}
+		<a class="btn btn-primary btn-sm" href="{% url 'periferico_vincular_equipo' object.pk %}">Vincular a equipo</a>
+		{% elif object.puede_desvincularse %}
+		<a class="btn btn-outline-primary btn-sm" href="{% url 'periferico_reemplazar' object.pk %}">Reemplazar</a>
+		<a class="btn btn-outline-secondary btn-sm" href="{% url 'periferico_desvincular' object.pk %}">Desvincular</a>
+		{% endif %}
+	</div>
+	{% if object.equipo_padre_id %}
+	<div class="ticket-meta">
+		<div>
+			<span class="ticket-meta__label">Equipo padre</span>
+			<strong><a href="{% url 'equipo_detail' object.equipo_padre_id %}">{{ object.equipo_padre.codigo_inventario }}</a></strong>
+			· {{ object.equipo_padre.categoria }}
+			· {{ object.equipo_padre.marca|default:"" }} {{ object.equipo_padre.modelo|default:"" }}
+		</div>
+	</div>
+	{% else %}
+	<p class="text-muted mb-0">Este periferico no esta vinculado a un equipo (libre / en stock).</p>
+	{% endif %}
+</section>
+{% endif %}
+
+<section class="section-block mt-4">
+	<div class="section-block__header">
+		<div>
+			<h2>Movimientos recientes {% include "partials/info_hint.html" with text="Ultimos cambios de alta, ubicacion, asignacion, kit o mantenimiento." %}</h2>
 		</div>
 		<a class="btn btn-outline-secondary btn-sm" href="{% url 'movimientoequipo_registros' %}?equipo={{ object.pk }}">Ver movimientos</a>
 	</div>

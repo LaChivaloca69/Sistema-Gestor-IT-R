@@ -60,12 +60,22 @@ urlpatterns = [
     path('Edificios/', views.operativo_required(views.edificio_list), name='edificio_list'),
     path('Edificios/create/', views.operativo_required(views.edificio_create), name='edificio_create'),
     path('Edificios/update/<int:pk>/', views.operativo_required(views.edificio_update), name='edificio_update'),
+    path(
+        'Edificios/<int:pk>/toggle-activo/',
+        views.operativo_required(views.edificio_toggle_activo),
+        name='edificio_toggle_activo',
+    ),
     path('Edificios/delete/<int:pk>/', views.admin_required(views.edificio_delete), name='edificio_delete'),
 
     # ------------ Zona Edificios Urls -------------
     path('ZonaEdificios/', views.operativo_required(views.zonaedificio_list), name='zonaedificio_list'),
     path('ZonaEdificios/create/', views.operativo_required(views.zonaedificio_create), name='zonaedificio_create'),
     path('ZonaEdificios/update/<int:pk>/', views.operativo_required(views.zonaedificio_update), name='zonaedificio_update'),
+    path(
+        'ZonaEdificios/<int:pk>/toggle-activo/',
+        views.operativo_required(views.zonaedificio_toggle_activo),
+        name='zonaedificio_toggle_activo',
+    ),
     path('ZonaEdificios/delete/<int:pk>/', views.admin_required(views.zonaedificio_delete), name='zonaedificio_delete'),
 
     # ------------ Ubicacion Urls -------------
@@ -83,13 +93,28 @@ urlpatterns = [
     path('CategoriaEquipo/', views.operativo_required(views.categoriaequipo_list), name='categoriaequipo_list'),
     path('CategoriaEquipo/create/', views.operativo_required(views.categoriaequipo_create), name='categoriaequipo_create'),
     path('CategoriaEquipo/update/<int:pk>/', views.operativo_required(views.categoriaequipo_update), name='categoriaequipo_update'),
+    path(
+        'CategoriaEquipo/<int:pk>/toggle-activo/',
+        views.operativo_required(views.categoriaequipo_toggle_activo),
+        name='categoriaequipo_toggle_activo',
+    ),
     path('CategoriaEquipo/delete/<int:pk>/', views.admin_required(views.categoriaequipo_delete), name='categoriaequipo_delete'),
 
     # ------------ Equipo views --------------
     path('Equipos/mis/', login_required(views.mis_equipos), name='mis_equipos'),
-    path('Equipos/', views.operativo_required(views.equipo_list), name='equipo_list'),
+    path(
+        'Equipos/',
+        views.operativo_required(views.equipo_list),
+        {'tipo': 'Equipo'},
+        name='equipo_list',
+    ),
     path('Equipos/dashboard/', views.operativo_required(views.equipo_dashboard), name='equipo_dashboard'),
-    path('Equipos/create/', views.operativo_required(views.equipo_create), name='equipo_create'),
+    path(
+        'Equipos/create/',
+        views.operativo_required(views.equipo_create),
+        {'tipo': 'Equipo'},
+        name='equipo_create',
+    ),
     path(
         'Equipos/detalle-orden-choices/',
         views.operativo_required(views.equipo_detalle_orden_choices),
@@ -106,6 +131,99 @@ urlpatterns = [
         'Equipos/<int:pk>/ubicacion/',
         views.operativo_required(views.equipo_cambiar_ubicacion),
         name='equipo_cambiar_ubicacion',
+    ),
+    path(
+        'Equipos/<int:pk>/vincular-periferico/',
+        views.operativo_required(views.equipo_vincular_periferico),
+        name='equipo_vincular_periferico',
+    ),
+    path(
+        'Equipos/<int:pk>/vincular-equipo/',
+        views.operativo_required(views.periferico_vincular_equipo),
+        name='periferico_vincular_equipo',
+    ),
+    path(
+        'Equipos/<int:pk>/desvincular/',
+        views.operativo_required(views.periferico_desvincular),
+        name='periferico_desvincular',
+    ),
+    path(
+        'Equipos/<int:pk>/reemplazar/',
+        views.operativo_required(views.periferico_reemplazar),
+        name='periferico_reemplazar',
+    ),
+
+    # ------------ Perifericos / Herramientas (mismo modelo, filtro por tipo) --------------
+    path(
+        'Perifericos/',
+        views.operativo_required(views.equipo_list),
+        {'tipo': 'Periferico'},
+        name='periferico_list',
+    ),
+    path(
+        'Perifericos/create/',
+        views.operativo_required(views.equipo_create),
+        {'tipo': 'Periferico'},
+        name='periferico_create',
+    ),
+    path(
+        'Herramientas/',
+        views.operativo_required(views.equipo_list),
+        {'tipo': 'Herramienta'},
+        name='herramienta_list',
+    ),
+    path(
+        'Herramientas/create/',
+        views.operativo_required(views.equipo_create),
+        {'tipo': 'Herramienta'},
+        name='herramienta_create',
+    ),
+
+    # ------------- Consumibles (stock por cantidad) -------------
+    path(
+        'Consumibles/',
+        views.operativo_required(views.producto_consumible_list),
+        name='producto_consumible_list',
+    ),
+    path(
+        'Consumibles/dashboard/',
+        views.operativo_required(views.consumible_dashboard),
+        name='consumible_dashboard',
+    ),
+    path(
+        'Consumibles/movimientos/',
+        views.operativo_required(views.movimiento_stock_list),
+        name='movimiento_stock_list',
+    ),
+    path(
+        'Consumibles/create/',
+        views.operativo_required(views.producto_consumible_create),
+        name='producto_consumible_create',
+    ),
+    path(
+        'Consumibles/<int:pk>/',
+        views.operativo_required(views.producto_consumible_detail),
+        name='producto_consumible_detail',
+    ),
+    path(
+        'Consumibles/<int:pk>/edit/',
+        views.operativo_required(views.producto_consumible_update),
+        name='producto_consumible_update',
+    ),
+    path(
+        'Consumibles/<int:pk>/delete/',
+        views.admin_required(views.producto_consumible_delete),
+        name='producto_consumible_delete',
+    ),
+    path(
+        'Consumibles/<int:pk>/movimiento/',
+        views.operativo_required(views.producto_consumible_movimiento),
+        name='producto_consumible_movimiento_libre',
+    ),
+    path(
+        'Consumibles/<int:pk>/movimiento/<str:tipo>/',
+        views.operativo_required(views.producto_consumible_movimiento),
+        name='producto_consumible_movimiento',
     ),
 
     # ------------- Movimiento de equipos Urls -------------
@@ -128,6 +246,11 @@ urlpatterns = [
 
     # ------------- Asignacion de equipos Urls -------------
     path('AsignacionEquipos/', views.operativo_required(views.asignacionequipo_list), name='asignacionequipo_list'),
+    path(
+        'AsignacionEquipos/migrar-kit/',
+        views.operativo_required(views.asignacion_kit_migracion),
+        name='asignacion_kit_migracion',
+    ),
     path('AsignacionEquipos/create/', views.operativo_required(views.asignacionequipo_create), name='asignacionequipo_create'),
     path('AsignacionEquipos/update/<int:pk>/', views.operativo_required(views.asignacionequipo_update), name='asignacionequipo_update'),
     path('AsignacionEquipos/delete/<int:pk>/', views.admin_required(views.asignacionequipo_delete), name='asignacionequipo_delete'),

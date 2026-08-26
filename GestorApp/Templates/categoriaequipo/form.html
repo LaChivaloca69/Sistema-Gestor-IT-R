@@ -1,13 +1,27 @@
 {% extends "base.html" %}
 {%load django_bootstrap5 %}
 
-{% block title %}{% if object %}Editar Categoria de equipo{% else %}Nueva Categoria de equipo{% endif %}{% endblock %}
+{% block title %}{% if object %}Editar categoria{% else %}Nueva categoria{% endif %}{% endblock %}
 
 {% block content %}
 {% if object %}
-{% include "partials/page_header_open.html" with title="Editar Categoria de equipo" description="Captura la informacion principal de la categoria de equipo." %}
+{% include "partials/page_header_open.html" with title="Editar categoria" description="Define nombre, tipo de inventario y estado. Si ya hay historial, desactiva en lugar de eliminar." %}
+	{% if object.activo %}
+	<form method="post" action="{% url 'categoriaequipo_toggle_activo' object.pk %}" class="d-inline">
+		{% csrf_token %}
+		<button class="btn btn-outline-warning" type="submit">Desactivar</button>
+	</form>
+	{% else %}
+	<form method="post" action="{% url 'categoriaequipo_toggle_activo' object.pk %}" class="d-inline">
+		{% csrf_token %}
+		<button class="btn btn-outline-success" type="submit">Reactivar</button>
+	</form>
+	{% endif %}
+	{% if is_admin_role %}
+	<a class="btn btn-outline-danger" href="{% url 'categoriaequipo_delete' object.pk %}">Eliminar</a>
+	{% endif %}
 {% else %}
-{% include "partials/page_header_open.html" with title="Nueva Categoria de equipo" description="Captura la informacion principal de la categoria de equipo." %}
+{% include "partials/page_header_open.html" with title="Nueva categoria" description="Define nombre, tipo de inventario y estado." %}
 {% endif %}
 	<a class="btn btn-outline-secondary" href="{% url 'categoriaequipo_list' %}">Volver</a>
 {% include "partials/page_header_close.html" %}

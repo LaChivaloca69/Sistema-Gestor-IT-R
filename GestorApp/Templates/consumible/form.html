@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Editar consumible{% else %}Nuevo consumible{% endif %}{% endblock %}
+
+{% block content %}
+{% if object %}
+{% include "partials/page_header_open.html" with title="Editar consumible" description="El stock se ajusta solo con movimientos (entrada, salida o ajuste)." %}
+	<a class="btn btn-outline-primary" href="{% url 'producto_consumible_detail' object.pk %}">Ver detalle</a>
+{% else %}
+{% include "partials/page_header_open.html" with title="Nuevo consumible" description="Crea el producto con stock en cero; luego registra una entrada inicial." %}
+{% endif %}
+	<a class="btn btn-outline-secondary" href="{% url 'producto_consumible_list' %}">Volver</a>
+{% include "partials/page_header_close.html" %}
+
+<form method="post">
+	{% csrf_token %}
+	{{ form.non_field_errors }}
+	{% include "partials/form_fieldset.html" with legend="Datos del producto" %}
+	<div class="actions">
+		<a class="btn btn-outline-secondary" href="{% if object %}{% url 'producto_consumible_detail' object.pk %}{% else %}{% url 'producto_consumible_list' %}{% endif %}">Cancelar</a>
+		<button class="btn btn-primary" type="submit">Guardar</button>
+	</div>
+</form>
+{% endblock %}

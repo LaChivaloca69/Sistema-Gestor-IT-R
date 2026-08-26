@@ -1,4 +1,4 @@
-"""Asignaciones de equipo."""
+"""Asignaciones de equipo (solo maquinas principales + kit)."""
 from datetime import date, datetime, timedelta
 
 from django import forms
@@ -9,7 +9,7 @@ from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Count, Q, Sum, Max, F
+from django.db.models import Count, Prefetch, Q, Sum, Max, F
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -64,6 +64,7 @@ from ..models import (
     SLA_HORAS_POR_PRIORIDAD,
     SeguimientoTicket,
     TicketIT,
+    TipoCategoriaInventario,
     TipoMoneda,
     TipoMovimiento,
     TipoMantenimiento,
@@ -86,12 +87,14 @@ from .helpers import (
     _parse_date,
     _quick_range_bounds,
     _reconciliar_estado_equipo,
+    _sync_perifericos_con_padre,
     _ticket_dashboard_context,
     _ticket_has_seguimientos,
     _tickets_abiertos_qs,
     _tickets_for_user,
     _tickets_sla_por_vencer_q,
     _tickets_sla_vencidos_q,
+    _vincular_periferico_a_equipo,
     user_can_delete_ticket,
     user_can_edit_ticket,
     user_can_manage_orden,
@@ -100,59 +103,151 @@ from .helpers import (
 )
 
 
+def _asignaciones_principales_qs():
+    return (
+        AsignacionEquipo.objects.select_related(
+            "equipo",
+            "equipo__categoria",
+            "personal",
+        )
+        .annotate(
+            perifericos_count=Count(
+                "equipo__perifericos",
+                filter=Q(
+                    equipo__perifericos__activo=True,
+                )
+                & ~Q(equipo__perifericos__estado_equipo=EstadoEquipo.BAJA),
+                distinct=True,
+            )
+        )
+        .filter(equipo__categoria__tipo=TipoCategoriaInventario.EQUIPO)
+    )
+
+
+def _asignaciones_periferico_sueltas_qs():
+    """Asignaciones activas de perifericos (legado a migrar al kit)."""
+    return (
+        AsignacionEquipo.objects.select_related(
+            "equipo",
+            "equipo__categoria",
+            "equipo__equipo_padre",
+            "personal",
+        )
+        .filter(
+            estado_asignacion=EstadoAsignacion.ACTIVA,
+            equipo__categoria__tipo=TipoCategoriaInventario.PERIFERICO,
+        )
+        .order_by("personal_id", "equipo__codigo_inventario")
+    )
+
+
+def _personal_label(personal):
+    nombre_completo = " ".join(
+        parte
+        for parte in [
+            personal.nombre,
+            personal.apellido_paterno,
+            personal.apellido_materno,
+        ]
+        if parte
+    )
+    if personal.numero_empleado and nombre_completo:
+        return f"{personal.numero_empleado} - {nombre_completo}"
+    if personal.numero_empleado:
+        return personal.numero_empleado
+    return nombre_completo or str(personal)
+
+
+def _equipo_label(equipo):
+    descripcion = " ".join(
+        parte for parte in [equipo.marca, equipo.modelo] if parte
+    ).strip()
+    if descripcion:
+        return f"{equipo.codigo_inventario} - {descripcion}".strip()
+    return equipo.codigo_inventario or str(equipo)
+
+
+def _sugerencias_migracion_kit():
+    """
+    Para cada asignacion activa de periferico, propone un equipo padre
+    si la misma persona tiene asignacion(es) activa(s) de Equipo.
+    """
+    sueltas = list(_asignaciones_periferico_sueltas_qs())
+    if not sueltas:
+        return []
+
+    personal_ids = {a.personal_id for a in sueltas if a.personal_id}
+    equipos_por_personal = {}
+    for asig in (
+        AsignacionEquipo.objects.select_related("equipo", "equipo__categoria")
+        .filter(
+            personal_id__in=personal_ids,
+            estado_asignacion=EstadoAsignacion.ACTIVA,
+            equipo__categoria__tipo=TipoCategoriaInventario.EQUIPO,
+        )
+        .order_by("equipo__codigo_inventario")
+    ):
+        equipos_por_personal.setdefault(asig.personal_id, []).append(asig.equipo)
+
+    sugerencias = []
+    for asig in sueltas:
+        candidatos = equipos_por_personal.get(asig.personal_id, [])
+        sugerido = candidatos[0] if len(candidatos) == 1 else None
+        ya_vinculado = bool(asig.equipo.equipo_padre_id)
+        sugerencias.append(
+            {
+                "asignacion": asig,
+                "periferico": asig.equipo,
+                "personal": asig.personal,
+                "candidatos": candidatos,
+                "sugerido": sugerido,
+                "ya_vinculado": ya_vinculado,
+                "puede_auto": (sugerido is not None) or ya_vinculado,
+            }
+        )
+    return sugerencias
+
+
 def asignacionequipo_list(request):
-    items = AsignacionEquipo.objects.select_related("equipo", "personal").all()
+    items = _asignaciones_principales_qs().order_by("-fecha_asignacion", "-pk")
     selected_personal = request.GET.get("personal", "")
     selected_equipo = request.GET.get("equipo", "")
+    selected_estado = request.GET.get("estado", EstadoAsignacion.ACTIVA)
 
     if selected_personal:
         items = items.filter(personal_id=selected_personal)
     if selected_equipo:
         items = items.filter(equipo_id=selected_equipo)
+    if selected_estado:
+        items = items.filter(estado_asignacion=selected_estado)
 
-    personal_choices = []
-    for personal in Personal.objects.order_by(
-        "numero_empleado",
-        "nombre",
-        "apellido_paterno",
-        "apellido_materno",
-    ):
-        nombre_completo = " ".join(
-            parte
-            for parte in [
-                personal.nombre,
-                personal.apellido_paterno,
-                personal.apellido_materno,
-            ]
-            if parte
+    personal_choices = [
+        (personal.pk, _personal_label(personal))
+        for personal in Personal.objects.order_by(
+            "numero_empleado",
+            "nombre",
+            "apellido_paterno",
+            "apellido_materno",
         )
-        if personal.numero_empleado and nombre_completo:
-            label = f"{personal.numero_empleado} - {nombre_completo}"
-        elif personal.numero_empleado:
-            label = personal.numero_empleado
-        else:
-            label = nombre_completo or str(personal)
-        personal_choices.append((personal.pk, label))
+    ]
+    equipo_choices = [
+        (equipo.pk, _equipo_label(equipo))
+        for equipo in Equipo.objects.select_related("categoria")
+        .filter(categoria__tipo=TipoCategoriaInventario.EQUIPO)
+        .order_by("codigo_inventario")
+    ]
 
-    equipo_choices = []
-    for equipo in Equipo.objects.select_related("categoria").order_by(
-        "codigo_inventario"
-    ):
-        descripcion = " ".join(
-            parte for parte in [equipo.marca, equipo.modelo] if parte
-        ).strip()
-        if descripcion:
-            label = f"{equipo.codigo_inventario} - {descripcion}".strip()
-        else:
-            label = equipo.codigo_inventario or str(equipo)
-        equipo_choices.append((equipo.pk, label))
+    sueltas_count = _asignaciones_periferico_sueltas_qs().count()
 
     context = {
         "items": items,
         "personal_choices": personal_choices,
         "equipo_choices": equipo_choices,
+        "estado_choices": EstadoAsignacion.choices,
         "selected_personal": selected_personal,
         "selected_equipo": selected_equipo,
+        "selected_estado": selected_estado,
+        "sueltas_count": sueltas_count,
     }
     return render(request, "asignacionequipo/list.html", context)
 
@@ -183,6 +278,7 @@ def asignacionequipo_create(request):
             asignacion = form.save()
             if equipo:
                 _reconciliar_estado_equipo(equipo)
+                _sync_perifericos_con_padre(equipo, request=request)
             historial.registrar_historial(
                 request=request,
                 modulo=ModuloHistorial.ASIGNACION,
@@ -240,9 +336,10 @@ def asignacionequipo_update(request, pk):
             equipos_a_sync = {asignacion.equipo_id, equipo_anterior_id}
             for eq_id in equipos_a_sync:
                 if eq_id:
-                    eq = Equipo.objects.filter(pk=eq_id).first()
+                    eq = Equipo.objects.filter(pk=eq_id).select_related("categoria").first()
                     if eq:
                         _reconciliar_estado_equipo(eq)
+                        _sync_perifericos_con_padre(eq, request=request)
             historial.registrar_actualizacion(
                 request,
                 modulo=ModuloHistorial.ASIGNACION,
@@ -290,6 +387,7 @@ def asignacionequipo_delete(request, pk):
         asignacion.delete()
         if equipo:
             _reconciliar_estado_equipo(equipo)
+            _sync_perifericos_con_padre(equipo, request=request)
         messages.success(request, "Asignacion eliminada correctamente.")
         if equipo:
             return redirect("equipo_detail", pk=equipo.pk)
@@ -297,4 +395,119 @@ def asignacionequipo_delete(request, pk):
     return render(request, "asignacionequipo/confirm_delete.html", {"object": asignacion})
 
 
-# ============= Mantenimiento views ==============
+def asignacion_kit_migracion(request):
+    """
+    Asistente: convierte asignaciones sueltas de perifericos en vinculos al kit
+    del equipo principal de la misma persona.
+    """
+    sugerencias = _sugerencias_migracion_kit()
+
+    if request.method == "POST":
+        selected_ids = request.POST.getlist("asignacion_id")
+        aplicados = 0
+        omitidos = 0
+        errores = 0
+        for raw_id in selected_ids:
+            if not str(raw_id).isdigit():
+                continue
+            asig = (
+                AsignacionEquipo.objects.select_related(
+                    "equipo", "equipo__categoria", "personal"
+                )
+                .filter(
+                    pk=int(raw_id),
+                    estado_asignacion=EstadoAsignacion.ACTIVA,
+                    equipo__categoria__tipo=TipoCategoriaInventario.PERIFERICO,
+                )
+                .first()
+            )
+            if not asig:
+                omitidos += 1
+                continue
+
+            periferico = asig.equipo
+            padre_id = request.POST.get(f"padre_{asig.pk}", "").strip()
+            padre = None
+            if padre_id.isdigit():
+                padre = (
+                    Equipo.objects.select_related("categoria")
+                    .filter(
+                        pk=int(padre_id),
+                        categoria__tipo=TipoCategoriaInventario.EQUIPO,
+                    )
+                    .first()
+                )
+            elif periferico.equipo_padre_id:
+                # Ya vinculado: solo cerrar asignacion suelta.
+                _cerrar_asignaciones_activas(
+                    periferico,
+                    observaciones="Cerrada al migrar a kit (ya estaba vinculado).",
+                )
+                _reconciliar_estado_equipo(periferico)
+                aplicados += 1
+                continue
+
+            if padre is None:
+                # Intentar unico equipo activo de la persona.
+                unicos = list(
+                    AsignacionEquipo.objects.filter(
+                        personal=asig.personal,
+                        estado_asignacion=EstadoAsignacion.ACTIVA,
+                        equipo__categoria__tipo=TipoCategoriaInventario.EQUIPO,
+                    ).select_related("equipo")
+                )
+                if len(unicos) == 1:
+                    padre = unicos[0].equipo
+
+            if padre is None:
+                omitidos += 1
+                continue
+
+            try:
+                with transaction.atomic():
+                    if periferico.equipo_padre_id and periferico.equipo_padre_id != padre.pk:
+                        omitidos += 1
+                        continue
+                    if not periferico.equipo_padre_id:
+                        _vincular_periferico_a_equipo(
+                            periferico,
+                            padre,
+                            request=request,
+                            observaciones=(
+                                f"Migracion kit: de asignacion suelta de "
+                                f"{asig.personal} al equipo {padre.codigo_inventario}"
+                            ),
+                        )
+                    else:
+                        _cerrar_asignaciones_activas(
+                            periferico,
+                            observaciones="Cerrada al migrar a kit.",
+                        )
+                        _reconciliar_estado_equipo(periferico)
+                    aplicados += 1
+            except ValidationError:
+                errores += 1
+
+        if aplicados:
+            messages.success(
+                request,
+                f"Migracion aplicada: {aplicados} periferico(s) pasaron al kit.",
+            )
+        if omitidos:
+            messages.warning(
+                request,
+                f"{omitidos} fila(s) omitidas (sin equipo padre claro o ya resueltas).",
+            )
+        if errores:
+            messages.error(request, f"{errores} fila(s) con error al vincular.")
+        return redirect("asignacion_kit_migracion")
+
+    return render(
+        request,
+        "asignacionequipo/kit_migracion.html",
+        {
+            "sugerencias": sugerencias,
+            "total": len(sugerencias),
+            "auto_count": sum(1 for s in sugerencias if s["puede_auto"]),
+        },
+    )

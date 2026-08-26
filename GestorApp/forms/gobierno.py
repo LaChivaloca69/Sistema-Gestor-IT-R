@@ -119,7 +119,12 @@ class SolicitudEquipoForm(forms.ModelForm):
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.user = user
-        self.fields["categoria"].queryset = CategoriaEquipo.objects.order_by("nombre_categoria")
+        from ..models import TipoCategoriaInventario
+
+        self.fields["categoria"].queryset = CategoriaEquipo.objects.filter(
+            activo=True,
+            tipo=TipoCategoriaInventario.EQUIPO,
+        ).order_by("nombre_categoria")
         self.fields["categoria"].required = False
         self.fields["personal"].queryset = Personal.objects.filter(activo=True).order_by(
             "nombre", "apellido_paterno"

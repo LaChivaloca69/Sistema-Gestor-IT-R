@@ -43,6 +43,7 @@ from ..models import (
     SeguimientoTicket,
     SolicitudEquipo,
     TicketIT,
+    TipoCategoriaInventario,
     TipoPlantillaDocumento,
     TipoProveedor,
     Ubicacion,
@@ -92,19 +93,19 @@ class EquipoForm(forms.ModelForm):
             "categoria": "Categoría",
             "proveedor": "Proveedor",
             "Numero_Pedimiento": "Número de pedimiento",
-            "descripcion_equipo": "Descripción del equipo",
+            "descripcion_equipo": "Descripción",
             "origen_alta": "Origen de alta",
             "orden_compra": "Orden de compra",
             "detalle_orden": "Producto de la orden",
-            "estado_equipo": "Estado del equipo",
+            "estado_equipo": "Estado",
             "ubicacion": "Ubicación",
             "fecha_alta": "Fecha de alta",
             "activo": "Activo",
             "imagen": "Imagen",
         }
         help_texts = {
-            "codigo_inventario": "Código único de inventario del equipo.",
-            "numero_serie": "Número de serie del equipo.",
+            "codigo_inventario": "Código único de inventario.",
+            "numero_serie": "Número de serie (si aplica).",
             "origen_alta": (
                 "Compra: con OC. Legado: equipos viejos sin documento. "
                 "Otros: donacion, transferencia, etc."
@@ -113,24 +114,43 @@ class EquipoForm(forms.ModelForm):
             "detalle_orden": (
                 "Obligatorio si es Compra. Cada alta descuenta 1 de la cantidad de la linea."
             ),
-            "proveedor": "Proveedor del equipo.",
-            "Numero_Pedimiento": "Número de pedimiento del equipo(si aplica).",
-            "descripcion_equipo": "Descripción detallada del equipo.",
+            "proveedor": "Proveedor.",
+            "Numero_Pedimiento": "Número de pedimiento (si aplica).",
+            "descripcion_equipo": "Descripción detallada.",
             "estado_equipo": (
                 "Disponible/Asignado se sincronizan con la asignacion activa. "
                 "Usa En Mantenimiento/Baja con cuidado."
             ),
-            "ubicacion": "Ubicación física del equipo.",
-            "fecha_alta": "Fecha en que se dio de alta el equipo.",
+            "ubicacion": "Ubicación física.",
+            "fecha_alta": "Fecha en que se dio de alta.",
         }
         widgets = {
             "descripcion_equipo": forms.Textarea(attrs={"rows": 4}),
             "fecha_alta": forms.DateInput(attrs={"type": "date"}),
         }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, tipo=None, **kwargs):
+        self.tipo_inventario = tipo
         super().__init__(*args, **kwargs)
         exclude_id = self.instance.pk if self.instance and self.instance.pk else None
+
+        if self.tipo_inventario is None and self.instance and self.instance.pk:
+            self.tipo_inventario = self.instance.tipo_inventario
+        if self.tipo_inventario is None:
+            self.tipo_inventario = TipoCategoriaInventario.EQUIPO
+
+        categorias = CategoriaEquipo.objects.filter(
+            activo=True,
+            tipo=self.tipo_inventario,
+        ).order_by("nombre_categoria")
+        if self.instance and self.instance.categoria_id:
+            categorias = (
+                CategoriaEquipo.objects.filter(pk=self.instance.categoria_id) | categorias
+            ).distinct().order_by("nombre_categoria")
+        self.fields["categoria"].queryset = categorias
+        self.fields["categoria"].help_text = (
+            f"Solo categorias de tipo {self.tipo_inventario}."
+        )
 
         ordenes_qs = (
             OrdenCompra.objects.filter(estado=EstadoOrdenCompra.TERMINADO)
@@ -194,7 +214,14 @@ class EquipoForm(forms.ModelForm):
         origen = cleaned.get("origen_alta")
         orden = cleaned.get("orden_compra")
         detalle = cleaned.get("detalle_orden")
+        categoria = cleaned.get("categoria")
         exclude_id = self.instance.pk if self.instance and self.instance.pk else None
+
+        if categoria and self.tipo_inventario and categoria.tipo != self.tipo_inventario:
+            self.add_error(
+                "categoria",
+                f"La categoria debe ser de tipo {self.tipo_inventario}.",
+            )
 
         # Sin origen Compra no aplican datos de OC.
         if origen != OrigenAltaEquipo.COMPRA:
@@ -319,4 +346,127 @@ class EquipoAsignarForm(forms.Form):
             "apellido_paterno",
             "apellido_materno",
         )
+
+
+def _queryset_perifericos_libres(exclude_pk=None):
+    qs = (
+        Equipo.objects.select_related("categoria", "ubicacion")
+        .filter(
+            activo=True,
+            categoria__tipo=TipoCategoriaInventario.PERIFERICO,
+            equipo_padre__isnull=True,
+        )
+        .exclude(
+            estado_equipo__in=[EstadoEquipo.BAJA, EstadoEquipo.EN_MANTENIMIENTO],
+        )
+        .order_by("categoria__nombre_categoria", "codigo_inventario")
+    )
+    if exclude_pk:
+        qs = qs.exclude(pk=exclude_pk)
+    return qs
+
+
+def _queryset_equipos_padre():
+    return (
+        Equipo.objects.select_related("categoria", "ubicacion")
+        .filter(
+            activo=True,
+            categoria__tipo=TipoCategoriaInventario.EQUIPO,
+        )
+        .exclude(estado_equipo=EstadoEquipo.BAJA)
+        .order_by("codigo_inventario")
+    )
+
+
+class EquipoVincularPerifericoForm(forms.Form):
+    """Desde un equipo: elegir periferico libre para el kit."""
+
+    periferico = forms.ModelChoiceField(
+        queryset=Equipo.objects.none(),
+        label="Periferico",
+        help_text="Solo perifericos libres (sin equipo padre).",
+    )
+    observaciones = forms.CharField(
+        required=False,
+        label="Motivo / notas",
+        max_length=255,
+        widget=forms.TextInput(),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["periferico"].queryset = _queryset_perifericos_libres()
+        self.fields["periferico"].label_from_instance = (
+            lambda obj: (
+                f"{obj.codigo_inventario} · {obj.categoria} · "
+                f"{obj.marca or '-'} {obj.modelo or ''} · {obj.estado_equipo}"
+            ).strip()
+        )
+
+
+class PerifericoVincularEquipoForm(forms.Form):
+    """Desde un periferico: elegir equipo padre."""
+
+    equipo_padre = forms.ModelChoiceField(
+        queryset=Equipo.objects.none(),
+        label="Equipo",
+        help_text="Maquina principal a la que se vincula este periferico.",
+    )
+    observaciones = forms.CharField(
+        required=False,
+        label="Motivo / notas",
+        max_length=255,
+        widget=forms.TextInput(),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["equipo_padre"].queryset = _queryset_equipos_padre()
+        self.fields["equipo_padre"].label_from_instance = (
+            lambda obj: (
+                f"{obj.codigo_inventario} · {obj.categoria} · "
+                f"{obj.marca or '-'} {obj.modelo or ''} · {obj.estado_equipo}"
+            ).strip()
+        )
+
+
+class PerifericoReemplazarForm(forms.Form):
+    """Reemplazar un periferico del kit por otro libre."""
+
+    periferico_nuevo = forms.ModelChoiceField(
+        queryset=Equipo.objects.none(),
+        label="Periferico de reemplazo",
+        help_text="Debe estar libre (sin equipo padre).",
+    )
+    motivo = forms.CharField(
+        required=False,
+        label="Motivo del cambio",
+        max_length=255,
+        widget=forms.TextInput(
+            attrs={"placeholder": "Ej. falla, upgrade, dano..."}
+        ),
+    )
+
+    def __init__(self, *args, **kwargs):
+        periferico_actual = kwargs.pop("periferico_actual", None)
+        super().__init__(*args, **kwargs)
+        exclude = periferico_actual.pk if periferico_actual else None
+        self.fields["periferico_nuevo"].queryset = _queryset_perifericos_libres(
+            exclude_pk=exclude
+        )
+        self.fields["periferico_nuevo"].label_from_instance = (
+            lambda obj: (
+                f"{obj.codigo_inventario} · {obj.categoria} · "
+                f"{obj.marca or '-'} {obj.modelo or ''} · {obj.estado_equipo}"
+            ).strip()
+        )
+
+
+class PerifericoDesvincularForm(forms.Form):
+    observaciones = forms.CharField(
+        required=False,
+        label="Motivo",
+        max_length=255,
+        widget=forms.TextInput(),
+    )
 

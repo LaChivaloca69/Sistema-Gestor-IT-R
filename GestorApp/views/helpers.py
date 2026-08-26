@@ -2,6 +2,7 @@
 from datetime import date, datetime, timedelta
 
 from django.contrib import messages
+from django.core.exceptions import ValidationError
 from django.db.models import Count, Q
 from django.shortcuts import redirect
 from django.utils import timezone
@@ -21,6 +22,7 @@ from ..models import (
     PrioridadSupport,
     SLA_HORAS_POR_PRIORIDAD,
     TicketIT,
+    TipoMovimiento,
     TipoTicketSupport,
 )
 
@@ -311,22 +313,194 @@ def _cerrar_asignaciones_activas(equipo, exclude_pk=None, observaciones=None):
 def _reconciliar_estado_equipo(equipo, save=True):
     """
     Disponible/Asignado siguen a la asignacion activa.
+    Perifericos vinculados siguen el estado del equipo padre (Asignado/En Stock).
     No toca Baja ni En Mantenimiento.
     """
     if not equipo:
         return None
     if equipo.estado_equipo in {EstadoEquipo.BAJA, EstadoEquipo.EN_MANTENIMIENTO}:
         return equipo
-    tiene_activa = AsignacionEquipo.objects.filter(
-        equipo=equipo,
-        estado_asignacion=EstadoAsignacion.ACTIVA,
-    ).exists()
-    nuevo = EstadoEquipo.ASIGNADO if tiene_activa else EstadoEquipo.DISPONIBLE
+
+    # Periferico en kit: hereda Asignado/En Stock del padre.
+    if getattr(equipo, "equipo_padre_id", None):
+        padre = equipo.equipo_padre
+        if padre and padre.estado_equipo == EstadoEquipo.ASIGNADO:
+            nuevo = EstadoEquipo.ASIGNADO
+        else:
+            nuevo = EstadoEquipo.DISPONIBLE
+    else:
+        tiene_activa = AsignacionEquipo.objects.filter(
+            equipo=equipo,
+            estado_asignacion=EstadoAsignacion.ACTIVA,
+        ).exists()
+        nuevo = EstadoEquipo.ASIGNADO if tiene_activa else EstadoEquipo.DISPONIBLE
+
     if equipo.estado_equipo != nuevo:
         equipo.estado_equipo = nuevo
         if save:
             equipo.save(update_fields=["estado_equipo"])
     return equipo
+
+
+def _sync_perifericos_con_padre(padre, request=None):
+    """Alinea ubicacion y estado de perifericos del kit con el equipo padre."""
+    if not padre or not getattr(padre, "es_equipo_principal", False):
+        return 0
+    updated = 0
+    qs = padre.perifericos.filter(activo=True).exclude(estado_equipo=EstadoEquipo.BAJA)
+    for periferico in qs.select_related("categoria"):
+        fields = []
+        if periferico.ubicacion_id != padre.ubicacion_id:
+            periferico.ubicacion = padre.ubicacion
+            fields.append("ubicacion")
+        if periferico.estado_equipo != EstadoEquipo.EN_MANTENIMIENTO:
+            if padre.estado_equipo == EstadoEquipo.ASIGNADO:
+                if periferico.estado_equipo != EstadoEquipo.ASIGNADO:
+                    periferico.estado_equipo = EstadoEquipo.ASIGNADO
+                    fields.append("estado_equipo")
+            elif padre.estado_equipo == EstadoEquipo.DISPONIBLE:
+                if periferico.estado_equipo != EstadoEquipo.DISPONIBLE:
+                    periferico.estado_equipo = EstadoEquipo.DISPONIBLE
+                    fields.append("estado_equipo")
+        if fields:
+            periferico.save(update_fields=fields)
+            updated += 1
+    return updated
+
+
+def _vincular_periferico_a_equipo(
+    periferico,
+    padre,
+    request=None,
+    observaciones=None,
+    tipo_movimiento=None,
+):
+    """Vincula un periferico libre a un equipo principal."""
+    if not periferico or not padre:
+        raise ValidationError("Periferico y equipo son obligatorios.")
+    if not periferico.es_periferico:
+        raise ValidationError("Solo se pueden vincular perifericos.")
+    if not padre.es_equipo_principal:
+        raise ValidationError("El padre debe ser un equipo (maquina principal).")
+    if not padre.puede_vincular_perifericos:
+        raise ValidationError("Este equipo no puede recibir perifericos (baja o inactivo).")
+    if periferico.estado_equipo in {EstadoEquipo.BAJA, EstadoEquipo.EN_MANTENIMIENTO}:
+        raise ValidationError("El periferico no esta disponible para vincular.")
+    if periferico.equipo_padre_id and periferico.equipo_padre_id != padre.pk:
+        raise ValidationError(
+            f"El periferico ya esta vinculado a {periferico.equipo_padre}."
+        )
+    if periferico.equipo_padre_id == padre.pk:
+        return periferico
+
+    _cerrar_asignaciones_activas(
+        periferico,
+        observaciones="Cerrada al vincular al kit del equipo.",
+    )
+    origen = "Sin vincular"
+    periferico.equipo_padre = padre
+    periferico.ubicacion = padre.ubicacion
+    if padre.estado_equipo == EstadoEquipo.ASIGNADO:
+        periferico.estado_equipo = EstadoEquipo.ASIGNADO
+    elif periferico.estado_equipo not in {
+        EstadoEquipo.BAJA,
+        EstadoEquipo.EN_MANTENIMIENTO,
+    }:
+        periferico.estado_equipo = EstadoEquipo.DISPONIBLE
+    periferico.save(update_fields=["equipo_padre", "ubicacion", "estado_equipo"])
+
+    _crear_movimiento(
+        periferico,
+        tipo_movimiento or TipoMovimiento.VINCULAR_PERIFERICO,
+        origen=origen,
+        destino=padre.codigo_inventario,
+        responsable=_get_equipo_responsable(padre) or _get_equipo_responsable(periferico),
+        observaciones=observaciones
+        or f"Vinculado al equipo {padre.codigo_inventario}",
+        request=request,
+    )
+    _crear_movimiento(
+        padre,
+        tipo_movimiento or TipoMovimiento.VINCULAR_PERIFERICO,
+        origen=None,
+        destino=periferico.codigo_inventario,
+        responsable=_get_equipo_responsable(padre),
+        observaciones=observaciones
+        or f"Periferico {periferico.codigo_inventario} agregado al kit",
+        request=request,
+    )
+    return periferico
+
+
+def _desvincular_periferico(
+    periferico,
+    request=None,
+    observaciones=None,
+    tipo_movimiento=None,
+):
+    """Quita el periferico del kit y lo deja en stock."""
+    if not periferico or not periferico.equipo_padre_id:
+        raise ValidationError("El periferico no esta vinculado a un equipo.")
+    if periferico.estado_equipo == EstadoEquipo.BAJA:
+        raise ValidationError("No se puede desvincular un periferico en Baja.")
+
+    padre = periferico.equipo_padre
+    padre_codigo = padre.codigo_inventario if padre else "—"
+    periferico.equipo_padre = None
+    if periferico.estado_equipo not in {
+        EstadoEquipo.BAJA,
+        EstadoEquipo.EN_MANTENIMIENTO,
+    }:
+        periferico.estado_equipo = EstadoEquipo.DISPONIBLE
+    periferico.save(update_fields=["equipo_padre", "estado_equipo"])
+
+    _crear_movimiento(
+        periferico,
+        tipo_movimiento or TipoMovimiento.DESVINCULAR_PERIFERICO,
+        origen=padre_codigo,
+        destino="Sin vincular / En Stock",
+        responsable=_get_equipo_responsable(padre) if padre else None,
+        observaciones=observaciones
+        or f"Desvinculado del equipo {padre_codigo}",
+        request=request,
+    )
+    if padre:
+        _crear_movimiento(
+            padre,
+            tipo_movimiento or TipoMovimiento.DESVINCULAR_PERIFERICO,
+            origen=periferico.codigo_inventario,
+            destino="Kit",
+            responsable=_get_equipo_responsable(padre),
+            observaciones=observaciones
+            or f"Periferico {periferico.codigo_inventario} quitado del kit",
+            request=request,
+        )
+    return periferico
+
+
+def _reemplazar_periferico(periferico_actual, periferico_nuevo, request=None, motivo=None):
+    """Desvincula el actual y vincula el nuevo al mismo equipo padre."""
+    if not periferico_actual or not periferico_actual.equipo_padre_id:
+        raise ValidationError("El periferico actual no esta vinculado.")
+    padre = periferico_actual.equipo_padre
+    obs = motivo or (
+        f"Reemplazo: {periferico_actual.codigo_inventario} → "
+        f"{periferico_nuevo.codigo_inventario}"
+    )
+    _desvincular_periferico(
+        periferico_actual,
+        request=request,
+        observaciones=obs,
+        tipo_movimiento=TipoMovimiento.REEMPLAZAR_PERIFERICO,
+    )
+    _vincular_periferico_a_equipo(
+        periferico_nuevo,
+        padre,
+        request=request,
+        observaciones=obs,
+        tipo_movimiento=TipoMovimiento.REEMPLAZAR_PERIFERICO,
+    )
+    return padre
 
 
 def _crear_movimiento(

@@ -9,7 +9,7 @@ from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Count, Q, Sum, Max, F
+from django.db.models import Count, Prefetch, Q, Sum, Max, F
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -70,6 +70,7 @@ from ..models import (
     SLA_HORAS_POR_PRIORIDAD,
     SeguimientoTicket,
     TicketIT,
+    TipoCategoriaInventario,
     TipoMoneda,
     TipoMovimiento,
     TipoMantenimiento,
@@ -560,7 +561,7 @@ def ordencompra_delete(request, pk):
 
 
 def mis_equipos(request):
-    """Equipos asignados al personal vinculado al usuario autenticado."""
+    """Equipos (maquinas) asignados al personal del usuario, con kit anidado."""
     try:
         personal = request.user.personal_profile
     except Personal.DoesNotExist:
@@ -568,13 +569,26 @@ def mis_equipos(request):
 
     asignaciones = AsignacionEquipo.objects.none()
     if personal is not None:
+        perifericos_qs = (
+            Equipo.objects.select_related("categoria")
+            .filter(activo=True)
+            .exclude(estado_equipo=EstadoEquipo.BAJA)
+            .order_by("categoria__nombre_categoria", "codigo_inventario")
+        )
         asignaciones = (
             AsignacionEquipo.objects.select_related(
                 "equipo",
                 "equipo__categoria",
                 "equipo__ubicacion",
             )
-            .filter(personal=personal, estado_asignacion=EstadoAsignacion.ACTIVA)
+            .prefetch_related(
+                Prefetch("equipo__perifericos", queryset=perifericos_qs, to_attr="kit_perifericos")
+            )
+            .filter(
+                personal=personal,
+                estado_asignacion=EstadoAsignacion.ACTIVA,
+                equipo__categoria__tipo=TipoCategoriaInventario.EQUIPO,
+            )
             .order_by("-fecha_asignacion")
         )
 

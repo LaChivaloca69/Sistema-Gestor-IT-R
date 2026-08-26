@@ -17,6 +17,12 @@ from .ubicaciones import (
     ZonaEdificioForm,
 )
 from .equipo import EquipoAsignarForm, EquipoBajaForm, EquipoForm, EquipoUbicacionForm
+from .equipo import (
+    EquipoVincularPerifericoForm,
+    PerifericoDesvincularForm,
+    PerifericoReemplazarForm,
+    PerifericoVincularEquipoForm,
+)
 from .movimiento import MovimientoEquipoForm
 from .asignacion import AsignacionEquipoForm
 from .mantenimiento import AgendaMantenimientoForm, MantenimientoForm
@@ -36,6 +42,7 @@ from .gobierno import (
     SolicitudEquipoForm,
     SolicitudEquipoRevisionForm,
 )
+from .consumibles import MovimientoStockForm, ProductoConsumibleForm
 
 __all__ = [
     "AgendaMantenimientoForm",
@@ -46,6 +53,8 @@ __all__ = [
     "CategoriaEquipoForm",
     "CoberturaTicketsForm",
     "ComentarioTicketForm",
+    "MovimientoStockForm",
+    "ProductoConsumibleForm",
     "DetalleOrdenCompraCapturaForm",
     "DetalleOrdenCompraCapturaFormSet",
     "DetalleOrdenCompraForm",
@@ -55,10 +64,14 @@ __all__ = [
     "EquipoBajaForm",
     "EquipoForm",
     "EquipoUbicacionForm",
+    "EquipoVincularPerifericoForm",
     "MantenimientoForm",
     "MovimientoEquipoForm",
     "OrdenCompraCrearForm",
     "OrdenCompraSubirForm",
+    "PerifericoDesvincularForm",
+    "PerifericoReemplazarForm",
+    "PerifericoVincularEquipoForm",
     "PersonalForm",
     "PlantillaDocumentoForm",
     "ProveedorForm",

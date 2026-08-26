@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% load django_bootstrap5 %}
+
+{% block title %}Reemplazar {{ object.codigo_inventario }}{% endblock %}
+
+{% block content %}
+{% include "partials/page_header_open.html" with title="Reemplazar periferico" description="Sale el actual del kit y entra otro periferico libre. Queda registrado el cambio." %}
+	<a class="btn btn-outline-secondary" href="{% url 'equipo_detail' object.pk %}">Volver</a>
+{% include "partials/page_header_close.html" %}
+
+<p class="mb-3">
+	Reemplazar <strong>{{ object.codigo_inventario }}</strong> ({{ object.categoria }})
+	en el kit de
+	<strong>{% if padre %}<a href="{% url 'equipo_detail' padre.pk %}">{{ padre.codigo_inventario }}</a>{% else %}—{% endif %}</strong>.
+</p>
+
+<form method="post">
+	{% csrf_token %}
+	{{ form.non_field_errors }}
+	{% include "partials/form_fieldset.html" with legend="Reemplazo" %}
+	<div class="actions">
+		<a class="btn btn-outline-secondary" href="{% url 'equipo_detail' object.pk %}">Cancelar</a>
+		<button class="btn btn-primary" type="submit">Reemplazar</button>
+	</div>
+</form>
+{% endblock %}

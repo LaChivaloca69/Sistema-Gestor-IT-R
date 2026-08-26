@@ -1,21 +1,56 @@
 {% extends "base.html" %}
 
-{% block title %}Eliminar Categoria de equipo{% endblock %}
+{% block title %}Eliminar categoria{% endblock %}
 
 {% block content %}
-{% include "partials/page_header_open.html" with title="Eliminar Categoria de equipo" description="Esta accion no se puede deshacer." %}
+{% include "partials/page_header_open.html" with title="Eliminar categoria" description="Si hay historial vinculado, desactiva en lugar de borrar." %}
 	<a class="btn btn-outline-secondary" href="{% url 'categoriaequipo_list' %}">Volver</a>
 {% include "partials/page_header_close.html" %}
 
 <div class="card border-danger-subtle shadow-sm mx-auto" style="max-width: 640px;">
 	<div class="card-body p-4">
-		<p class="mb-4">Estas seguro que deseas eliminar <strong>"{{ object }}"</strong>?</p>
-		<div class="d-flex justify-content-end gap-2">
+		<p class="mb-3">
+			Categoria: <strong>"{{ object }}"</strong>
+			· Tipo: <strong>{{ object.get_tipo_display }}</strong>
+			· {% if object.activo %}Activa{% else %}Inactiva{% endif %}
+		</p>
+
+		{% if referencias %}
+		<div class="alert alert-warning mb-3">
+			<strong>No se puede eliminar</strong> porque esta en uso:
+			<ul class="mb-0 mt-2">
+				{% for ref in referencias %}
+				<li>{{ ref }}</li>
+				{% endfor %}
+			</ul>
+		</div>
+		<p class="text-muted mb-4">
+			Recomendado: <strong>desactivar</strong> para que deje de aparecer en formularios nuevos
+			sin perder el historial de tickets, equipos o consumibles.
+		</p>
+		{% else %}
+		<p class="mb-4">
+			No hay registros vinculados. Puedes eliminarla de forma permanente
+			o solo desactivarla.
+		</p>
+		{% endif %}
+
+		<div class="d-flex justify-content-end gap-2 flex-wrap">
 			<a class="btn btn-outline-secondary" href="{% url 'categoriaequipo_list' %}">Cancelar</a>
+			{% if object.activo %}
 			<form method="post" class="d-inline">
 				{% csrf_token %}
+				<input type="hidden" name="accion" value="desactivar" />
+				<button class="btn btn-outline-warning" type="submit">Desactivar</button>
+			</form>
+			{% endif %}
+			{% if puede_eliminar %}
+			<form method="post" class="d-inline">
+				{% csrf_token %}
+				<input type="hidden" name="accion" value="eliminar" />
 				<button class="btn btn-danger" type="submit">Eliminar</button>
 			</form>
+			{% endif %}
 		</div>
 	</div>
 </div>

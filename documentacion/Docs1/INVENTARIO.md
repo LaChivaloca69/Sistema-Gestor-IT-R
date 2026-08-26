@@ -190,7 +190,7 @@ Validaciones:
 2. No aparecen campos de OC.
 3. Filtros en lista: **Origen alta** y **Solo sin orden**.
 
-Así los equipos históricos quedan ordenados sin inventar órdenes falsas.
+De estamanera los equipos se ordenan sin inventar órdenes falsas.
 
 ### 6.4 OC creada vs OC subida (PDF)
 
@@ -272,7 +272,7 @@ Ruta: `/Equipos/mis/` — cualquier usuario autenticado ve solo asignaciones **A
 
 ---
 
-## 10. Avisos en home (sin email)
+## 10. Avisos en home 
 
 Visible para rol **operativo** (Técnico IT / Admin).
 

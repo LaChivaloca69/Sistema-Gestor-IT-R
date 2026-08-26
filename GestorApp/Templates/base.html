@@ -325,11 +325,29 @@
                             <span class="sidebar-section-chevron" aria-hidden="true"><i class="bi bi-chevron-down"></i></span>
                         </button>
                         <div class="sidebar-section-links">
-                            <a class="sidebar-link {% if request.resolver_match.url_name == 'equipo_list' or request.resolver_match.url_name == 'equipo_detail' or request.resolver_match.url_name == 'equipo_create' or request.resolver_match.url_name == 'equipo_update' or request.resolver_match.url_name == 'equipo_dar_baja' or request.resolver_match.url_name == 'equipo_asignar' or request.resolver_match.url_name == 'equipo_cambiar_ubicacion' %}active{% endif %}" href="{% url 'equipo_list' %}" data-nav-id="equipos" data-nav-label="Equipos inventario" title="Equipos{% if nav_badges.equipos %} · {{ nav_badges.equipos.title }}{% endif %}">
+                            <a class="sidebar-link {% if inventario_list_url_name == 'equipo_list' or request.resolver_match.url_name == 'equipo_list' or request.resolver_match.url_name == 'equipo_create' %}active{% endif %}" href="{% url 'equipo_list' %}" data-nav-id="equipos" data-nav-label="Equipos inventario" title="Equipos{% if nav_badges.equipos %} · {{ nav_badges.equipos.title }}{% endif %}">
                                 <span class="sidebar-link__icon" aria-hidden="true"><i class="bi bi-hdd-rack"></i></span>
                                 <span class="sidebar-link__text">Equipos</span>
                                 {% if nav_badges.equipos %}
                                 <span class="sidebar-badge sidebar-badge--{{ nav_badges.equipos.tone }}" title="{{ nav_badges.equipos.title }}">{{ nav_badges.equipos.count }}</span>
+                                {% endif %}
+                                <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>
+                            </a>
+                            <a class="sidebar-link {% if inventario_list_url_name == 'periferico_list' or request.resolver_match.url_name == 'periferico_list' or request.resolver_match.url_name == 'periferico_create' %}active{% endif %}" href="{% url 'periferico_list' %}" data-nav-id="perifericos" data-nav-label="Perifericos inventario mouse teclado ram" title="Perifericos">
+                                <span class="sidebar-link__icon" aria-hidden="true"><i class="bi bi-keyboard"></i></span>
+                                <span class="sidebar-link__text">Perifericos</span>
+                                <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>
+                            </a>
+                            <a class="sidebar-link {% if inventario_list_url_name == 'herramienta_list' or request.resolver_match.url_name == 'herramienta_list' or request.resolver_match.url_name == 'herramienta_create' %}active{% endif %}" href="{% url 'herramienta_list' %}" data-nav-id="herramientas" data-nav-label="Herramientas taller IT" title="Herramientas">
+                                <span class="sidebar-link__icon" aria-hidden="true"><i class="bi bi-wrench-adjustable"></i></span>
+                                <span class="sidebar-link__text">Herramientas</span>
+                                <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>
+                            </a>
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'producto_consumible_list' or request.resolver_match.url_name == 'producto_consumible_create' or request.resolver_match.url_name == 'producto_consumible_detail' or request.resolver_match.url_name == 'producto_consumible_update' or request.resolver_match.url_name == 'producto_consumible_movimiento' or request.resolver_match.url_name == 'consumible_dashboard' or request.resolver_match.url_name == 'movimiento_stock_list' %}active{% endif %}" href="{% url 'producto_consumible_list' %}" data-nav-id="consumibles" data-nav-label="Consumibles stock cables alcohol" title="Consumibles{% if nav_badges.consumibles %} · {{ nav_badges.consumibles.title }}{% endif %}">
+                                <span class="sidebar-link__icon" aria-hidden="true"><i class="bi bi-box-seam"></i></span>
+                                <span class="sidebar-link__text">Consumibles</span>
+                                {% if nav_badges.consumibles %}
+                                <span class="sidebar-badge sidebar-badge--{{ nav_badges.consumibles.tone }}" title="{{ nav_badges.consumibles.title }}">{{ nav_badges.consumibles.count }}</span>
                                 {% endif %}
                                 <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>
                             </a>
@@ -338,7 +356,7 @@
                                 <span class="sidebar-link__text">Dashboard</span>
                                 <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>
                             </a>
-                            <a class="sidebar-link {% if request.resolver_match.url_name == 'categoriaequipo_list' %}active{% endif %}" href="{% url 'categoriaequipo_list' %}" data-nav-id="categorias" data-nav-label="Categorias equipo" title="Categorias">
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'categoriaequipo_list' or request.resolver_match.url_name == 'categoriaequipo_create' or request.resolver_match.url_name == 'categoriaequipo_update' %}active{% endif %}" href="{% url 'categoriaequipo_list' %}" data-nav-id="categorias" data-nav-label="Categorias inventario tipo" title="Categorias">
                                 <span class="sidebar-link__icon" aria-hidden="true"><i class="bi bi-tags"></i></span>
                                 <span class="sidebar-link__text">Categorias</span>
                                 <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>
@@ -375,7 +393,7 @@
                                 <span class="sidebar-link__text">Cierres</span>
                                 <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>
                             </a>
-                            <a class="sidebar-link {% if request.resolver_match.url_name == 'asignacionequipo_list' %}active{% endif %}" href="{% url 'asignacionequipo_list' %}" data-nav-id="asignaciones" data-nav-label="Asignaciones" title="Asignaciones">
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'asignacionequipo_list' or request.resolver_match.url_name == 'asignacionequipo_create' or request.resolver_match.url_name == 'asignacionequipo_update' or request.resolver_match.url_name == 'asignacion_kit_migracion' %}active{% endif %}" href="{% url 'asignacionequipo_list' %}" data-nav-id="asignaciones" data-nav-label="Asignaciones" title="Asignaciones">
                                 <span class="sidebar-link__icon" aria-hidden="true"><i class="bi bi-person-check"></i></span>
                                 <span class="sidebar-link__text">Asignaciones</span>
                                 <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>

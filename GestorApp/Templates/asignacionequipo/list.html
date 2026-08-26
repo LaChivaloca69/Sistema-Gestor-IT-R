@@ -3,9 +3,24 @@
 {% block title %}Asignaciones de equipo{% endblock %}
 
 {% block content %}
-{% include "partials/page_header_open.html" with title="Asignaciones de equipo" description="Gestiona las asignaciones de equipo a personal." %}
+{% include "partials/page_header_open.html" with title="Asignaciones de equipo" description="Una fila por maquina principal. Los perifericos se ven en el kit del equipo." %}
+	{% if sueltas_count %}
+	<a class="btn btn-outline-warning" href="{% url 'asignacion_kit_migracion' %}">Migrar kit ({{ sueltas_count }})</a>
+	{% endif %}
 	<a class="btn btn-primary" href="{% url 'asignacionequipo_create' %}">Asignar equipo</a>
 {% include "partials/page_header_close.html" %}
+
+{% if sueltas_count %}
+<div class="dash-alerts mb-3">
+	<div class="dash-alert dash-alert--warn">
+		<div>
+			<strong>{{ sueltas_count }} asignacion(es) de periferico sueltas</strong>
+			<p class="mb-0">Convierte mouse/teclado/RAM asignados aparte en perifericos del kit del equipo.</p>
+		</div>
+		<a class="btn btn-sm btn-outline-secondary" href="{% url 'asignacion_kit_migracion' %}">Abrir asistente</a>
+	</div>
+</div>
+{% endif %}
 
 <form class="filters" method="get">
 	<div>
@@ -26,6 +41,15 @@
 			{% endfor %}
 		</select>
 	</div>
+	<div>
+		<label for="filter_estado">Estado</label>
+		<select id="filter_estado" name="estado" data-chip-label="Estado">
+			<option value="">Todos</option>
+			{% for value, label in estado_choices %}
+			<option value="{{ value }}" {% if value == selected_estado %}selected{% endif %}>{{ label }}</option>
+			{% endfor %}
+		</select>
+	</div>
 	<div class="filters-actions">
 		<button class="btn btn-primary" type="submit">Filtrar</button>
 		<a class="btn btn-outline-secondary" href="{% url 'asignacionequipo_list' %}">Limpiar</a>
@@ -37,7 +61,9 @@
 		<thead class="table-light">
 			<tr>
 				<th>Equipo</th>
+				<th>Categoria</th>
 				<th>Personal</th>
+				<th>Perifericos</th>
 				<th>Fecha asignacion</th>
 				<th>Fecha devolucion</th>
 				<th>Estado</th>
@@ -46,23 +72,33 @@
 		</thead>
 		<tbody>
 			{% for item in items %}
-			<tr class="table-row-click" data-href="{% url 'asignacionequipo_update' item.pk %}">
-				<td><strong>{{ item.equipo }}</strong></td>
+			<tr class="table-row-click" data-href="{% url 'equipo_detail' item.equipo_id %}">
+				<td>
+					<strong>{{ item.equipo.codigo_inventario }}</strong>
+					{% if item.equipo.marca or item.equipo.modelo %}
+					<div class="text-muted small">{{ item.equipo.marca|default:"" }} {{ item.equipo.modelo|default:"" }}</div>
+					{% endif %}
+				</td>
+				<td>{{ item.equipo.categoria }}</td>
 				<td>{{ item.personal }}</td>
+				<td>{{ item.perifericos_count|default:0 }}</td>
 				<td>{{ item.fecha_asignacion }}</td>
 				<td>{{ item.fecha_devolucion|default:"-" }}</td>
 				<td><span class="status-badge status-badge--{{ item.estado_asignacion|slugify }}">{{ item.estado_asignacion }}</span></td>
 				<td>
-					{% url 'asignacionequipo_update' item.pk as update_url %}
-					{% url 'asignacionequipo_delete' item.pk as delete_url %}
-					{% include "partials/row_actions.html" with update_url=update_url delete_url=delete_url %}
+					<div class="row-actions">
+						<a class="btn btn-primary btn-sm" href="{% url 'equipo_detail' item.equipo_id %}">Kit</a>
+						{% url 'asignacionequipo_update' item.pk as update_url %}
+						{% url 'asignacionequipo_delete' item.pk as delete_url %}
+						{% include "partials/row_actions.html" with update_url=update_url delete_url=delete_url %}
+					</div>
 				</td>
 			</tr>
 			{% empty %}
 			<tr>
-				<td colspan="6" class="text-center py-4">
+				<td colspan="8" class="text-center py-4">
 					{% url 'asignacionequipo_create' as empty_action_url %}
-					{% include "partials/empty_state.html" with title="Sin asignaciones" description="Asigna el primer equipo a un usuario." action_url=empty_action_url action_label="Asignar equipo" icon="bi-person-check" compact=1 %}
+					{% include "partials/empty_state.html" with title="Sin asignaciones" description="Asigna el primer equipo (maquina) a un usuario." action_url=empty_action_url action_label="Asignar equipo" icon="bi-person-check" compact=1 %}
 				</td>
 			</tr>
 			{% endfor %}

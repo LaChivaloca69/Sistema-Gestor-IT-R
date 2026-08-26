@@ -67,6 +67,7 @@ TEMPLATES = [
                 'GestorApp.context_processors.roles',
                 'GestorApp.context_processors.breadcrumbs',
                 'GestorApp.context_processors.nav_badges',
+                'GestorApp.context_processors.inventario_nav',
             ],
         },
     },

@@ -15,6 +15,7 @@ from .helpers import (  # noqa: F401
     _cerrar_asignaciones_activas,
     _crear_movimiento,
     _deny_ticket_access,
+    _desvincular_periferico,
     _end_of_month,
     _get_equipo_asignacion_activa,
     _get_equipo_responsable,
@@ -23,12 +24,15 @@ from .helpers import (  # noqa: F401
     _parse_date,
     _quick_range_bounds,
     _reconciliar_estado_equipo,
+    _reemplazar_periferico,
+    _sync_perifericos_con_padre,
     _ticket_dashboard_context,
     _ticket_has_seguimientos,
     _tickets_abiertos_qs,
     _tickets_for_user,
     _tickets_sla_por_vencer_q,
     _tickets_sla_vencidos_q,
+    _vincular_periferico_a_equipo,
     user_can_comment_ticket,
     user_can_delete_comentario,
     user_can_delete_ticket,
@@ -95,3 +99,5 @@ from .home import (  # noqa: F401
     _calendar_window,
     _ticket_calendar_urgency,
 )
+from .consumibles import *  # noqa: F401,F403
+from .consumibles import _consumibles_alerta_context  # noqa: F401

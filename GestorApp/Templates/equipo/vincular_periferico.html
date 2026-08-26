@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% load django_bootstrap5 %}
+
+{% block title %}Vincular periferico{% endblock %}
+
+{% block content %}
+{% if modo == "desde_equipo" %}
+{% include "partials/page_header_open.html" with title="Vincular periferico" description="Agrega un periferico libre al kit de este equipo." %}
+{% else %}
+{% include "partials/page_header_open.html" with title="Vincular a equipo" description="Asocia este periferico a una maquina principal." %}
+{% endif %}
+	<a class="btn btn-outline-secondary" href="{% url 'equipo_detail' object.pk %}">Volver</a>
+{% include "partials/page_header_close.html" %}
+
+<p class="text-muted mb-3">
+	{% if modo == "desde_equipo" %}
+	Equipo: <strong>{{ object.codigo_inventario }}</strong> · {{ object.categoria }}
+	{% else %}
+	Periferico: <strong>{{ object.codigo_inventario }}</strong> · {{ object.categoria }}
+	{% endif %}
+</p>
+
+<form method="post">
+	{% csrf_token %}
+	{{ form.non_field_errors }}
+	{% include "partials/form_fieldset.html" with legend="Vinculo" %}
+	<div class="actions">
+		<a class="btn btn-outline-secondary" href="{% url 'equipo_detail' object.pk %}">Cancelar</a>
+		<button class="btn btn-primary" type="submit">Vincular</button>
+	</div>
+</form>
+{% endblock %}

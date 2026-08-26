@@ -24,6 +24,7 @@ def _compute_nav_badges(user):
         _seguimientos_alerta_context,
         _mantenimientos_alerta_context,
         _equipos_alerta_context,
+        _consumibles_alerta_context,
     )
 
     badges = {}
@@ -107,6 +108,14 @@ def _compute_nav_badges(user):
                 "count": sol_count,
                 "tone": "warn",
                 "title": f"{sol_count} solicitud(es) por revisar",
+            }
+
+        cons = _consumibles_alerta_context()
+        if cons["consumibles_bajo_count"]:
+            badges["consumibles"] = {
+                "count": cons["consumibles_bajo_count"],
+                "tone": "warn",
+                "title": f"{cons['consumibles_bajo_count']} con stock bajo o agotado",
             }
 
     return badges
