@@ -51,7 +51,7 @@
 	{% elif selected_sin_seguimiento == "1" %}
 	<div class="dash-alert dash-alert--warn">
 		<div>
-			<strong>Filtro: sin seguimiento</strong>
+			<strong>Filtro: sin check</strong>
 			<p class="mb-0">Tickets activos sin checks registrados.</p>
 		</div>
 		<a class="btn btn-sm btn-outline-secondary" href="{% url 'ticketit_list' %}">Quitar filtro</a>
@@ -94,10 +94,10 @@
 		</select>
 	</div>
 	<div>
-		<label for="filter_sin_seguimiento">Seguimiento</label>
-		<select id="filter_sin_seguimiento" name="sin_seguimiento" data-chip-label="Seguimiento">
+		<label for="filter_sin_seguimiento">Check</label>
+		<select id="filter_sin_seguimiento" name="sin_seguimiento" data-chip-label="Check">
 			<option value="" {% if not selected_sin_seguimiento %}selected{% endif %}>Todos</option>
-			<option value="1" {% if selected_sin_seguimiento == "1" %}selected{% endif %}>Sin seguimiento</option>
+			<option value="1" {% if selected_sin_seguimiento == "1" %}selected{% endif %}>Sin check</option>
 		</select>
 	</div>
 	<div>

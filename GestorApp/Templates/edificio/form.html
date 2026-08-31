@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% load django_bootstrap5 %}
 
-{% block title %}{% if object %}Editar Edificio{% else %}Nuevo Edificio{% endif %}{% endblock %}
+{% block title %}{% if object %}Editar edificio{% else %}Nuevo edificio{% endif %}{% endblock %}
 
 {% block content %}
 {% if object %}
-{% include "partials/page_header_open.html" with title="Editar edificio" description="Si ya hay ubicaciones, desactiva en lugar de eliminar." %}
+{% include "partials/page_header_open.html" with title="Editar edificio" description="Si ya hay espacios fisicos, desactiva en lugar de eliminar." %}
 	{% if object.activo %}
 	<form method="post" action="{% url 'edificio_toggle_activo' object.pk %}" class="d-inline">
 		{% csrf_token %}
@@ -23,7 +23,7 @@
 {% else %}
 {% include "partials/page_header_open.html" with title="Nuevo edificio" description="Captura la informacion principal del edificio." %}
 {% endif %}
-	<a class="btn btn-outline-secondary" href="{% url 'edificio_list' %}">Volver</a>
+	<a class="btn btn-outline-secondary" href="{% url 'mapa_sedes' %}">Volver</a>
 {% include "partials/page_header_close.html" %}
 
 <form method="post">
@@ -31,7 +31,7 @@
 	{{ form.non_field_errors }}
 	{% include "partials/form_fieldset.html" with legend="Datos" %}
 	<div class="actions">
-		<a class="btn btn-outline-secondary" href="{% url 'edificio_list' %}">Cancelar</a>
+		<a class="btn btn-outline-secondary" href="{% url 'mapa_sedes' %}">Cancelar</a>
 		<button class="btn btn-primary" type="submit">Guardar</button>
 	</div>
 </form>

@@ -18,9 +18,55 @@
 			</p>
 			{% endif %}
 			{% include "partials/form_fieldset.html" with legend="Asignacion" %}
+			<div id="asignacion-resumen" class="alert alert-light border mb-3" hidden>
+				<strong>Resumen:</strong>
+				<span id="asignacion-resumen-text"></span>
+			</div>
 			<div class="actions">
 				<a class="btn btn-outline-secondary" href="{% url 'equipo_detail' object.pk %}">Cancelar</a>
 				<button class="btn btn-primary" type="submit">Asignar</button>
 			</div>
 		</form>
+
+{{ personal_resumen|json_script:"personal-resumen-data" }}
+<script>
+	(function () {
+		var select = document.getElementById("id_personal");
+		var panel = document.getElementById("asignacion-resumen");
+		var text = document.getElementById("asignacion-resumen-text");
+		var dataEl = document.getElementById("personal-resumen-data");
+		if (!select || !panel || !text || !dataEl) {
+			return;
+		}
+		var map = {};
+		JSON.parse(dataEl.textContent).forEach(function (row) {
+			map[String(row.id)] = row;
+		});
+
+		function renderResumen() {
+			var row = map[select.value];
+			if (!row) {
+				panel.hidden = true;
+				return;
+			}
+			var partes = [];
+			partes.push("Departamento: " + (row.area__nombre_area || "—"));
+			if (row.ubicacion__referencia || row.ubicacion__pasillo) {
+				var espacio = [
+					row.ubicacion__edificio__nombre_edificio,
+					row.ubicacion__zona__nombre_zona,
+					row.ubicacion__referencia || row.ubicacion__pasillo,
+				].filter(Boolean).join(" / ");
+				partes.push("Espacio fisico: " + espacio);
+			} else {
+				partes.push("Espacio fisico: sin puesto fijo");
+			}
+			text.textContent = partes.join(" · ");
+			panel.hidden = false;
+		}
+
+		select.addEventListener("change", renderResumen);
+		renderResumen();
+	})();
+</script>
 {% endblock %}

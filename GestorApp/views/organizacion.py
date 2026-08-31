@@ -180,7 +180,9 @@ def puesto_delete(request, pk):
 
 
 def personal_list(request):
-    items = Personal.objects.select_related("user", "area", "puesto").all()
+    items = Personal.objects.select_related(
+        "user", "area", "puesto", "ubicacion", "ubicacion__edificio", "ubicacion__zona"
+    ).all()
     search_query = (request.GET.get("q") or "").strip()
     selected_area = request.GET.get("area", "")
     selected_puesto = request.GET.get("puesto", "")
@@ -247,7 +249,9 @@ def personal_list(request):
 
 def personal_detail(request, pk):
     personal = get_object_or_404(
-        Personal.objects.select_related("user", "area", "puesto"),
+        Personal.objects.select_related(
+            "user", "area", "puesto", "ubicacion", "ubicacion__edificio", "ubicacion__zona"
+        ),
         pk=pk,
     )
     return render(

@@ -1,22 +1,21 @@
 {% extends "base.html" %}
-{% load django_bootstrap5 %}
 
-{% block title %}Ubicacion {{ object.codigo_inventario }}{% endblock %}
+{% block title %}Cambiar espacio fisico {{ object.codigo_inventario }}{% endblock %}
 
 {% block content %}
-{% include "partials/page_header_open.html" with title="Cambiar ubicacion" description="Actualiza el lugar fisico del equipo." %}
+{% include "partials/page_header_open.html" with title="Cambiar espacio fisico" description="Actualiza el lugar fisico del equipo." %}
 	<a class="btn btn-outline-secondary" href="{% url 'equipo_detail' object.pk %}">Cancelar</a>
 {% include "partials/page_header_close.html" %}
 <p class="text-muted mb-3">
-	{{ object.codigo_inventario }} · actual: {{ object.ubicacion|default:"Sin ubicacion" }}
+	{{ object.codigo_inventario }} · actual: {{ object.ubicacion|default:"Sin espacio fisico" }}
 </p>
 
 <form method="post">
 		{% csrf_token %}
-		{% include "partials/form_fieldset.html" with legend="Ubicacion" %}
+		{% include "partials/form_fieldset.html" with legend="Espacio fisico" %}
 		<div class="actions">
 			<a class="btn btn-outline-secondary" href="{% url 'equipo_detail' object.pk %}">Cancelar</a>
-			<button class="btn btn-primary" type="submit">Guardar ubicacion</button>
+			<button class="btn btn-primary" type="submit">Guardar</button>
 		</div>
 	</form>
 {% endblock %}

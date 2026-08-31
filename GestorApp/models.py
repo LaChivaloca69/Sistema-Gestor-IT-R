@@ -55,6 +55,14 @@ class Personal(models.Model):
     telefono = models.CharField(max_length=30, blank=True, null=True)
     area = models.ForeignKey(Area, on_delete=models.SET_NULL, null=True, blank=True)
     puesto = models.ForeignKey(Puesto, on_delete=models.SET_NULL, null=True, blank=True)
+    ubicacion = models.ForeignKey(
+        "Ubicacion",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name="Espacio fisico",
+        help_text="Puesto fijo del empleado. Vacio si no tiene escritorio asignado.",
+    )
     activo = models.BooleanField(default=True)
     fecha_ingreso = models.DateField(blank=True, null=True)
     fecha_creacion = models.DateTimeField(auto_now_add=True)
@@ -169,9 +177,22 @@ class Ubicacion(models.Model):
     pasillo = models.CharField(max_length=50, blank=True, null=True)
     referencia = models.CharField(max_length=255, blank=True, null=True)
     activo = models.BooleanField(default=True)
+    es_stock_default = models.BooleanField(
+        default=False,
+        db_index=True,
+        verbose_name="Almacen / stock por defecto",
+        help_text="Espacio al que regresan los equipos al devolverlos a stock.",
+    )
 
     def __str__(self):
         return f"{self.edificio} / {self.zona} / {self.referencia or 'Sin referencia'}"
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        if self.es_stock_default:
+            type(self).objects.filter(es_stock_default=True).exclude(pk=self.pk).update(
+                es_stock_default=False
+            )
 
 # ------------ MODELOS DE EQUIPO(CATEGORIA, ESTADO, TIPO, ETC) ------------
 # --- Categoria de equipo ------
@@ -253,6 +274,13 @@ class Equipo(models.Model):
         verbose_name="Linea de orden",
     )
     estado_equipo = models.CharField(max_length=30, choices=EstadoEquipo.choices, default=EstadoEquipo.DISPONIBLE)
+    area = models.ForeignKey(
+        Area,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name="Departamento",
+    )
     ubicacion = models.ForeignKey(Ubicacion, on_delete=models.SET_NULL, null=True, blank=True)
     equipo_padre = models.ForeignKey(
         "self",

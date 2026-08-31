@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard tickets{% endblock %}
+{% block title %}Panel tickets{% endblock %}
 
 {% block content %}
-{% include "partials/page_header_open.html" with title="Dashboard de tickets" description="Operacion, SLA por prioridad y focos de atencion (avisos en panel, sin email)." %}
+{% include "partials/page_header_open.html" with title="Panel de tickets" description="Operacion, SLA por prioridad y focos de atencion (avisos en panel, sin email)." %}
 	<a class="btn btn-outline-secondary" href="{% url 'ticketit_list' %}">Lista</a>
 	<a class="btn btn-primary" href="{% url 'ticketit_create' %}">Nuevo ticket</a>
 {% include "partials/page_header_close.html" %}

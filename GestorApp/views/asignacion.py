@@ -76,12 +76,14 @@ from ..models import (
 )
 from .helpers import (
     _apply_date_filters,
+    _aplicar_asignacion_a_equipo,
     _cerrar_asignaciones_activas,
     _crear_movimiento,
     _deny_ticket_access,
     _end_of_month,
     _get_equipo_asignacion_activa,
     _get_equipo_responsable,
+    _liberar_equipo_tras_devolucion,
     _month_bounds,
     _ordenes_for_user,
     _parse_date,
@@ -276,7 +278,14 @@ def asignacionequipo_create(request):
                         observaciones="Cerrada automaticamente por reasignacion.",
                     )
             asignacion = form.save()
-            if equipo:
+            ubicacion_anterior = None
+            ubicacion_nueva = None
+            if equipo and personal and estado == EstadoAsignacion.ACTIVA:
+                _reconciliar_estado_equipo(equipo)
+                ubicacion_anterior, ubicacion_nueva = _aplicar_asignacion_a_equipo(
+                    equipo, personal, request=request
+                )
+            elif equipo:
                 _reconciliar_estado_equipo(equipo)
                 _sync_perifericos_con_padre(equipo, request=request)
             historial.registrar_historial(
@@ -298,8 +307,8 @@ def asignacionequipo_create(request):
                 _crear_movimiento(
                     equipo,
                     tipo_movimiento,
-                    origen=equipo.ubicacion,
-                    destino=equipo.ubicacion,
+                    origen=ubicacion_anterior,
+                    destino=ubicacion_nueva,
                     responsable=personal or _get_equipo_responsable(equipo),
                     request=request,
                 )
@@ -322,6 +331,7 @@ def asignacionequipo_update(request, pk):
         if form.is_valid():
             estado = form.cleaned_data.get("estado_asignacion")
             equipo = form.cleaned_data.get("equipo")
+            personal = form.cleaned_data.get("personal")
             if (
                 equipo
                 and estado == EstadoAsignacion.ACTIVA
@@ -333,13 +343,39 @@ def asignacionequipo_update(request, pk):
                     observaciones="Cerrada automaticamente por reasignacion.",
                 )
             asignacion = form.save()
-            equipos_a_sync = {asignacion.equipo_id, equipo_anterior_id}
-            for eq_id in equipos_a_sync:
-                if eq_id:
-                    eq = Equipo.objects.filter(pk=eq_id).select_related("categoria").first()
-                    if eq:
-                        _reconciliar_estado_equipo(eq)
-                        _sync_perifericos_con_padre(eq, request=request)
+            ubicacion_anterior = None
+            ubicacion_nueva = None
+            if (
+                equipo
+                and estado == EstadoAsignacion.ACTIVA
+                and personal
+                and (
+                    estado_anterior != EstadoAsignacion.ACTIVA
+                    or asignacion.equipo_id != equipo_anterior_id
+                    or asignacion.personal_id != personal_anterior_id
+                )
+            ):
+                _reconciliar_estado_equipo(equipo)
+                ubicacion_anterior, ubicacion_nueva = _aplicar_asignacion_a_equipo(
+                    equipo, personal, request=request
+                )
+            elif (
+                equipo
+                and estado != EstadoAsignacion.ACTIVA
+                and estado_anterior == EstadoAsignacion.ACTIVA
+            ):
+                _reconciliar_estado_equipo(equipo)
+                ubicacion_anterior, ubicacion_nueva = _liberar_equipo_tras_devolucion(
+                    equipo, request=request
+                )
+            else:
+                equipos_a_sync = {asignacion.equipo_id, equipo_anterior_id}
+                for eq_id in equipos_a_sync:
+                    if eq_id:
+                        eq = Equipo.objects.filter(pk=eq_id).select_related("categoria").first()
+                        if eq:
+                            _reconciliar_estado_equipo(eq)
+                            _sync_perifericos_con_padre(eq, request=request)
             historial.registrar_actualizacion(
                 request,
                 modulo=ModuloHistorial.ASIGNACION,
@@ -361,8 +397,8 @@ def asignacionequipo_update(request, pk):
                 _crear_movimiento(
                     asignacion.equipo,
                     TipoMovimiento.CAMBIO_ASIGNACION,
-                    origen=asignacion.equipo.ubicacion,
-                    destino=asignacion.equipo.ubicacion,
+                    origen=ubicacion_anterior,
+                    destino=ubicacion_nueva,
                     responsable=asignacion.personal,
                     request=request,
                 )
@@ -384,10 +420,17 @@ def asignacionequipo_delete(request, pk):
             objeto=asignacion,
             entidad_relacionada=equipo,
         )
+        was_active = asignacion.estado_asignacion == EstadoAsignacion.ACTIVA
         asignacion.delete()
         if equipo:
             _reconciliar_estado_equipo(equipo)
-            _sync_perifericos_con_padre(equipo, request=request)
+            if was_active and not AsignacionEquipo.objects.filter(
+                equipo=equipo,
+                estado_asignacion=EstadoAsignacion.ACTIVA,
+            ).exists():
+                _liberar_equipo_tras_devolucion(equipo, request=request)
+            else:
+                _sync_perifericos_con_padre(equipo, request=request)
         messages.success(request, "Asignacion eliminada correctamente.")
         if equipo:
             return redirect("equipo_detail", pk=equipo.pk)

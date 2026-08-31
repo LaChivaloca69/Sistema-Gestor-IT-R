@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 
-{% block title %}Bajar roles{% endblock %}
+{% block title %}Quitar roles{% endblock %}
 
 {% block content %}
-{% include "partials/page_header_open.html" with title="Bajar roles" description="Cambia Tecnico IT o Administrador a Usuario." %}
+{% include "partials/page_header_open.html" with title="Quitar roles" description="Cambia Tecnico IT o Administrador a Usuario." %}
 	<a class="btn btn-outline-secondary" href="{% url 'personal_list' %}">Volver a personal</a>
 {% include "partials/page_header_close.html" %}
 
@@ -16,7 +16,7 @@
 				<th>Rol actual</th>
 				<th>Nombre</th>
 				<th>Correo</th>
-				<th>Area</th>
+				<th>Departamento</th>
 				<th>Puesto</th>
 				<th>Acciones</th>
 			</tr>

@@ -11,7 +11,6 @@ from . import historial
 from .cobertura import coberturas_activas_para_suplente
 from .gobierno_forms import (
     CoberturaTicketsForm,
-    SeguimientoSolicitudEquipoForm,
     SolicitudEquipoForm,
     SolicitudEquipoRevisionForm,
 )
@@ -28,7 +27,7 @@ from .models import (
     TipoMovimiento,
 )
 from .permissions_matrix import matrix_for_template
-from .roles import admin_required, is_admin_user, is_operativo, operativo_required
+from .roles import admin_required, is_operativo, operativo_required
 
 
 # ---- Matriz de permisos ----
@@ -218,96 +217,44 @@ def solicitud_equipo_create(request):
     )
 
 
-def _revision_tiene_avance(cleaned):
-    text_fields = (
-        "avance_realizado",
-        "pendiente",
-        "proximo_paso",
-        "solucion",
-        "observacion",
-    )
-    if any((cleaned.get(field) or "").strip() for field in text_fields):
-        return True
-    return bool(cleaned.get("ya_terminado") or cleaned.get("fecha_proximo_seguimiento"))
-
-
 @login_required
 def solicitud_equipo_detail(request, pk):
-    obj = get_object_or_404(
-        _solicitudes_qs_for(request.user).prefetch_related("seguimientos__usuario"),
-        pk=pk,
-    )
+    obj = get_object_or_404(_solicitudes_qs_for(request.user), pk=pk)
     is_staff_user = is_operativo(request.user)
     can_manage = is_staff_user and obj.puede_gestionar_it
     revision_form = None
-    seguimiento_form = None
-    form_types = {"revision", "seguimiento"}
 
-    if can_manage and request.method == "POST" and request.POST.get("form_type") in form_types:
-        seguimiento_form = SeguimientoSolicitudEquipoForm(
-            request.POST,
-            solicitud=obj,
-            request_user=request.user,
-        )
+    if can_manage and request.method == "POST" and request.POST.get("form_type") == "decision":
         revision_form = SolicitudEquipoRevisionForm(
             request.POST,
             solicitud=obj,
-            require_estado=False,
+            require_estado=True,
         )
-        seguimiento_ok = seguimiento_form.is_valid()
-        revision_ok = revision_form.is_valid()
-        if seguimiento_ok and revision_ok:
-            has_avance = _revision_tiene_avance(seguimiento_form.cleaned_data)
-            has_decision = bool(revision_form.cleaned_data.get("estado"))
-            if has_avance or has_decision:
-                if has_avance:
-                    revision = seguimiento_form.save()
-                    historial.registrar_historial(
-                        request=request,
-                        modulo=ModuloHistorial.SOLICITUD_EQUIPO,
-                        accion=AccionHistorial.CREACION,
-                        titulo=f"Revision IT en {obj.folio}",
-                        objeto=revision,
-                        entidad_relacionada=obj,
-                        enlace_nombre="solicitud_equipo_detail",
-                        enlace_pk=obj.pk,
+        if revision_form.is_valid():
+            estado_anterior = obj.estado
+            ok, assign_msg = _aplicar_decision_solicitud(request, obj, revision_form)
+            if not ok:
+                messages.error(request, assign_msg)
+            else:
+                if obj.estado != estado_anterior:
+                    messages.success(
+                        request,
+                        "Solicitud cerrada."
+                        if obj.estado == EstadoSolicitudEquipo.COMPLETADA
+                        else f"Solicitud actualizada a {obj.estado}.",
                     )
-                    messages.success(request, "Revision IT registrada.")
-                if has_decision:
-                    estado_anterior = obj.estado
-                    ok, assign_msg = _aplicar_decision_solicitud(
-                        request, obj, revision_form
-                    )
-                    if not ok:
-                        messages.error(request, assign_msg)
-                    else:
-                        if obj.estado != estado_anterior or not has_avance:
-                            messages.success(
-                                request,
-                                "Solicitud cerrada."
-                                if obj.estado == EstadoSolicitudEquipo.COMPLETADA
-                                else f"Solicitud actualizada a {obj.estado}.",
-                            )
-                        if assign_msg:
-                            messages.success(request, assign_msg)
-                return redirect("solicitud_equipo_detail", pk=obj.pk)
-            messages.error(request, "Indica un avance o una decision.")
+                else:
+                    messages.success(request, "Decision guardada.")
+                if assign_msg:
+                    messages.success(request, assign_msg)
+            return redirect("solicitud_equipo_detail", pk=obj.pk)
+        messages.error(request, "Revisa los datos de la decision.")
 
-    if can_manage:
-        if revision_form is None:
-            revision_form = SolicitudEquipoRevisionForm(
-                solicitud=obj,
-                require_estado=False,
-            )
-        if seguimiento_form is None:
-            seguimiento_form = SeguimientoSolicitudEquipoForm(
-                solicitud=obj,
-                request_user=request.user,
-            )
-
-    revisiones = obj.seguimientos.select_related("usuario").order_by(
-        "-fecha_check", "-pk"
-    )
+    if can_manage and revision_form is None:
+        revision_form = SolicitudEquipoRevisionForm(
+            solicitud=obj,
+            require_estado=True,
+        )
 
     return render(
         request,
@@ -315,15 +262,12 @@ def solicitud_equipo_detail(request, pk):
         {
             "object": obj,
             "can_manage": can_manage,
-            "can_add_revision": can_manage,
             "can_manage_flow": is_staff_user,
-            "can_delete_revision": is_admin_user(request.user),
             "can_cancel": (
-                obj.solicitante_id == request.user.id and obj.puede_cancelar_solicitante
+                (obj.solicitante_id == request.user.id and obj.puede_cancelar_solicitante)
+                or (is_staff_user and not obj.esta_cerrada)
             ),
             "revision_form": revision_form,
-            "seguimiento_form": seguimiento_form,
-            "revisiones": revisiones,
             "is_staff_user": is_staff_user,
         },
     )
@@ -332,11 +276,11 @@ def solicitud_equipo_detail(request, pk):
 def _asignar_equipo_desde_solicitud(request, solicitud, equipo):
     """Asigna equipo disponible al personal de la solicitud."""
     from .views import (
+        _aplicar_asignacion_a_equipo,
         _cerrar_asignaciones_activas,
         _crear_movimiento,
         _get_equipo_asignacion_activa,
         _reconciliar_estado_equipo,
-        _sync_perifericos_con_padre,
     )
 
     personal = solicitud.personal
@@ -358,12 +302,14 @@ def _asignar_equipo_desde_solicitud(request, solicitud, equipo):
         observaciones=f"Desde solicitud {solicitud.folio}",
     )
     _reconciliar_estado_equipo(equipo)
-    _sync_perifericos_con_padre(equipo, request=request)
+    ubicacion_anterior, ubicacion_nueva = _aplicar_asignacion_a_equipo(
+        equipo, personal, request=request
+    )
     _crear_movimiento(
         equipo,
         TipoMovimiento.CAMBIO_ASIGNACION if existente else TipoMovimiento.ASIGNACION,
-        origen=equipo.ubicacion,
-        destino=equipo.ubicacion,
+        origen=ubicacion_anterior,
+        destino=ubicacion_nueva,
         responsable=personal,
         observaciones=f"Solicitud {solicitud.folio}",
         request=request,
@@ -500,42 +446,14 @@ def solicitud_equipo_cancelar(request, pk):
 @operativo_required
 def seguimiento_solicitud_update(request, pk):
     seguimiento = get_object_or_404(
-        SeguimientoSolicitudEquipo.objects.select_related("solicitud", "usuario"),
+        SeguimientoSolicitudEquipo.objects.select_related("solicitud"),
         pk=pk,
     )
-    solicitud = seguimiento.solicitud
-    if request.method == "POST":
-        form = SeguimientoSolicitudEquipoForm(
-            request.POST,
-            instance=seguimiento,
-            solicitud=solicitud,
-            request_user=request.user,
-        )
-        if form.is_valid():
-            form.save()
-            historial.registrar_historial(
-                request=request,
-                modulo=ModuloHistorial.SOLICITUD_EQUIPO,
-                accion=AccionHistorial.ACTUALIZACION,
-                titulo=f"Revision IT actualizada en {solicitud.folio}",
-                objeto=seguimiento,
-                entidad_relacionada=solicitud,
-                enlace_nombre="solicitud_equipo_detail",
-                enlace_pk=solicitud.pk,
-            )
-            messages.success(request, "Revision IT actualizada.")
-            return redirect("solicitud_equipo_detail", pk=solicitud.pk)
-    else:
-        form = SeguimientoSolicitudEquipoForm(
-            instance=seguimiento,
-            solicitud=solicitud,
-            request_user=request.user,
-        )
-    return render(
+    messages.info(
         request,
-        "gobierno/seguimiento_solicitud_form.html",
-        {"form": form, "object": seguimiento, "solicitud": solicitud},
+        "La revision IT ya no se usa. Usa Decision en la solicitud.",
     )
+    return redirect("solicitud_equipo_detail", pk=seguimiento.solicitud_id)
 
 
 @admin_required
@@ -544,23 +462,8 @@ def seguimiento_solicitud_delete(request, pk):
         SeguimientoSolicitudEquipo.objects.select_related("solicitud"),
         pk=pk,
     )
-    solicitud = seguimiento.solicitud
-    if request.method == "POST":
-        historial.registrar_historial(
-            request=request,
-            modulo=ModuloHistorial.SOLICITUD_EQUIPO,
-            accion=AccionHistorial.ELIMINACION,
-            titulo=f"Revision IT eliminada en {solicitud.folio}",
-            objeto=seguimiento,
-            entidad_relacionada=solicitud,
-            enlace_nombre="solicitud_equipo_detail",
-            enlace_pk=solicitud.pk,
-        )
-        seguimiento.delete()
-        messages.success(request, "Revision IT eliminada.")
-        return redirect("solicitud_equipo_detail", pk=solicitud.pk)
-    return render(
+    messages.info(
         request,
-        "gobierno/seguimiento_solicitud_confirm_delete.html",
-        {"object": seguimiento, "solicitud": solicitud},
+        "La revision IT ya no se usa. Usa Decision en la solicitud.",
     )
+    return redirect("solicitud_equipo_detail", pk=seguimiento.solicitud_id)

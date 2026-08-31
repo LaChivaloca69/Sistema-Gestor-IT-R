@@ -67,12 +67,12 @@ class AreaForm(forms.ModelForm):
         model = Area
         fields = "__all__"
         labels = {
-            "nombre_area": "Nombre del área",
-            "descripcion_area": "Descripción del área",
+            "nombre_area": "Nombre del departamento",
+            "descripcion_area": "Descripcion",
         }
         help_texts = {
-            "nombre_area": "Nombre con el que se identifica el área.",
-            "descripcion_area": "Descripcion o cualquier detalle importante.",
+            "nombre_area": "Nombre con el que se identifica el departamento.",
+            "descripcion_area": "Detalle opcional.",
         }
         widgets = {
             "descripcion_area": forms.Textarea(attrs={"rows": 4}),
@@ -145,6 +145,10 @@ class PersonalForm(forms.ModelForm):
     class Meta:
         model = Personal
         exclude = ["user", "admin_requested"]
+        labels = {
+            "area": "Departamento",
+            "ubicacion": "Espacio fisico",
+        }
         widgets = {
             "fecha_ingreso": forms.DateInput(attrs={"type": "date"}),
         }
@@ -152,6 +156,16 @@ class PersonalForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         self.request_user = kwargs.pop("request_user", None)
         super().__init__(*args, **kwargs)
+        if "ubicacion" in self.fields:
+            self.fields["ubicacion"].required = False
+            self.fields["ubicacion"].empty_label = "Sin puesto fijo"
+            self.fields["ubicacion"].queryset = Ubicacion.objects.filter(
+                activo=True
+            ).select_related("edificio", "zona").order_by(
+                "edificio__nombre_edificio",
+                "zona__nombre_zona",
+                "referencia",
+            )
         User = get_user_model()
         qs = User.objects.filter(personal_profile__isnull=True)
         if self.instance and self.instance.pk and self.instance.user_id:

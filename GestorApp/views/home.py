@@ -211,6 +211,22 @@ def _calendar_label(value):
     return value if value else "Sin dato"
 
 
+def _calendar_short(value, max_len=34):
+    """Texto corto para chips del calendario (mes)."""
+    text = " ".join(str(value or "").split())
+    if not text:
+        return ""
+    if len(text) <= max_len:
+        return text
+    return text[: max_len - 1].rstrip() + "…"
+
+
+def _calendar_title(prefix, context, fallback="Sin dato"):
+    """Titulo intuitivo: Prefijo · contexto (folio queda en el modal)."""
+    body = _calendar_short(context) or _calendar_short(fallback) or "Sin dato"
+    return f"{prefix} · {body}"
+
+
 def _calendar_day(value):
     if not value:
         return timezone.localdate()
@@ -223,6 +239,24 @@ def _calendar_day(value):
 
 CALENDAR_PAST_DAYS = 30
 CALENDAR_FUTURE_DAYS = 90
+# Paleta por tipo (chips / eventos). Urgencia no reemplaza el color: solo borde CSS.
+CAL_COLOR_TICKET = "#ea580c"
+CAL_COLOR_TICKET_PROCESO = "#c2410c"
+CAL_COLOR_TICKET_REVISION = "#9a3412"
+CAL_COLOR_TICKET_CERRADO = "#78716c"
+CAL_COLOR_MANT = "#2563eb"
+CAL_COLOR_MANT_DONE = "#1e40af"
+CAL_COLOR_MANT_CANCEL = "#b91c1c"
+CAL_COLOR_CHECK = "#7c3aed"
+CAL_COLOR_CHECK_DONE = "#5b21b6"
+CAL_COLOR_CICLO = "#db2777"
+CAL_COLOR_MOV_ALTA = "#16a34a"
+CAL_COLOR_MOV_BAJA = "#b91c1c"
+CAL_COLOR_MOV_ASIGN = "#0d9488"
+CAL_COLOR_MOV_CAMBIO_ASIGN = "#0891b2"
+CAL_COLOR_MOV_MANT = "#ca8a04"
+CAL_COLOR_MOV_UBIC = "#64748b"
+# Compat: ya no se usan para rellenar el evento; la urgencia va por classNames + CSS.
 CALENDAR_COLOR_VENCIDO = "#dc2626"
 CALENDAR_COLOR_POR_VENCER = "#f59e0b"
 
@@ -268,10 +302,7 @@ def _ticket_calendar_urgency(ticket, now=None):
 
 
 def _calendar_apply_urgency_color(base_color, urgency):
-    if urgency == "vencido":
-        return CALENDAR_COLOR_VENCIDO
-    if urgency == "por_vencer":
-        return CALENDAR_COLOR_POR_VENCER
+    """Conserva el color de tipo; la urgencia se marca con cal-urgency-* en CSS."""
     return base_color
 
 
@@ -302,13 +333,14 @@ def _build_home_calendar_events(user=None):
 
     for ticket in tickets_qs:
         sla_deadline = _ticket_sla_deadline(ticket)
+        req = ticket.requerimiento
         if ticket.status != EstadoSupport.CERRADO and sla_deadline:
             event_date = _calendar_day(sla_deadline)
-            title = f"SLA {ticket.folio_ticket}"
+            title = _calendar_title("SLA", req, fallback=ticket.folio_ticket)
             case_type_label = "Límite SLA"
         else:
             event_date = _calendar_day(ticket.fecha_support)
-            title = f"Ticket {ticket.folio_ticket}"
+            title = _calendar_title("Ticket", req, fallback=ticket.folio_ticket)
             case_type_label = "Ticket de soporte"
 
         if event_date < window_start or event_date > window_end:
@@ -316,11 +348,11 @@ def _build_home_calendar_events(user=None):
 
         urgency, urgency_label = _ticket_calendar_urgency(ticket, now=now)
         base_color = {
-            EstadoSupport.CERRADO: "#0f766e",
-            EstadoSupport.EN_PROCESO: "#1d4ed8",
-            EstadoSupport.EN_REVISION: "#7c3aed",
-            EstadoSupport.ABIERTO: "#f59e0b",
-        }.get(ticket.status, "#475569")
+            EstadoSupport.CERRADO: CAL_COLOR_TICKET_CERRADO,
+            EstadoSupport.EN_PROCESO: CAL_COLOR_TICKET_PROCESO,
+            EstadoSupport.EN_REVISION: CAL_COLOR_TICKET_REVISION,
+            EstadoSupport.ABIERTO: CAL_COLOR_TICKET,
+        }.get(ticket.status, CAL_COLOR_TICKET)
         color = _calendar_apply_urgency_color(base_color, urgency)
 
         if staff_user:
@@ -329,6 +361,7 @@ def _build_home_calendar_events(user=None):
             mine = True
 
         details = [
+            {"label": "Folio", "value": _calendar_label(ticket.folio_ticket)},
             {"label": "Estado", "value": _calendar_label(ticket.status)},
             {"label": "Prioridad", "value": _calendar_label(ticket.prioridad)},
             {
@@ -401,17 +434,22 @@ def _build_home_calendar_events(user=None):
 
     for movimiento in movimientos_qs:
         color = {
-            TipoMovimiento.DADA_DE_ALTA: "#16a34a",
-            TipoMovimiento.DADA_DE_BAJA: "#b42318",
-            TipoMovimiento.ASIGNACION: "#1d4ed8",
-            TipoMovimiento.CAMBIO_ASIGNACION: "#7c3aed",
-            TipoMovimiento.MANTENIMIENTO: "#f59e0b",
-            TipoMovimiento.CAMBIO_UBICACION: "#0f766e",
-        }.get(movimiento.tipo_movimiento, "#475569")
+            TipoMovimiento.DADA_DE_ALTA: CAL_COLOR_MOV_ALTA,
+            TipoMovimiento.DADA_DE_BAJA: CAL_COLOR_MOV_BAJA,
+            TipoMovimiento.ASIGNACION: CAL_COLOR_MOV_ASIGN,
+            TipoMovimiento.CAMBIO_ASIGNACION: CAL_COLOR_MOV_CAMBIO_ASIGN,
+            TipoMovimiento.MANTENIMIENTO: CAL_COLOR_MOV_MANT,
+            TipoMovimiento.CAMBIO_UBICACION: CAL_COLOR_MOV_UBIC,
+        }.get(movimiento.tipo_movimiento, CAL_COLOR_MOV_ASIGN)
         mine = bool(my_personal_id and movimiento.responsable_id == my_personal_id)
+        codigo = getattr(getattr(movimiento, "equipo", None), "codigo_inventario", None)
         events.append(
             _calendar_event(
-                f"Movimiento {movimiento.equipo.codigo_inventario if getattr(movimiento, 'equipo', None) else 'de equipo'}",
+                _calendar_title(
+                    movimiento.tipo_movimiento or "Movimiento",
+                    codigo,
+                    fallback="equipo",
+                ),
                 _calendar_day(movimiento.fecha_movimiento),
                 color=color,
                 details=[
@@ -454,11 +492,11 @@ def _build_home_calendar_events(user=None):
         .order_by("-fecha_programada")
     )
     for mantenimiento in mantenimientos_qs:
-        base_color = "#1d4ed8"
+        base_color = CAL_COLOR_MANT
         if mantenimiento.estado_mantenimiento == EstadoMantenimiento.COMPLETADO:
-            base_color = "#0f766e"
+            base_color = CAL_COLOR_MANT_DONE
         elif mantenimiento.estado_mantenimiento == EstadoMantenimiento.CANCELADO:
-            base_color = "#b42318"
+            base_color = CAL_COLOR_MANT_CANCEL
 
         activo = mantenimiento.estado_mantenimiento in {
             EstadoMantenimiento.PROGRAMADO,
@@ -472,14 +510,14 @@ def _build_home_calendar_events(user=None):
         )
         color = _calendar_apply_urgency_color(base_color, urgency)
         mine = _mantenimiento_is_mine(mantenimiento, user_labels)
+        codigo = getattr(mantenimiento.equipo, "codigo_inventario", None)
         details = [
+            {"label": "Folio", "value": mantenimiento.folio_mantenimiento()},
             {"label": "Estado", "value": _calendar_label(mantenimiento.estado_mantenimiento)},
             {"label": "Tipo", "value": _calendar_label(mantenimiento.tipo_mantenimiento)},
             {
                 "label": "Equipo",
-                "value": _calendar_label(
-                    getattr(mantenimiento.equipo, "codigo_inventario", None)
-                ),
+                "value": _calendar_label(codigo),
             },
             {"label": "Responsable", "value": _calendar_label(mantenimiento.tecnico_responsable)},
             {"label": "Costo", "value": _calendar_label(mantenimiento.costo_mantenimiento)},
@@ -488,7 +526,11 @@ def _build_home_calendar_events(user=None):
             details.insert(0, {"label": "Aviso", "value": urgency_label})
         events.append(
             _calendar_event(
-                f"Mantenimiento {mantenimiento.folio_mantenimiento()}",
+                _calendar_title(
+                    mantenimiento.tipo_mantenimiento or "Mantenimiento",
+                    codigo,
+                    fallback=mantenimiento.folio_mantenimiento(),
+                ),
                 mantenimiento.fecha_programada,
                 color=color,
                 details=details,
@@ -519,15 +561,15 @@ def _build_home_calendar_events(user=None):
             alerta_dias=MANTENIMIENTO_ALERTA_DIAS,
             active=True,
         )
-        color = _calendar_apply_urgency_color("#7c3aed", urgency)
+        color = _calendar_apply_urgency_color(CAL_COLOR_CICLO, urgency)
         mine = _mantenimiento_is_mine(agenda.mantenimiento, user_labels)
+        codigo = getattr(agenda.mantenimiento.equipo, "codigo_inventario", None)
+        folio = agenda.mantenimiento.folio_mantenimiento()
         details = [
-            {"label": "Mantenimiento", "value": agenda.mantenimiento.folio_mantenimiento()},
+            {"label": "Folio", "value": folio},
             {
                 "label": "Equipo",
-                "value": _calendar_label(
-                    getattr(agenda.mantenimiento.equipo, "codigo_inventario", None)
-                ),
+                "value": _calendar_label(codigo),
             },
             {
                 "label": "Inicio",
@@ -552,13 +594,13 @@ def _build_home_calendar_events(user=None):
             details.insert(0, {"label": "Aviso", "value": urgency_label})
         events.append(
             _calendar_event(
-                f"Ciclo {agenda.mantenimiento.folio_mantenimiento()}",
+                _calendar_title("Ciclo", codigo, fallback=folio),
                 agenda.proxima_fecha_mantenimiento,
                 color=color,
                 details=details,
                 case_type="ciclo",
                 case_type_label="Proximo ciclo",
-                case_label=agenda.mantenimiento.folio_mantenimiento(),
+                case_label=folio,
                 action_url=reverse("mantenimiento_detail", args=[agenda.mantenimiento_id]),
                 action_text="Abrir mantenimiento",
                 urgency=urgency,
@@ -584,19 +626,21 @@ def _build_home_calendar_events(user=None):
     )
     for seguimiento in checks_qs:
         # Preferir la fecha operativa del próximo check.
+        ticket = seguimiento.ticket
+        req = getattr(ticket, "requerimiento", None)
+        folio = seguimiento.folio_check or getattr(ticket, "folio_ticket", None)
         if seguimiento.fecha_proximo_seguimiento:
             event_date = seguimiento.fecha_proximo_seguimiento
-            title = f"Check {seguimiento.folio_check or seguimiento.ticket.folio_ticket}"
             case_type_label = "Proximo check"
         else:
             event_date = _calendar_day(seguimiento.fecha_check)
-            title = f"Check {seguimiento.folio_check or seguimiento.ticket.folio_ticket}"
             case_type_label = "Check"
+        title = _calendar_title("Check", req, fallback=folio)
 
         activo = (
             not seguimiento.ya_terminado
             and seguimiento.fecha_proximo_seguimiento is not None
-            and getattr(seguimiento.ticket, "status", None) != EstadoSupport.CERRADO
+            and getattr(ticket, "status", None) != EstadoSupport.CERRADO
         )
         urgency, urgency_label = _calendar_urgency_from_date(
             seguimiento.fecha_proximo_seguimiento,
@@ -604,16 +648,21 @@ def _build_home_calendar_events(user=None):
             alerta_dias=SEGUIMIENTO_ALERTA_DIAS,
             active=activo,
         )
-        base_color = "#0f766e" if seguimiento.ya_terminado else "#7c3aed"
+        base_color = CAL_COLOR_CHECK_DONE if seguimiento.ya_terminado else CAL_COLOR_CHECK
         color = _calendar_apply_urgency_color(base_color, urgency)
         mine = bool(
             (seguimiento.usuario_id and user and seguimiento.usuario_id == user.id)
-            or _ticket_is_assigned_to_user(seguimiento.ticket, user, covered_ids)
+            or _ticket_is_assigned_to_user(ticket, user, covered_ids)
         )
         details = [
+            {"label": "Folio", "value": _calendar_label(folio)},
             {
                 "label": "Ticket",
-                "value": _calendar_label(getattr(seguimiento.ticket, "folio_ticket", None)),
+                "value": _calendar_label(getattr(ticket, "folio_ticket", None)),
+            },
+            {
+                "label": "Requerimiento",
+                "value": _calendar_label(req),
             },
             {
                 "label": "Estado",
@@ -648,7 +697,7 @@ def _build_home_calendar_events(user=None):
                 details=details,
                 case_type="seguimiento_ticket",
                 case_type_label=case_type_label,
-                case_label=seguimiento.folio_check or seguimiento.ticket.folio_ticket,
+                case_label=folio or "Check",
                 action_url=reverse("ticketit_detail", args=[seguimiento.ticket_id]),
                 action_text="Abrir ticket",
                 urgency=urgency,

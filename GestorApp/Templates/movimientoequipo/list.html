@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 
-{% block title %}Auditoria{% endblock %}
+{% block title %}Historial de actividad{% endblock %}
 
 {% block content %}
-{% include "partials/page_header_open.html" with title="Auditoria de actividad" description="Caja negra filtrable: quien hizo que, en que modulo y cuando." %}
+{% include "partials/page_header_open.html" with title="Historial de actividad" description="Caja negra filtrable: quien hizo que, en que modulo y cuando." %}
 	<a class="btn btn-outline-secondary" href="{% url 'movimientoequipo_registros' %}">Movimientos de equipo</a>
 	{% if is_admin_role %}
-	<a class="btn btn-outline-secondary" href="{% url 'historial_retencion_admin' %}">Retencion</a>
+	<a class="btn btn-outline-secondary" href="{% url 'historial_retencion_admin' %}">Archivar historial</a>
 	{% endif %}
 {% include "partials/page_header_close.html" %}
 

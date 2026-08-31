@@ -1,6 +1,4 @@
 # Dependencias necesarias para Sistema Gestor IT.
-# Generado limpio: sin ML, Sphinx, Redis ni paquetes no usados por el codigo.
-
 # --- Nucleo Django ---
 Django==6.0.7
 asgiref==3.12.1
@@ -14,7 +12,7 @@ django-bootstrap5==26.2
 # --- Base de datos ---
 psycopg2-binary==2.9.12
 
-# --- Jobs en background (cola ORM en PostgreSQL; no requiere Redis) ---
+# --- Jobs en background ---
 django-q2==1.10.0
 django-picklefield==3.4.0
 

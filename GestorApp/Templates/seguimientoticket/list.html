@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 
-{% block title %}Seguimiento{% endblock %}
+{% block title %}Checks{% endblock %}
 
 {% block content %}
-{% include "partials/page_header_open.html" with title="Seguimiento de tickets" description="Checks, avances y avisos de proximo seguimiento." %}
+{% include "partials/page_header_open.html" with title="Checks de tickets" description="Avances, pendientes y avisos de proximo check." %}
 	<a class="btn btn-primary" href="{% url 'seguimientoticket_create' %}">Nuevo seguimiento</a>
 {% include "partials/page_header_close.html" %}
 
@@ -159,7 +159,7 @@
 			<tr>
 				<td colspan="9" class="text-center py-4">
 					{% url 'seguimientoticket_create' as empty_action_url %}
-					{% include "partials/empty_state.html" with title="Sin seguimientos" description="Registra el primer check de ticket." action_url=empty_action_url action_label="Nuevo seguimiento" icon="bi-list-check" compact=1 %}
+					{% include "partials/empty_state.html" with title="Sin checks" description="Registra el primer check de ticket." action_url=empty_action_url action_label="Nuevo check" icon="bi-list-check" compact=1 %}
 				</td>
 			</tr>
 			{% endfor %}
@@ -168,7 +168,7 @@
 </div>
 
 {% if page_obj.paginator.num_pages > 1 %}
-<nav class="list-pagination" aria-label="Paginacion de seguimientos">
+<nav class="list-pagination" aria-label="Paginacion de checks">
 	<div class="text-muted small">
 		Pagina {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
 		· {{ page_obj.paginator.count }} registros

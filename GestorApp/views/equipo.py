@@ -10,7 +10,7 @@ from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Count, Q, Sum, Max, F
+from django.db.models import Count, Exists, F, Max, OuterRef, Q, Sum
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -87,6 +87,7 @@ from ..models import (
 )
 from .helpers import (
     _apply_date_filters,
+    _aplicar_asignacion_a_equipo,
     _cerrar_asignaciones_activas,
     _crear_movimiento,
     _deny_ticket_access,
@@ -94,6 +95,8 @@ from .helpers import (
     _end_of_month,
     _get_equipo_asignacion_activa,
     _get_equipo_responsable,
+    _get_espacio_stock_default,
+    _liberar_equipo_tras_devolucion,
     _month_bounds,
     _ordenes_for_user,
     _parse_date,
@@ -129,6 +132,7 @@ def _equipo_queryset():
     return Equipo.objects.select_related(
         "categoria",
         "proveedor",
+        "area",
         "ubicacion",
         "ubicacion__edificio",
         "ubicacion__zona",
@@ -140,11 +144,17 @@ def _equipo_queryset():
 
 
 def _equipos_sin_ubicacion_qs(tipo=None):
+    asignacion_sin_puesto_fijo = AsignacionEquipo.objects.filter(
+        equipo=OuterRef("pk"),
+        estado_asignacion=EstadoAsignacion.ACTIVA,
+        personal__ubicacion__isnull=True,
+    )
     qs = (
         _equipo_queryset()
         .filter(ubicacion__isnull=True)
         .exclude(estado_equipo=EstadoEquipo.BAJA)
         .filter(activo=True)
+        .exclude(Exists(asignacion_sin_puesto_fijo))
     )
     if tipo:
         qs = qs.filter(categoria__tipo=tipo)
@@ -316,7 +326,7 @@ def _filtrar_equipos(request, tipo=None):
     elif selected_activo == "false":
         items = items.filter(activo=False)
     if selected_sin_ubicacion == "1":
-        items = items.filter(ubicacion__isnull=True)
+        items = _equipos_sin_ubicacion_qs(tipo=tipo)
     if selected_origen:
         items = items.filter(origen_alta=selected_origen)
     if selected_sin_oc == "1":
@@ -638,6 +648,9 @@ def equipo_create(request, tipo=None):
                 initial["descripcion_equipo"] = (detalle.descripcion or "")[:255]
         else:
             initial = {"origen_alta": OrigenAltaEquipo.LEGADO}
+        stock = _get_espacio_stock_default()
+        if stock:
+            initial["ubicacion"] = stock
         form = EquipoForm(initial=initial, tipo=tipo)
 
     return render(
@@ -856,12 +869,14 @@ def equipo_devolver(request, pk):
     asignacion.fecha_devolucion = timezone.now()
     asignacion.save(update_fields=["estado_asignacion", "fecha_devolucion"])
     _reconciliar_estado_equipo(equipo)
-    _sync_perifericos_con_padre(equipo, request=request)
+    ubicacion_anterior, ubicacion_nueva = _liberar_equipo_tras_devolucion(
+        equipo, request=request
+    )
     _crear_movimiento(
         equipo,
         TipoMovimiento.CAMBIO_ASIGNACION,
-        origen=equipo.ubicacion,
-        destino=equipo.ubicacion,
+        origen=ubicacion_anterior,
+        destino=ubicacion_nueva,
         responsable=personal,
         observaciones=f"Devolucion de {personal}.",
         request=request,
@@ -908,12 +923,14 @@ def equipo_asignar(request, pk):
                 observaciones=observaciones or None,
             )
             _reconciliar_estado_equipo(equipo)
-            _sync_perifericos_con_padre(equipo, request=request)
+            ubicacion_anterior, ubicacion_nueva = _aplicar_asignacion_a_equipo(
+                equipo, personal, request=request
+            )
             _crear_movimiento(
                 equipo,
                 TipoMovimiento.CAMBIO_ASIGNACION if existente else TipoMovimiento.ASIGNACION,
-                origen=equipo.ubicacion,
-                destino=equipo.ubicacion,
+                origen=ubicacion_anterior,
+                destino=ubicacion_nueva,
                 responsable=personal,
                 observaciones=observaciones or None,
                 request=request,
@@ -933,10 +950,24 @@ def equipo_asignar(request, pk):
     else:
         form = EquipoAsignarForm()
 
+    personal_resumen = list(
+        Personal.objects.filter(activo=True)
+        .select_related("area", "ubicacion", "ubicacion__edificio", "ubicacion__zona")
+        .order_by("nombre", "apellido_paterno")
+        .values(
+            "id",
+            "area__nombre_area",
+            "ubicacion__referencia",
+            "ubicacion__pasillo",
+            "ubicacion__edificio__nombre_edificio",
+            "ubicacion__zona__nombre_zona",
+        )
+    )
+
     return render(
         request,
         "equipo/asignar.html",
-        {"object": equipo, "form": form},
+        {"object": equipo, "form": form, "personal_resumen": personal_resumen},
     )
 
 

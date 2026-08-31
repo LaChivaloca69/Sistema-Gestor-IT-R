@@ -15,7 +15,6 @@ from GestorApp.models import (
     HistorialActividad,
     ModuloHistorial,
     Personal,
-    SeguimientoSolicitudEquipo,
     SeguimientoTicket,
     SolicitudEquipo,
     TicketIT,
@@ -377,64 +376,52 @@ class SolicitudEquipoSeguimientoTests(TestCase):
             justificacion="El equipo actual ya no enciende.",
         )
 
-    def test_solicitante_sees_followups_but_cannot_add(self):
-        SeguimientoSolicitudEquipo.objects.create(
-            solicitud=self.solicitud,
-            usuario=self.tech,
-            avance_realizado="Se reviso inventario.",
-        )
+    def test_solicitante_sees_detail_but_cannot_decide(self):
         self.client.login(username="sol_user", password=self.password)
         response = self.client.get(
             reverse("solicitud_equipo_detail", args=[self.solicitud.pk])
         )
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Se reviso inventario.")
-        self.assertContains(response, "Revision IT")
-        self.assertNotContains(response, "Guardar revision")
+        self.assertContains(response, "Decision")
+        self.assertNotContains(response, "Guardar decision")
         self.assertNotContains(response, "Cerrar solicitud")
+        self.assertNotContains(response, "Revision IT")
 
         response = self.client.post(
             reverse("solicitud_equipo_detail", args=[self.solicitud.pk]),
             {
-                "form_type": "revision",
-                "avance_realizado": "Intento del solicitante",
+                "form_type": "decision",
+                "estado": EstadoSolicitudEquipo.APROBADA,
             },
         )
         self.assertEqual(response.status_code, 200)
-        self.assertFalse(
-            SeguimientoSolicitudEquipo.objects.filter(
-                avance_realizado="Intento del solicitante"
-            ).exists()
-        )
+        self.solicitud.refresh_from_db()
+        self.assertEqual(self.solicitud.estado, EstadoSolicitudEquipo.PENDIENTE)
 
-    def test_tecnico_can_add_seguimiento_and_moves_to_en_revision(self):
+    def test_tecnico_can_mark_en_revision(self):
         self.assertEqual(self.solicitud.estado, EstadoSolicitudEquipo.PENDIENTE)
         self.client.login(username="sol_tech", password=self.password)
         response = self.client.get(
             reverse("solicitud_equipo_detail", args=[self.solicitud.pk])
         )
-        self.assertContains(response, "Guardar revision")
+        self.assertContains(response, "Guardar decision")
         self.assertContains(response, "Cerrar solicitud")
-        self.assertContains(response, "Revision IT")
+        self.assertContains(response, "Decision")
+        self.assertNotContains(response, "Revision IT")
         self.assertNotContains(response, "Agregar seguimiento")
-        self.assertNotContains(response, "Completar (asignado)")
 
         response = self.client.post(
             reverse("solicitud_equipo_detail", args=[self.solicitud.pk]),
             {
-                "form_type": "revision",
-                "avance_realizado": "Buscando equipo compatible",
-                "usuario": str(self.tech.pk),
+                "form_type": "decision",
+                "estado": EstadoSolicitudEquipo.EN_REVISION,
+                "notas_it": "Buscando equipo compatible",
             },
         )
         self.assertEqual(response.status_code, 302)
         self.solicitud.refresh_from_db()
         self.assertEqual(self.solicitud.estado, EstadoSolicitudEquipo.EN_REVISION)
-        self.assertTrue(
-            self.solicitud.seguimientos.filter(
-                avance_realizado="Buscando equipo compatible"
-            ).exists()
-        )
+        self.assertEqual(self.solicitud.notas_it, "Buscando equipo compatible")
 
     def test_admin_can_close_solicitud(self):
         self.client.login(username="sol_admin", password=self.password)
@@ -446,25 +433,20 @@ class SolicitudEquipoSeguimientoTests(TestCase):
         self.solicitud.refresh_from_db()
         self.assertEqual(self.solicitud.estado, EstadoSolicitudEquipo.COMPLETADA)
 
-    def test_tecnico_unified_revision_can_add_avance_and_close(self):
+    def test_tecnico_can_close_from_detail(self):
         self.client.login(username="sol_tech", password=self.password)
         response = self.client.post(
             reverse("solicitud_equipo_detail", args=[self.solicitud.pk]),
             {
-                "form_type": "revision",
-                "avance_realizado": "Equipo entregado",
-                "usuario": str(self.tech.pk),
+                "form_type": "decision",
                 "estado": EstadoSolicitudEquipo.COMPLETADA,
+                "notas_it": "Equipo entregado",
             },
         )
         self.assertEqual(response.status_code, 302)
         self.solicitud.refresh_from_db()
         self.assertEqual(self.solicitud.estado, EstadoSolicitudEquipo.COMPLETADA)
-        self.assertTrue(
-            self.solicitud.seguimientos.filter(
-                avance_realizado="Equipo entregado"
-            ).exists()
-        )
+        self.assertEqual(self.solicitud.notas_it, "Equipo entregado")
 
 
 class BitacoraAnswerFlowTests(TestCase):

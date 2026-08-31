@@ -33,10 +33,12 @@
 	</div>
 	<div class="col-md-6">
 		<dl class="row mb-0">
-			<dt class="col-sm-4">Area</dt>
+			<dt class="col-sm-4">Departamento</dt>
 			<dd class="col-sm-8">{{ object.area|default:"—" }}</dd>
 			<dt class="col-sm-4">Puesto</dt>
 			<dd class="col-sm-8">{{ object.puesto|default:"—" }}</dd>
+			<dt class="col-sm-4">Espacio fisico</dt>
+			<dd class="col-sm-8">{{ object.ubicacion|default:"Sin puesto fijo" }}</dd>
 			<dt class="col-sm-4">Activo</dt>
 			<dd class="col-sm-8">{% if object.activo %}Si{% else %}No{% endif %}</dd>
 			<dt class="col-sm-4">Fecha ingreso</dt>

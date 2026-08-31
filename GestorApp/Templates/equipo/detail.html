@@ -7,7 +7,7 @@
 	<a class="btn btn-outline-secondary" href="{% url inv.list_url %}">Volver</a>
 	<a class="btn btn-outline-primary" href="{% url 'equipo_update' object.pk %}">Editar</a>
 	{% if object.puede_cambiar_ubicacion %}
-	<a class="btn btn-outline-secondary" href="{% url 'equipo_cambiar_ubicacion' object.pk %}">Ubicacion</a>
+	<a class="btn btn-outline-secondary" href="{% url 'equipo_cambiar_ubicacion' object.pk %}">Espacio fisico</a>
 	{% endif %}
 	{% if mostrar_kit and object.puede_vincular_perifericos %}
 	<a class="btn btn-outline-primary" href="{% url 'equipo_vincular_periferico' object.pk %}">Vincular periferico</a>
@@ -90,7 +90,11 @@
 				</strong>
 			</div>
 			<div>
-				<span class="ticket-meta__label">Ubicacion</span>
+				<span class="ticket-meta__label">Departamento</span>
+				<strong>{{ object.area|default:"-" }}</strong>
+			</div>
+			<div>
+				<span class="ticket-meta__label">Espacio fisico</span>
 				<strong>{{ object.ubicacion|default:"-" }}</strong>
 			</div>
 			{% if object.es_equipo_principal %}

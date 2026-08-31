@@ -86,7 +86,7 @@ def _compute_nav_badges(user):
                 "count": eq_count,
                 "tone": "warn",
                 "title": (
-                    f"{eq['equipos_sin_ubicacion_count']} sin ubic. · "
+                    f"{eq['equipos_sin_ubicacion_count']} sin espacio · "
                     f"{eq['equipos_mant_largo_count']} mant. largo · "
                     f"{eq['asignaciones_antiguas_count']} asig. antiguas"
                 ),
@@ -150,7 +150,7 @@ def build_nav_notifications(user, badges=None):
                 {
                     "id": "tickets-sin-check",
                     "tone": "warn",
-                    "label": f"{tickets['sin_check']} ticket(s) sin seguimiento",
+                    "label": f"{tickets['sin_check']} ticket(s) sin check",
                     "url": _safe_reverse("ticketit_list", "sin_seguimiento=1"),
                     "icon": "bi-ticket-perforated",
                 }
@@ -162,7 +162,7 @@ def build_nav_notifications(user, badges=None):
             {
                 "id": "seguimiento",
                 "tone": seg["tone"],
-                "label": f"{seg['count']} seguimiento(s) por atender",
+                "label": f"{seg['count']} check(s) por atender",
                 "url": _safe_reverse("seguimientoticket_list", "alerta=atencion"),
                 "icon": "bi-check2-square",
             }

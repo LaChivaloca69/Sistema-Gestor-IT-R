@@ -98,7 +98,7 @@ class EquipoForm(forms.ModelForm):
             "orden_compra": "Orden de compra",
             "detalle_orden": "Producto de la orden",
             "estado_equipo": "Estado",
-            "ubicacion": "Ubicación",
+            "ubicacion": "Espacio fisico",
             "fecha_alta": "Fecha de alta",
             "activo": "Activo",
             "imagen": "Imagen",
@@ -121,7 +121,7 @@ class EquipoForm(forms.ModelForm):
                 "Disponible/Asignado se sincronizan con la asignacion activa. "
                 "Usa En Mantenimiento/Baja con cuidado."
             ),
-            "ubicacion": "Ubicación física.",
+            "ubicacion": "Almacen o lugar fisico del equipo.",
             "fecha_alta": "Fecha en que se dio de alta.",
         }
         widgets = {
@@ -208,6 +208,16 @@ class EquipoForm(forms.ModelForm):
             )
         else:
             self.fields["detalle_orden"].queryset = DetalleOrdenCompra.objects.none()
+
+        if "ubicacion" in self.fields:
+            self.fields["ubicacion"].empty_label = "Sin espacio fisico"
+            self.fields["ubicacion"].queryset = Ubicacion.objects.filter(
+                activo=True
+            ).select_related("edificio", "zona").order_by(
+                "edificio__nombre_edificio",
+                "zona__nombre_zona",
+                "referencia",
+            )
 
     def clean(self):
         cleaned = super().clean()
@@ -301,8 +311,8 @@ class EquipoUbicacionForm(forms.Form):
     ubicacion = forms.ModelChoiceField(
         queryset=Ubicacion.objects.none(),
         required=False,
-        label="Nueva ubicacion",
-        empty_label="Sin ubicacion",
+        label="Espacio fisico",
+        empty_label="Sin espacio fisico",
     )
     observaciones = forms.CharField(
         required=False,

@@ -4,7 +4,7 @@
 
 {% block content %}
 {% include "partials/page_header_open.html" with title="Eliminar edificio" description="Si hay ubicaciones vinculadas, desactiva en lugar de borrar." %}
-	<a class="btn btn-outline-secondary" href="{% url 'edificio_list' %}">Volver</a>
+	<a class="btn btn-outline-secondary" href="{% url 'mapa_sedes' %}">Volver</a>
 {% include "partials/page_header_close.html" %}
 
 <div class="card border-danger-subtle shadow-sm mx-auto" style="max-width: 640px;">
@@ -43,7 +43,7 @@
 		{% endif %}
 
 		<div class="d-flex justify-content-end gap-2 flex-wrap">
-			<a class="btn btn-outline-secondary" href="{% url 'edificio_list' %}">Cancelar</a>
+			<a class="btn btn-outline-secondary" href="{% url 'mapa_sedes' %}">Cancelar</a>
 			{% if object.activo %}
 			<form method="post" class="d-inline">
 				{% csrf_token %}

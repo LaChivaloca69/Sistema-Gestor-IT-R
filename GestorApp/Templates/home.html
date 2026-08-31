@@ -31,7 +31,7 @@
 	<a class="kpi-card {% if dashboard_counts.equipos_atencion %}kpi-card--alert{% endif %}" href="{% url 'equipo_dashboard' %}">
 		<span class="kpi-card__label">Inventario por atender</span>
 		<strong class="kpi-card__value">{{ dashboard_counts.equipos_atencion }}</strong>
-		<small>{{ dashboard_counts.equipos_sin_ubicacion }} sin ubic. · {{ dashboard_counts.asignaciones_antiguas }} asig. viejas</small>
+		<small>{{ dashboard_counts.equipos_sin_ubicacion }} sin espacio · {{ dashboard_counts.asignaciones_antiguas }} asig. viejas</small>
 	</a>
 	<a class="kpi-card {% if dashboard_counts.mantenimientos_atencion %}kpi-card--alert{% endif %}" href="{% url 'mantenimiento_list' %}?alerta=atencion">
 		<span class="kpi-card__label">Mantenimientos por atender</span>
@@ -95,7 +95,7 @@
 				{% include "partials/info_hint_close.html" %}
 			</h2>
 			{% if is_admin_dashboard and calendar_coberturas_hoy %}
-			<p class="calendar-coberturas">Coberturas hoy: {{ calendar_coberturas_hoy }} (en Mis asignados)</p>
+			<p class="calendar-coberturas">Cobertura de tickets hoy: {{ calendar_coberturas_hoy }} (en Mis asignados)</p>
 			{% endif %}
 		</div>
 		<div class="calendar-legend">
@@ -112,7 +112,7 @@
 			<button type="button" class="calendar-chip calendar-chip--checks" data-calendar-filter="seguimiento_ticket" aria-pressed="false">Checks{% if calendar_counts.seguimiento_ticket %} ({{ calendar_counts.seguimiento_ticket }}){% endif %}</button>
 			{% if is_admin_dashboard %}
 			<button type="button" class="calendar-chip calendar-chip--ciclo" data-calendar-filter="ciclo" aria-pressed="false">Proximos ciclos{% if calendar_counts.ciclo %} ({{ calendar_counts.ciclo }}){% endif %}</button>
-			<button type="button" class="calendar-chip calendar-chip--movimiento" data-calendar-filter="movimiento" aria-pressed="false">Movimientos{% if calendar_counts.movimiento %} ({{ calendar_counts.movimiento }}){% endif %}</button>
+			<button type="button" class="calendar-chip calendar-chip--movimiento" data-calendar-filter="movimiento" aria-pressed="false">Movimientos de equipo{% if calendar_counts.movimiento %} ({{ calendar_counts.movimiento }}){% endif %}</button>
 			{% endif %}
 			<button type="button" class="calendar-chip calendar-chip--clear" data-calendar-filter-clear disabled>Limpiar tipo</button>
 			<ul class="calendar-urgency-legend" aria-label="Leyenda de urgencia">
@@ -187,7 +187,7 @@
 		<div class="section-block__header">
 			<div>
 				<h2>
-					Seguimientos por atender
+					Checks por atender
 					{% include "partials/info_hint_open.html" %}Vencidos y proximos {{ seguimientos_alerta_dias }} dias.{% include "partials/info_hint_close.html" %}
 				</h2>
 			</div>
@@ -272,7 +272,7 @@
 		<section class="section-block">
 			<div class="section-block__header">
 				<div>
-					<h2>Inventario por atender {% include "partials/info_hint.html" with text="Sin ubicacion, mantenimiento prolongado y asignaciones antiguas." %}</h2>
+					<h2>Inventario por atender {% include "partials/info_hint.html" with text="Sin espacio fisico, mantenimiento prolongado y asignaciones antiguas." %}</h2>
 				</div>
 				<a class="btn btn-outline-secondary btn-sm" href="{% url 'equipo_dashboard' %}">Dashboard</a>
 			</div>
@@ -290,7 +290,7 @@
 						<tr class="table-row-click" data-href="{% url 'equipo_cambiar_ubicacion' item.pk %}">
 							<td><strong>{{ item.codigo_inventario }}</strong></td>
 							<td>{{ item.marca }} {{ item.modelo }}</td>
-							<td><span class="status-badge status-badge--advertencia">Sin ubicacion</span></td>
+							<td><span class="status-badge status-badge--advertencia">Sin espacio fisico</span></td>
 						</tr>
 						{% endfor %}
 						{% for item in equipos_mant_largo %}
@@ -558,11 +558,11 @@
 		const extendedProps = event.extendedProps || {};
 		const details = Array.isArray(extendedProps.details) ? extendedProps.details : [];
 		const startLabel = event.start ? dateFormatter.format(event.start) : "Sin fecha";
-		const caseLabel = extendedProps.caseLabel ? `Caso ${extendedProps.caseLabel}` : "Caso";
+		const caseLabel = extendedProps.caseLabel ? `Folio ${extendedProps.caseLabel}` : "Detalle";
 		modalType.textContent = extendedProps.caseTypeLabel || extendedProps.caseType || "Caso";
 		modalTitle.textContent = event.title || caseLabel;
 		modalSubtitle.textContent = `${caseLabel} · ${startLabel}`;
-		modal.style.setProperty("--calendar-accent", event.backgroundColor || "#1d4ed8");
+		modal.style.setProperty("--calendar-accent", event.backgroundColor || "#2563eb");
 		if (modalUrgency) {
 			if (extendedProps.urgencyLabel) {
 				modalUrgency.hidden = false;

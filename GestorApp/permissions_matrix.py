@@ -31,11 +31,11 @@ PERMISSION_MATRIX = [
     ),
     (
         "Soporte",
-        "Seguimientos, bitacora y respuestas",
+        "Checks, bitacora y respuestas",
         False,
         True,
         True,
-        "Bitacora con detalle y respuestas como seguimientos. Solo IT.",
+        "Bitacora con detalle y respuestas como checks. Solo IT.",
     ),
     (
         "Soporte",
@@ -59,7 +59,7 @@ PERMISSION_MATRIX = [
         False,
         True,
         True,
-        "Alta, edicion, ubicacion y movimientos.",
+        "Alta, edicion, ubicacion y movimientos de equipo.",
     ),
     (
         "Inventario",
@@ -75,7 +75,7 @@ PERMISSION_MATRIX = [
         True,
         True,
         True,
-        "Flujo solicitud → revision IT. El solicitante solo consulta el hilo.",
+        "Flujo solicitud → decision IT. El solicitante solo consulta.",
     ),
     (
         "Inventario",
@@ -83,7 +83,7 @@ PERMISSION_MATRIX = [
         False,
         True,
         True,
-        "IT deja revisiones; aprueba, rechaza o cierra. Puede asignar equipo al cerrar.",
+        "IT decide: en revision, aprobar, rechazar o cerrar. Puede asignar equipo al aprobar/cerrar.",
     ),
     (
         "Operaciones",
@@ -119,7 +119,7 @@ PERMISSION_MATRIX = [
     ),
     (
         "Organizacion",
-        "Areas, puestos, personal, ubicaciones",
+        "Departamentos, puestos, personal, espacios",
         False,
         True,
         True,
@@ -134,15 +134,15 @@ PERMISSION_MATRIX = [
         "Admin gestiona cuentas y roles de negocio.",
     ),
     (
-        "Gobierno",
-        "Coberturas de tickets (delegacion)",
+        "Soporte",
+        "Cobertura de tickets (delegacion)",
         False,
         True,
         True,
         "Suplente atiende tickets del ausente en el periodo.",
     ),
     (
-        "Gobierno",
+        "Admin",
         "Matriz de permisos",
         False,
         False,
@@ -150,8 +150,8 @@ PERMISSION_MATRIX = [
         "Documentacion de quien puede que.",
     ),
     (
-        "Gobierno",
-        "Bajar roles / archivar historial",
+        "Admin",
+        "Quitar roles / archivar historial",
         False,
         False,
         True,

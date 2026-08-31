@@ -85,7 +85,7 @@ class TicketITForm(forms.ModelForm):
             "requerimiento": "Problema que presenta",
             "solicitado_por": "Solicitado por",
             "asignado_a": "Asignado a",
-            "area": "Área",
+            "area": "Departamento",
             "puesto": "Puesto",
             "tipo_ticket": "Tipo de ticket",
             "sub_tipo_ticket": "Subtipo de ticket",
@@ -99,7 +99,6 @@ class TicketITForm(forms.ModelForm):
         }
         help_texts = {
             "requerimiento": "Descripcion breve del problema.",
-            "area": "Indicar su localizacion.",
             "tipo_ticket": "Seleccione el tipo de ticket.",
             "sub_tipo_ticket": "Seleccione el subtipo de ticket.",
             "prioridad": "Seleccione la prioridad del ticket.",
@@ -191,7 +190,7 @@ class TicketITForm(forms.ModelForm):
 
         if not (self.instance and self.instance.pk) and self.request_personal:
             if "area" in self.fields:
-                self.fields["area"].help_text = "Favor de comprobar que el área sea correcta."
+                self.fields["area"].help_text = ""
             if "puesto" in self.fields:
                 self.fields["puesto"].help_text = "Favor de comprobar que el puesto sea correcto."
             if "tipo_equipo" in self.fields:

@@ -3,7 +3,7 @@ from datetime import date, datetime, timedelta
 
 from django.contrib import messages
 from django.core.exceptions import ValidationError
-from django.db.models import Count, Q
+from django.db.models import Count, Exists, OuterRef, Q
 from django.shortcuts import redirect
 from django.utils import timezone
 
@@ -19,6 +19,7 @@ from ..models import (
     ModuloHistorial,
     NivelHistorial,
     OrdenCompra,
+    Personal,
     PrioridadSupport,
     SLA_HORAS_POR_PRIORIDAD,
     TicketIT,
@@ -342,14 +343,103 @@ def _reconciliar_estado_equipo(equipo, save=True):
     return equipo
 
 
+def _get_espacio_stock_default():
+    """Espacio fisico marcado como almacén / stock por defecto."""
+    from ..models import Ubicacion
+
+    return (
+        Ubicacion.objects.select_related("edificio", "zona")
+        .filter(es_stock_default=True, activo=True)
+        .first()
+    )
+
+
+def _set_espacio_stock_default(ubicacion):
+    """Marca un espacio como stock por defecto (unico)."""
+    from ..models import Ubicacion
+
+    if not ubicacion:
+        return None
+    Ubicacion.objects.filter(es_stock_default=True).exclude(pk=ubicacion.pk).update(
+        es_stock_default=False
+    )
+    if not ubicacion.es_stock_default:
+        ubicacion.es_stock_default = True
+        ubicacion.save(update_fields=["es_stock_default"])
+    return ubicacion
+
+
+def _aplicar_asignacion_a_equipo(equipo, personal, request=None):
+    """Copia departamento y espacio fisico del custodio al equipo."""
+    if not equipo or not personal:
+        return None, None
+    personal = (
+        Personal.objects.select_related("area", "ubicacion")
+        .filter(pk=personal.pk)
+        .first()
+    )
+    if not personal:
+        return None, None
+
+    ubicacion_anterior = equipo.ubicacion
+    update_fields = []
+
+    if personal.area_id != equipo.area_id:
+        equipo.area_id = personal.area_id
+        update_fields.append("area")
+
+    if personal.ubicacion_id:
+        if equipo.ubicacion_id != personal.ubicacion_id:
+            equipo.ubicacion = personal.ubicacion
+            update_fields.append("ubicacion")
+    elif equipo.ubicacion_id is not None:
+        equipo.ubicacion = None
+        update_fields.append("ubicacion")
+
+    if update_fields:
+        equipo.save(update_fields=update_fields)
+        _sync_perifericos_con_padre(equipo, request=request)
+
+    return ubicacion_anterior, equipo.ubicacion
+
+
+def _liberar_equipo_tras_devolucion(equipo, request=None):
+    """Devuelve el equipo a stock: limpia departamento y mueve al almacén default."""
+    if not equipo:
+        return None, None
+
+    ubicacion_anterior = equipo.ubicacion
+    stock = _get_espacio_stock_default()
+    update_fields = []
+    if equipo.area_id is not None:
+        equipo.area = None
+        update_fields.append("area")
+    if stock:
+        if equipo.ubicacion_id != stock.pk:
+            equipo.ubicacion = stock
+            update_fields.append("ubicacion")
+    elif equipo.ubicacion_id is not None:
+        equipo.ubicacion = None
+        update_fields.append("ubicacion")
+
+    if update_fields:
+        equipo.save(update_fields=update_fields)
+        _sync_perifericos_con_padre(equipo, request=request)
+
+    return ubicacion_anterior, equipo.ubicacion
+
+
 def _sync_perifericos_con_padre(padre, request=None):
-    """Alinea ubicacion y estado de perifericos del kit con el equipo padre."""
+    """Alinea ubicacion, departamento y estado de perifericos del kit con el equipo padre."""
     if not padre or not getattr(padre, "es_equipo_principal", False):
         return 0
     updated = 0
     qs = padre.perifericos.filter(activo=True).exclude(estado_equipo=EstadoEquipo.BAJA)
     for periferico in qs.select_related("categoria"):
         fields = []
+        if getattr(periferico, "area_id", None) != padre.area_id:
+            periferico.area_id = padre.area_id
+            fields.append("area")
         if periferico.ubicacion_id != padre.ubicacion_id:
             periferico.ubicacion = padre.ubicacion
             fields.append("ubicacion")

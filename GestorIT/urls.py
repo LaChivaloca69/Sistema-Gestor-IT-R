@@ -56,6 +56,8 @@ urlpatterns = [
     path('Proveedores/update/<int:pk>/', views.operativo_required(views.proveedor_update), name='proveedor_update'),
     path('Proveedores/delete/<int:pk>/', views.admin_required(views.proveedor_delete), name='proveedor_delete'),
 
+    path('Espacios-fisicos/', views.operativo_required(views.mapa_sedes), name='mapa_sedes'),
+
     # ----------- Edificio Urls -------------
     path('Edificios/', views.operativo_required(views.edificio_list), name='edificio_list'),
     path('Edificios/create/', views.operativo_required(views.edificio_create), name='edificio_create'),

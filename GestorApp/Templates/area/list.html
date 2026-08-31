@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 
-{% block title %}Areas{% endblock %}
+{% block title %}Departamentos{% endblock %}
 
 {% block content %}
-{% include "partials/page_header_open.html" with title="Areas" description="Administracion de las areas del sistema." %}
-	<a class="btn btn-primary" href="{% url 'area_create' %}">Nueva area</a>
+{% include "partials/page_header_open.html" with title="Departamentos" description="Catalogo de areas organizativas." %}
+	<a class="btn btn-primary" href="{% url 'area_create' %}">Nuevo departamento</a>
 {% include "partials/page_header_close.html" %}
 
 <div class="table-responsive">
@@ -41,7 +41,7 @@
 			<tr>
 				<td colspan="5" class="text-center py-4">
 					{% url 'area_create' as empty_action_url %}
-					{% include "partials/empty_state.html" with title="Sin areas" description="Crea la primera area para organizar el personal." action_url=empty_action_url action_label="Nueva area" icon="bi-diagram-3" compact=1 %}
+					{% include "partials/empty_state.html" with title="Sin departamentos" description="Crea el primer departamento." action_url=empty_action_url action_label="Nuevo departamento" icon="bi-diagram-3" compact=1 %}
 				</td>
 			</tr>
 			{% endfor %}

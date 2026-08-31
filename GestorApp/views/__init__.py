@@ -12,6 +12,7 @@ from ..roles import admin_required, operativo_required
 
 from .helpers import (  # noqa: F401
     _apply_date_filters,
+    _aplicar_asignacion_a_equipo,
     _cerrar_asignaciones_activas,
     _crear_movimiento,
     _deny_ticket_access,
@@ -19,12 +20,15 @@ from .helpers import (  # noqa: F401
     _end_of_month,
     _get_equipo_asignacion_activa,
     _get_equipo_responsable,
+    _get_espacio_stock_default,
+    _liberar_equipo_tras_devolucion,
     _month_bounds,
     _ordenes_for_user,
     _parse_date,
     _quick_range_bounds,
     _reconciliar_estado_equipo,
     _reemplazar_periferico,
+    _set_espacio_stock_default,
     _sync_perifericos_con_padre,
     _ticket_dashboard_context,
     _ticket_has_seguimientos,

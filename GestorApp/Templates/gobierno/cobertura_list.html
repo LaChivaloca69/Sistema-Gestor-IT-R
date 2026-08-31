@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 
-{% block title %}Coberturas{% endblock %}
+{% block title %}Cobertura de tickets{% endblock %}
 
 {% block content %}
-{% include "partials/page_header_open.html" with title="Coberturas de tickets" description="Delegacion temporal: el suplente ve y atiende tickets asignados al ausente." %}
+{% include "partials/page_header_open.html" with title="Cobertura de tickets" description="Delegacion temporal: el suplente ve y atiende tickets asignados al ausente." %}
 	<a class="btn btn-primary" href="{% url 'cobertura_create' %}">Nueva cobertura</a>
 {% include "partials/page_header_close.html" %}
 

@@ -67,6 +67,14 @@ class UbicacionForm(forms.ModelForm):
     class Meta:
         model = Ubicacion
         fields = "__all__"
+        labels = {
+            "edificio": "Edificio",
+            "zona": "Sector",
+            "pasillo": "Pasillo",
+            "referencia": "Referencia del espacio fisico",
+            "activo": "Activo",
+            "es_stock_default": "Almacen / stock por defecto",
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -89,7 +97,7 @@ class UbicacionForm(forms.ModelForm):
         edificio = cleaned_data.get("edificio")
         zona = cleaned_data.get("zona")
         if edificio and zona and zona.edificio_id != edificio.id:
-            self.add_error("zona", "La zona debe pertenecer al edificio seleccionado.")
+            self.add_error("zona", "El sector debe pertenecer al edificio seleccionado.")
         return cleaned_data
 
 
@@ -99,13 +107,11 @@ class EdificioForm(forms.ModelForm):
         fields = "__all__"
         labels = {
             "nombre_edificio": "Nombre del edificio",
-            "descripcion": "Descripción",
-        }
-        help_texts = {
-            "descripcion": "Breve descripción del edificio.",
+            "descripcion_edificio": "Descripcion",
+            "activo": "Activo",
         }
         widgets = {
-            "descripcion": forms.Textarea(attrs={"rows": 2}),
+            "descripcion_edificio": forms.Textarea(attrs={"rows": 2}),
         }
 
 
@@ -115,14 +121,13 @@ class ZonaEdificioForm(forms.ModelForm):
         model = ZonaEdificio
         fields = "__all__"
         labels = {
-            "nombre_zona": "Nombre de la zona",
-            "descripcion": "Descripción",
-        }
-        help_texts = {
-            "descripcion": "Breve descripción de la zona.",
+            "edificio": "Edificio",
+            "nombre_zona": "Nombre del sector",
+            "descripcion_zona": "Descripcion",
+            "activo": "Activo",
         }
         widgets = {
-            "descripcion": forms.Textarea(attrs={"rows": 2}),
+            "descripcion_zona": forms.Textarea(attrs={"rows": 2}),
         }
 
 

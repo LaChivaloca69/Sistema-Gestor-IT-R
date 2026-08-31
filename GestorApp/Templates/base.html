@@ -241,7 +241,7 @@
                             </a>
                             <a class="sidebar-link {% if request.resolver_match.url_name == 'solicitud_equipo_list' or request.resolver_match.url_name == 'solicitud_equipo_detail' or request.resolver_match.url_name == 'solicitud_equipo_create' %}active{% endif %}" href="{% url 'solicitud_equipo_list' %}" data-nav-id="solicitudes-equipo" data-nav-label="Solicitudes equipo" title="Solicitudes de equipo{% if nav_badges.solicitudes %} · {{ nav_badges.solicitudes.title }}{% endif %}">
                                 <span class="sidebar-link__icon" aria-hidden="true"><i class="bi bi-clipboard-plus"></i></span>
-                                <span class="sidebar-link__text">Solicitudes</span>
+                                <span class="sidebar-link__text">Solicitudes de equipo</span>
                                 {% if nav_badges.solicitudes %}
                                 <span class="sidebar-badge sidebar-badge--{{ nav_badges.solicitudes.tone }}" title="{{ nav_badges.solicitudes.title }}">{{ nav_badges.solicitudes.count }}</span>
                                 {% endif %}
@@ -264,15 +264,15 @@
                                 {% endif %}
                                 <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>
                             </a>
-                            <a class="sidebar-link {% if request.resolver_match.url_name == 'ticketit_dashboard' %}active{% endif %}" href="{% url 'ticketit_dashboard' %}" data-nav-id="tickets-dashboard" data-nav-label="Dashboard tickets sla operacion" title="Dashboard tickets">
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'ticketit_dashboard' %}active{% endif %}" href="{% url 'ticketit_dashboard' %}" data-nav-id="tickets-dashboard" data-nav-label="Panel tickets sla operacion" title="Panel tickets">
                                 <span class="sidebar-link__icon" aria-hidden="true"><i class="bi bi-speedometer2"></i></span>
-                                <span class="sidebar-link__text">Dashboard</span>
+                                <span class="sidebar-link__text">Panel tickets</span>
                                 <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>
                             </a>
                             {% if is_operativo_role %}
-                            <a class="sidebar-link {% if request.resolver_match.url_name == 'seguimientoticket_list' %}active{% endif %}" href="{% url 'seguimientoticket_list' %}" data-nav-id="seguimiento" data-nav-label="Seguimiento checks" title="Seguimiento{% if nav_badges.seguimiento %} · {{ nav_badges.seguimiento.title }}{% endif %}">
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'seguimientoticket_list' %}active{% endif %}" href="{% url 'seguimientoticket_list' %}" data-nav-id="seguimiento" data-nav-label="Checks seguimiento tickets" title="Checks{% if nav_badges.seguimiento %} · {{ nav_badges.seguimiento.title }}{% endif %}">
                                 <span class="sidebar-link__icon" aria-hidden="true"><i class="bi bi-check2-square"></i></span>
-                                <span class="sidebar-link__text">Seguimiento</span>
+                                <span class="sidebar-link__text">Checks</span>
                                 {% if nav_badges.seguimiento %}
                                 <span class="sidebar-badge sidebar-badge--{{ nav_badges.seguimiento.tone }}" title="{{ nav_badges.seguimiento.title }}">{{ nav_badges.seguimiento.count }}</span>
                                 {% endif %}
@@ -288,9 +288,9 @@
                                 <span class="sidebar-link__text">Respuestas</span>
                                 <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>
                             </a>
-                            <a class="sidebar-link {% if request.resolver_match.url_name == 'cobertura_list' or request.resolver_match.url_name == 'cobertura_create' or request.resolver_match.url_name == 'cobertura_update' %}active{% endif %}" href="{% url 'cobertura_list' %}" data-nav-id="coberturas" data-nav-label="Coberturas delegacion suplente" title="Coberturas">
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'cobertura_list' or request.resolver_match.url_name == 'cobertura_create' or request.resolver_match.url_name == 'cobertura_update' %}active{% endif %}" href="{% url 'cobertura_list' %}" data-nav-id="coberturas" data-nav-label="Cobertura de tickets delegacion suplente" title="Cobertura de tickets">
                                 <span class="sidebar-link__icon" aria-hidden="true"><i class="bi bi-people"></i></span>
-                                <span class="sidebar-link__text">Coberturas</span>
+                                <span class="sidebar-link__text">Cobertura de tickets</span>
                                 <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>
                             </a>
                             {% endif %}
@@ -351,9 +351,9 @@
                                 {% endif %}
                                 <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>
                             </a>
-                            <a class="sidebar-link {% if request.resolver_match.url_name == 'equipo_dashboard' %}active{% endif %}" href="{% url 'equipo_dashboard' %}" data-nav-id="equipos-dashboard" data-nav-label="Dashboard inventario equipos avisos" title="Dashboard inventario">
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'equipo_dashboard' %}active{% endif %}" href="{% url 'equipo_dashboard' %}" data-nav-id="equipos-dashboard" data-nav-label="Panel inventario equipos avisos" title="Panel inventario">
                                 <span class="sidebar-link__icon" aria-hidden="true"><i class="bi bi-graph-up"></i></span>
-                                <span class="sidebar-link__text">Dashboard</span>
+                                <span class="sidebar-link__text">Panel inventario</span>
                                 <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>
                             </a>
                             <a class="sidebar-link {% if request.resolver_match.url_name == 'categoriaequipo_list' or request.resolver_match.url_name == 'categoriaequipo_create' or request.resolver_match.url_name == 'categoriaequipo_update' %}active{% endif %}" href="{% url 'categoriaequipo_list' %}" data-nav-id="categorias" data-nav-label="Categorias inventario tipo" title="Categorias">
@@ -366,9 +366,9 @@
                                 <span class="sidebar-link__text">Proveedores</span>
                                 <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>
                             </a>
-                            <a class="sidebar-link {% if request.resolver_match.url_name == 'movimientoequipo_registros' or request.resolver_match.url_name == 'movimientoequipo_detail' or request.resolver_match.url_name == 'movimientoequipo_create' %}active{% endif %}" href="{% url 'movimientoequipo_registros' %}" data-nav-id="movimientos" data-nav-label="Movimientos equipo auditoria" title="Movimientos">
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'movimientoequipo_registros' or request.resolver_match.url_name == 'movimientoequipo_detail' or request.resolver_match.url_name == 'movimientoequipo_create' %}active{% endif %}" href="{% url 'movimientoequipo_registros' %}" data-nav-id="movimientos" data-nav-label="Movimientos de equipo" title="Movimientos de equipo">
                                 <span class="sidebar-link__icon" aria-hidden="true"><i class="bi bi-arrow-left-right"></i></span>
-                                <span class="sidebar-link__text">Movimientos</span>
+                                <span class="sidebar-link__text">Movimientos de equipo</span>
                                 <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>
                             </a>
                         </div>
@@ -388,9 +388,9 @@
                                 {% endif %}
                                 <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>
                             </a>
-                            <a class="sidebar-link {% if request.resolver_match.url_name == 'agendamantenimiento_list' or request.resolver_match.url_name == 'agendamantenimiento_create' or request.resolver_match.url_name == 'agendamantenimiento_update' or request.resolver_match.url_name == 'agendamantenimiento_delete' %}active{% endif %}" href="{% url 'agendamantenimiento_list' %}" data-nav-id="cierres" data-nav-label="Cierres de mantenimiento" title="Cierres">
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'agendamantenimiento_list' or request.resolver_match.url_name == 'agendamantenimiento_create' or request.resolver_match.url_name == 'agendamantenimiento_update' or request.resolver_match.url_name == 'agendamantenimiento_delete' %}active{% endif %}" href="{% url 'agendamantenimiento_list' %}" data-nav-id="cierres" data-nav-label="Cierres de mantenimiento" title="Cierres de mantenimiento">
                                 <span class="sidebar-link__icon" aria-hidden="true"><i class="bi bi-clipboard-check"></i></span>
-                                <span class="sidebar-link__text">Cierres</span>
+                                <span class="sidebar-link__text">Cierres de mantenimiento</span>
                                 <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>
                             </a>
                             <a class="sidebar-link {% if request.resolver_match.url_name == 'asignacionequipo_list' or request.resolver_match.url_name == 'asignacionequipo_create' or request.resolver_match.url_name == 'asignacionequipo_update' or request.resolver_match.url_name == 'asignacion_kit_migracion' %}active{% endif %}" href="{% url 'asignacionequipo_list' %}" data-nav-id="asignaciones" data-nav-label="Asignaciones" title="Asignaciones">
@@ -398,9 +398,9 @@
                                 <span class="sidebar-link__text">Asignaciones</span>
                                 <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>
                             </a>
-                            <a class="sidebar-link {% if request.resolver_match.url_name == 'movimientoequipo_list' or request.resolver_match.url_name == 'historial_actividad_detail' %}active{% endif %}" href="{% url 'movimientoequipo_list' %}" data-nav-id="historial" data-nav-label="Auditoria historial actividad sistema" title="Auditoria">
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'movimientoequipo_list' or request.resolver_match.url_name == 'historial_actividad_detail' %}active{% endif %}" href="{% url 'movimientoequipo_list' %}" data-nav-id="historial" data-nav-label="Historial de actividad auditoria sistema" title="Historial de actividad">
                                 <span class="sidebar-link__icon" aria-hidden="true"><i class="bi bi-clock-history"></i></span>
-                                <span class="sidebar-link__text">Auditoria</span>
+                                <span class="sidebar-link__text">Historial de actividad</span>
                                 <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>
                             </a>
                         </div>
@@ -412,9 +412,9 @@
                             <span class="sidebar-section-chevron" aria-hidden="true"><i class="bi bi-chevron-down"></i></span>
                         </button>
                         <div class="sidebar-section-links">
-                            <a class="sidebar-link {% if request.resolver_match.url_name == 'area_list' %}active{% endif %}" href="{% url 'area_list' %}" data-nav-id="areas" data-nav-label="Areas" title="Areas">
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'area_list' %}active{% endif %}" href="{% url 'area_list' %}" data-nav-id="departamentos" data-nav-label="Departamentos" title="Departamentos">
                                 <span class="sidebar-link__icon" aria-hidden="true"><i class="bi bi-diagram-3"></i></span>
-                                <span class="sidebar-link__text">Areas</span>
+                                <span class="sidebar-link__text">Departamentos</span>
                                 <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>
                             </a>
                             <a class="sidebar-link {% if request.resolver_match.url_name == 'puesto_list' %}active{% endif %}" href="{% url 'puesto_list' %}" data-nav-id="puestos" data-nav-label="Puestos" title="Puestos">
@@ -427,19 +427,18 @@
                                 <span class="sidebar-link__text">Personal</span>
                                 <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>
                             </a>
-                            <a class="sidebar-link {% if request.resolver_match.url_name == 'edificio_list' %}active{% endif %}" href="{% url 'edificio_list' %}" data-nav-id="edificios" data-nav-label="Edificios" title="Edificios">
-                                <span class="sidebar-link__icon" aria-hidden="true"><i class="bi bi-building"></i></span>
-                                <span class="sidebar-link__text">Edificios</span>
-                                <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>
-                            </a>
-                            <a class="sidebar-link {% if request.resolver_match.url_name == 'zonaedificio_list' %}active{% endif %}" href="{% url 'zonaedificio_list' %}" data-nav-id="zonas" data-nav-label="Zonas" title="Zonas">
-                                <span class="sidebar-link__icon" aria-hidden="true"><i class="bi bi-grid-3x3"></i></span>
-                                <span class="sidebar-link__text">Zonas</span>
-                                <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>
-                            </a>
-                            <a class="sidebar-link {% if request.resolver_match.url_name == 'ubicacion_list' %}active{% endif %}" href="{% url 'ubicacion_list' %}" data-nav-id="ubicaciones" data-nav-label="Ubicaciones" title="Ubicaciones">
-                                <span class="sidebar-link__icon" aria-hidden="true"><i class="bi bi-geo-alt"></i></span>
-                                <span class="sidebar-link__text">Ubicaciones</span>
+                        </div>
+                    </section>
+
+                    <section class="sidebar-section" data-section="espacios">
+                        <button class="sidebar-section-toggle" type="button" aria-expanded="true">
+                            <span class="sidebar-section-title"><i class="bi bi-building" aria-hidden="true"></i> Espacios fisicos</span>
+                            <span class="sidebar-section-chevron" aria-hidden="true"><i class="bi bi-chevron-down"></i></span>
+                        </button>
+                        <div class="sidebar-section-links">
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'mapa_sedes' or request.resolver_match.url_name == 'edificio_list' or request.resolver_match.url_name == 'zonaedificio_list' or request.resolver_match.url_name == 'ubicacion_list' or request.resolver_match.url_name == 'edificio_create' or request.resolver_match.url_name == 'edificio_update' or request.resolver_match.url_name == 'zonaedificio_create' or request.resolver_match.url_name == 'zonaedificio_update' or request.resolver_match.url_name == 'ubicacion_create' or request.resolver_match.url_name == 'ubicacion_update' %}active{% endif %}" href="{% url 'mapa_sedes' %}" data-nav-id="mapa-sedes" data-nav-label="Mapa de sedes" title="Mapa de sedes">
+                                <span class="sidebar-link__icon" aria-hidden="true"><i class="bi bi-diagram-2"></i></span>
+                                <span class="sidebar-link__text">Mapa de sedes</span>
                                 <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>
                             </a>
                         </div>
@@ -453,14 +452,14 @@
                             <span class="sidebar-section-chevron" aria-hidden="true"><i class="bi bi-chevron-down"></i></span>
                         </button>
                         <div class="sidebar-section-links">
-                            <a class="sidebar-link {% if request.resolver_match.url_name == 'personal_admin_remove' %}active{% endif %}" href="{% url 'personal_admin_remove' %}" data-nav-id="bajar-roles" data-nav-label="Quitar roles tecnico admin" title="Bajar roles">
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'personal_admin_remove' %}active{% endif %}" href="{% url 'personal_admin_remove' %}" data-nav-id="bajar-roles" data-nav-label="Quitar roles tecnico admin" title="Quitar roles">
                                 <span class="sidebar-link__icon" aria-hidden="true"><i class="bi bi-person-dash"></i></span>
-                                <span class="sidebar-link__text">Bajar roles</span>
+                                <span class="sidebar-link__text">Quitar roles</span>
                                 <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>
                             </a>
-                            <a class="sidebar-link {% if request.resolver_match.url_name == 'historial_retencion_admin' %}active{% endif %}" href="{% url 'historial_retencion_admin' %}" data-nav-id="archivar" data-nav-label="Archivar purgar retencion historial" title="Archivar">
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'historial_retencion_admin' %}active{% endif %}" href="{% url 'historial_retencion_admin' %}" data-nav-id="archivar" data-nav-label="Archivar historial purgar retencion" title="Archivar historial">
                                 <span class="sidebar-link__icon" aria-hidden="true"><i class="bi bi-archive"></i></span>
-                                <span class="sidebar-link__text">Archivar</span>
+                                <span class="sidebar-link__text">Archivar historial</span>
                                 <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>
                             </a>
                             <a class="sidebar-link {% if request.resolver_match.url_name == 'permisos_matriz' %}active{% endif %}" href="{% url 'permisos_matriz' %}" data-nav-id="matriz-permisos" data-nav-label="Matriz de permisos roles" title="Matriz de permisos">

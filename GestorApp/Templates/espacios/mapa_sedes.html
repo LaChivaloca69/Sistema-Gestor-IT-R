@@ -1,0 +1,641 @@
+{% extends "base.html" %}
+
+{% block title %}Mapa de sedes{% endblock %}
+
+{% block content %}
+{% include "partials/page_header_open.html" with title="Mapa de sedes" description="Organiza donde viven los equipos: edificio, sector y espacio fisico." %}
+	{% if not mapa_vacio %}
+	<button class="btn btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#plantillaRapida" aria-expanded="false" aria-controls="plantillaRapida">
+		<i class="bi bi-lightning-charge" aria-hidden="true"></i> Plantilla rapida
+	</button>
+	<button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#modalEdificio">
+		<i class="bi bi-plus-lg" aria-hidden="true"></i> Nuevo edificio
+	</button>
+	{% endif %}
+{% include "partials/page_header_close.html" %}
+
+<nav class="mapa-guide" aria-label="Como se organiza el mapa">
+	<div class="mapa-guide__step">
+		<span class="mapa-guide__num" aria-hidden="true">1</span>
+		<div>
+			<strong>Edificio</strong>
+			<span>Sede o bodega</span>
+		</div>
+	</div>
+	<span class="mapa-guide__arrow" aria-hidden="true"><i class="bi bi-chevron-right"></i></span>
+	<div class="mapa-guide__step">
+		<span class="mapa-guide__num" aria-hidden="true">2</span>
+		<div>
+			<strong>Sector</strong>
+			<span>Piso, ala o area</span>
+		</div>
+	</div>
+	<span class="mapa-guide__arrow" aria-hidden="true"><i class="bi bi-chevron-right"></i></span>
+	<div class="mapa-guide__step">
+		<span class="mapa-guide__num" aria-hidden="true">3</span>
+		<div>
+			<strong>Espacio fisico</strong>
+			<span>Escritorio, sala, rack</span>
+		</div>
+	</div>
+	<span class="mapa-guide__arrow" aria-hidden="true"><i class="bi bi-chevron-right"></i></span>
+	<div class="mapa-guide__step mapa-guide__step--stock">
+		<span class="mapa-guide__num" aria-hidden="true"><i class="bi bi-box-seam"></i></span>
+		<div>
+			<strong>Stock</strong>
+			<span>Almacen de devolucion</span>
+		</div>
+	</div>
+</nav>
+
+{% if mapa_vacio %}
+<section class="mapa-welcome content-card">
+	<div class="mapa-welcome__intro">
+		<span class="mapa-welcome__badge">Primer paso</span>
+		<h2>Arma tu primera sede en un minuto</h2>
+		<p>Define edificio, sectores y espacios. Si marcas un almacén, los equipos en stock y las devoluciones quedaran ahi.</p>
+		<ol class="mapa-welcome__list">
+			<li>Escribe el nombre de la sede</li>
+			<li>Lista pisos o sectores</li>
+			<li>Opcional: espacios (escritorios) y almacén</li>
+		</ol>
+	</div>
+	<form method="post" class="mapa-welcome__form">
+		{% csrf_token %}
+		<input type="hidden" name="accion" value="plantilla_rapida">
+		<div class="mapa-welcome__field">
+			<label for="welcome_nombre">1. Nombre del edificio / sede</label>
+			<input id="welcome_nombre" name="nombre_edificio" required placeholder="Ej. Torre Central" autofocus>
+		</div>
+		<div class="mapa-welcome__field">
+			<label for="welcome_sectores">2. Sectores <small>(uno por linea)</small></label>
+			<textarea id="welcome_sectores" name="sectores" rows="4" placeholder="Piso 1&#10;Piso 2&#10;Piso 3"></textarea>
+		</div>
+		<div class="mapa-welcome__field">
+			<label for="welcome_espacios">3. Espacios por sector <small>(opcional, uno por linea)</small></label>
+			<textarea id="welcome_espacios" name="espacios" rows="3" placeholder="Escritorio 1&#10;Escritorio 2&#10;Sala juntas"></textarea>
+			<label class="mapa-welcome__inline" for="welcome_n">O crear automaticamente</label>
+			<input id="welcome_n" type="number" min="0" max="50" name="espacios_por_sector" placeholder="Ej. 10">
+		</div>
+		<div class="mapa-welcome__checks">
+			<label><input type="checkbox" value="1" name="incluir_almacen" checked> Incluir sector Almacen</label>
+			<label><input type="checkbox" value="1" name="marcar_stock" checked> Usar Stock principal como almacén por defecto</label>
+		</div>
+		<div class="mapa-welcome__actions">
+			<button class="btn btn-primary" type="submit">Generar sede</button>
+			<button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#modalEdificio">Crear solo un edificio</button>
+		</div>
+	</form>
+</section>
+{% else %}
+
+<div class="mapa-status">
+	{% if stock_default %}
+	<div class="mapa-status__card mapa-status__card--ok">
+		<span class="mapa-status__icon" aria-hidden="true"><i class="bi bi-box-seam"></i></span>
+		<div>
+			<strong>Almacén listo</strong>
+			<p>{{ stock_default }}</p>
+		</div>
+	</div>
+	{% else %}
+	<div class="mapa-status__card mapa-status__card--warn">
+		<span class="mapa-status__icon" aria-hidden="true"><i class="bi bi-exclamation-triangle"></i></span>
+		<div>
+			<strong>Falta almacén de stock</strong>
+			<p>Abre un espacio y pulsa “Usar como stock”.</p>
+		</div>
+	</div>
+	{% endif %}
+	<div class="mapa-status__stats" aria-label="Resumen del mapa">
+		<span><strong>{{ total_edificios }}</strong> edificio{{ total_edificios|pluralize }}</span>
+		<span><strong>{{ total_sectores }}</strong> sector{{ total_sectores|pluralize:"es" }}</span>
+		<span><strong>{{ total_espacios }}</strong> espacio{{ total_espacios|pluralize:"s" }}</span>
+	</div>
+</div>
+
+<div class="collapse mb-3" id="plantillaRapida">
+	<div class="content-card p-3">
+		<div class="section-block__header mb-3">
+			<div>
+				<h2 class="h5 mb-1">Plantilla rapida</h2>
+				<p class="text-muted mb-0">Crea otra sede completa sin salir de esta pantalla.</p>
+			</div>
+		</div>
+		<form method="post" class="mapa-sedes__plantilla">
+			{% csrf_token %}
+			<input type="hidden" name="accion" value="plantilla_rapida">
+			<div class="row g-3">
+				<div class="col-md-4">
+					<label class="form-label" for="plantilla_nombre">Nombre del edificio</label>
+					<input class="form-control" id="plantilla_nombre" name="nombre_edificio" required placeholder="Torre Norte">
+				</div>
+				<div class="col-md-4">
+					<label class="form-label" for="plantilla_sectores">Sectores <small class="text-muted">(uno por linea)</small></label>
+					<textarea class="form-control" id="plantilla_sectores" name="sectores" rows="3" placeholder="Piso 1&#10;Piso 2"></textarea>
+				</div>
+				<div class="col-md-4">
+					<label class="form-label" for="plantilla_espacios">Espacios <small class="text-muted">(opcional)</small></label>
+					<textarea class="form-control" id="plantilla_espacios" name="espacios" rows="3" placeholder="Escritorio 1&#10;Sala juntas"></textarea>
+					<input class="form-control mt-2" type="number" min="0" max="100" name="espacios_por_sector" placeholder="O cantidad automatica">
+				</div>
+			</div>
+			<div class="mapa-welcome__checks mt-3">
+				<label><input type="checkbox" value="1" name="incluir_almacen" checked> Incluir Almacen</label>
+				<label><input type="checkbox" value="1" name="marcar_stock"> Marcar como stock por defecto</label>
+			</div>
+			<div class="mt-3">
+				<button class="btn btn-primary" type="submit">Generar sede</button>
+			</div>
+		</form>
+	</div>
+</div>
+
+<div class="mapa-sedes">
+	<aside class="content-card mapa-sedes__tree">
+		<div class="mapa-sedes__tree-head">
+			<div>
+				<h2 class="h6 mb-0">Estructura</h2>
+				<p class="mapa-sedes__hint mb-0">Clic para ver · <strong>+</strong> para agregar · flecha para desplegar</p>
+			</div>
+			<div class="mapa-sedes__tree-actions">
+				<button class="btn btn-outline-secondary btn-sm" type="button" id="mapaExpandirTodo" title="Desplegar todo">Desplegar</button>
+				<button class="btn btn-outline-secondary btn-sm" type="button" id="mapaContraerTodo" title="Contraer todo">Contraer</button>
+			</div>
+		</div>
+
+		<form class="filters mb-3" method="get">
+			{% if sel_edificio %}<input type="hidden" name="edificio" value="{{ sel_edificio }}">{% endif %}
+			{% if sel_sector %}<input type="hidden" name="sector" value="{{ sel_sector }}">{% endif %}
+			{% if sel_espacio %}<input type="hidden" name="espacio" value="{{ sel_espacio }}">{% endif %}
+			<div>
+				<label for="filter_activo">Mostrar</label>
+				<select id="filter_activo" name="activo">
+					<option value="active" {% if selected_activo == "active" %}selected{% endif %}>Solo activos</option>
+					<option value="all" {% if selected_activo == "all" %}selected{% endif %}>Todos</option>
+				</select>
+			</div>
+			<div>
+				<label for="filter_q">Buscar</label>
+				<input id="filter_q" type="search" name="q" value="{{ search_q }}" placeholder="Espacio, sector…">
+			</div>
+			<div class="filters-actions">
+				<button class="btn btn-primary btn-sm" type="submit">Filtrar</button>
+				<a class="btn btn-outline-secondary btn-sm" href="{% url 'mapa_sedes' %}">Limpiar</a>
+			</div>
+		</form>
+
+		<nav class="mapa-sedes__nav" id="mapaSedesNav" aria-label="Arbol de espacios fisicos">
+			{% for node in tree %}
+			<div
+				class="mapa-sedes__group{% if sel_edificio != node.edificio.pk %} is-collapsed{% endif %}"
+				data-tree-edificio="{{ node.edificio.pk }}"
+			>
+				<div class="mapa-sedes__row">
+					{% if node.sectores %}
+					<button
+						class="mapa-sedes__toggle"
+						type="button"
+						data-tree-toggle="edificio"
+						aria-expanded="{% if sel_edificio == node.edificio.pk %}true{% else %}false{% endif %}"
+						aria-label="Desplegar o contraer {{ node.edificio.nombre_edificio }}"
+						title="Desplegar / contraer sectores"
+					>
+						<i class="bi bi-chevron-right" aria-hidden="true"></i>
+					</button>
+					{% else %}
+					<span class="mapa-sedes__toggle mapa-sedes__toggle--empty" aria-hidden="true"></span>
+					{% endif %}
+					<a
+						class="mapa-sedes__node mapa-sedes__node--edificio{% if sel_edificio == node.edificio.pk and not sel_sector and not sel_espacio %} is-active{% elif sel_edificio == node.edificio.pk %} is-context{% endif %}"
+						href="{% url 'mapa_sedes' %}?edificio={{ node.edificio.pk }}{% if selected_activo == 'all' %}&activo=all{% endif %}{% if search_q %}&q={{ search_q|urlencode }}{% endif %}"
+					>
+						<i class="bi bi-building" aria-hidden="true"></i>
+						<span>{{ node.edificio.nombre_edificio }}</span>
+						{% if node.sectores %}<span class="mapa-sedes__count">{{ node.sectores|length }}</span>{% endif %}
+						{% if not node.edificio.activo %}<span class="status-badge status-badge--baja">Inactivo</span>{% endif %}
+					</a>
+					<button
+						class="btn btn-sm btn-outline-primary mapa-sedes__add"
+						type="button"
+						title="Agregar sector"
+						aria-label="Agregar sector a {{ node.edificio.nombre_edificio }}"
+						data-bs-toggle="modal"
+						data-bs-target="#modalSector"
+						data-edificio="{{ node.edificio.pk }}"
+						data-edificio-nombre="{{ node.edificio.nombre_edificio }}"
+					>+</button>
+				</div>
+				<div class="mapa-sedes__children" {% if sel_edificio != node.edificio.pk %}hidden{% endif %}>
+					{% for item in node.sectores %}
+					<div
+						class="mapa-sedes__branch{% if sel_sector != item.sector.pk %} is-collapsed{% endif %}"
+						data-tree-sector="{{ item.sector.pk }}"
+					>
+						<div class="mapa-sedes__row">
+							{% if item.espacios %}
+							<button
+								class="mapa-sedes__toggle"
+								type="button"
+								data-tree-toggle="sector"
+								aria-expanded="{% if sel_sector == item.sector.pk %}true{% else %}false{% endif %}"
+								aria-label="Desplegar o contraer {{ item.sector.nombre_zona }}"
+								title="Desplegar / contraer espacios"
+							>
+								<i class="bi bi-chevron-right" aria-hidden="true"></i>
+							</button>
+							{% else %}
+							<span class="mapa-sedes__toggle mapa-sedes__toggle--empty" aria-hidden="true"></span>
+							{% endif %}
+							<a
+								class="mapa-sedes__node mapa-sedes__node--sector{% if sel_sector == item.sector.pk and not sel_espacio %} is-active{% elif sel_sector == item.sector.pk %} is-context{% endif %}"
+								href="{% url 'mapa_sedes' %}?edificio={{ node.edificio.pk }}&sector={{ item.sector.pk }}{% if selected_activo == 'all' %}&activo=all{% endif %}{% if search_q %}&q={{ search_q|urlencode }}{% endif %}"
+							>
+								<i class="bi bi-grid-3x3" aria-hidden="true"></i>
+								<span>{{ item.sector.nombre_zona }}</span>
+								<span class="mapa-sedes__count">{{ item.espacios|length }}</span>
+								{% if not item.sector.activo %}<span class="status-badge status-badge--baja">Inactivo</span>{% endif %}
+							</a>
+							<button
+								class="btn btn-sm btn-outline-primary mapa-sedes__add"
+								type="button"
+								title="Agregar espacios"
+								aria-label="Agregar espacios a {{ item.sector.nombre_zona }}"
+								data-bs-toggle="modal"
+								data-bs-target="#modalEspacios"
+								data-sector="{{ item.sector.pk }}"
+								data-sector-nombre="{{ item.sector.nombre_zona }}"
+							>+</button>
+						</div>
+						<div class="mapa-sedes__espacios" {% if sel_sector != item.sector.pk %}hidden{% endif %}>
+							{% for espacio in item.espacios %}
+							<a
+								class="mapa-sedes__node mapa-sedes__node--espacio{% if sel_espacio == espacio.pk %} is-active{% endif %}"
+								href="{% url 'mapa_sedes' %}?edificio={{ node.edificio.pk }}&sector={{ item.sector.pk }}&espacio={{ espacio.pk }}{% if selected_activo == 'all' %}&activo=all{% endif %}{% if search_q %}&q={{ search_q|urlencode }}{% endif %}"
+							>
+								<i class="bi bi-{% if espacio.es_stock_default %}box-seam{% else %}geo-alt{% endif %}" aria-hidden="true"></i>
+								<span>{{ espacio.referencia|default:espacio.pasillo|default:"Espacio" }}</span>
+								{% if espacio.es_stock_default %}<span class="status-badge status-badge--asignado">Stock</span>{% endif %}
+								{% if not espacio.activo %}<span class="status-badge status-badge--baja">Inactivo</span>{% endif %}
+							</a>
+							{% endfor %}
+						</div>
+					</div>
+					{% empty %}
+					<p class="mapa-sedes__empty-branch">Sin sectores · usa el boton +</p>
+					{% endfor %}
+				</div>
+			</div>
+			{% endfor %}
+		</nav>
+	</aside>
+
+	<section class="content-card mapa-sedes__panel">
+		{% if panel_type == "espacio" %}
+		<div class="mapa-crumb">
+			<span><i class="bi bi-building" aria-hidden="true"></i> {{ panel.edificio }}</span>
+			<span aria-hidden="true">/</span>
+			<span><i class="bi bi-grid-3x3" aria-hidden="true"></i> {{ panel.zona }}</span>
+			<span aria-hidden="true">/</span>
+			<span><i class="bi bi-geo-alt" aria-hidden="true"></i> {{ panel.referencia|default:panel.pasillo|default:"Espacio" }}</span>
+		</div>
+		<div class="section-block__header mb-3">
+			<div>
+				<h2 class="h4 mb-1">{% if panel.es_stock_default %}Almacén / stock{% else %}Espacio fisico{% endif %}</h2>
+				<p class="text-muted mb-0">{% if panel.es_stock_default %}Aqui regresan los equipos al devolverlos.{% else %}Lugar concreto donde puede estar un equipo.{% endif %}</p>
+			</div>
+			<div class="d-flex flex-wrap gap-2">
+				{% if not panel.es_stock_default %}
+				<form method="post" class="d-inline">
+					{% csrf_token %}
+					<input type="hidden" name="accion" value="marcar_stock">
+					<input type="hidden" name="espacio" value="{{ panel.pk }}">
+					<button class="btn btn-primary btn-sm" type="submit"><i class="bi bi-box-seam" aria-hidden="true"></i> Usar como stock</button>
+				</form>
+				{% endif %}
+				<a class="btn btn-outline-secondary btn-sm" href="{% url 'ubicacion_update' panel.pk %}">Editar</a>
+				{% if is_admin_role %}
+				<a class="btn btn-outline-danger btn-sm" href="{% url 'ubicacion_delete' panel.pk %}">Eliminar</a>
+				{% endif %}
+			</div>
+		</div>
+		{% if panel.es_stock_default %}
+		<div class="mapa-next mapa-next--ok mb-3">
+			<strong>Stock activo</strong>
+			<p class="mb-0">Las altas y devoluciones usaran este espacio por defecto.</p>
+		</div>
+		{% endif %}
+		<dl class="row mb-0 mapa-meta">
+			<dt class="col-sm-4">Pasillo</dt>
+			<dd class="col-sm-8">{{ panel.pasillo|default:"—" }}</dd>
+			<dt class="col-sm-4">Referencia</dt>
+			<dd class="col-sm-8">{{ panel.referencia|default:"—" }}</dd>
+			<dt class="col-sm-4">Activo</dt>
+			<dd class="col-sm-8">{% if panel.activo %}Si{% else %}No{% endif %}</dd>
+			<dt class="col-sm-4">Equipos aqui</dt>
+			<dd class="col-sm-8"><strong>{{ panel_equipos }}</strong></dd>
+		</dl>
+
+		{% elif panel_type == "sector" %}
+		<div class="mapa-crumb">
+			<span><i class="bi bi-building" aria-hidden="true"></i> {{ panel.edificio }}</span>
+			<span aria-hidden="true">/</span>
+			<span><i class="bi bi-grid-3x3" aria-hidden="true"></i> {{ panel.nombre_zona }}</span>
+		</div>
+		<div class="section-block__header mb-3">
+			<div>
+				<h2 class="h4 mb-1">Sector</h2>
+				<p class="text-muted mb-0">Agrupa espacios del mismo piso o area.</p>
+			</div>
+			<div class="d-flex flex-wrap gap-2">
+				<button
+					class="btn btn-primary btn-sm"
+					type="button"
+					data-bs-toggle="modal"
+					data-bs-target="#modalEspacios"
+					data-sector="{{ panel.pk }}"
+					data-sector-nombre="{{ panel.nombre_zona }}"
+				><i class="bi bi-plus-lg" aria-hidden="true"></i> Agregar espacios</button>
+				<a class="btn btn-outline-secondary btn-sm" href="{% url 'zonaedificio_update' panel.pk %}">Editar</a>
+				{% if is_admin_role %}
+				<a class="btn btn-outline-danger btn-sm" href="{% url 'zonaedificio_delete' panel.pk %}">Eliminar</a>
+				{% endif %}
+			</div>
+		</div>
+		{% if not panel_espacios %}
+		<div class="mapa-next mb-3">
+			<strong>Siguiente paso</strong>
+			<p class="mb-2">Agrega escritorios, salas o el almacén (uno por linea).</p>
+			<button
+				class="btn btn-primary btn-sm"
+				type="button"
+				data-bs-toggle="modal"
+				data-bs-target="#modalEspacios"
+				data-sector="{{ panel.pk }}"
+				data-sector-nombre="{{ panel.nombre_zona }}"
+			>Agregar espacios</button>
+		</div>
+		{% endif %}
+		<div class="table-responsive">
+			<table class="table table-sm align-middle mb-0">
+				<thead>
+					<tr>
+						<th>Espacio fisico</th>
+						<th>Pasillo</th>
+						<th>Stock</th>
+						<th>Equipos</th>
+						<th></th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for row in panel_espacios %}
+					<tr class="table-row-click" data-href="{% url 'mapa_sedes' %}?edificio={{ panel.edificio_id }}&sector={{ panel.pk }}&espacio={{ row.espacio.pk }}">
+						<td>
+							<strong>{{ row.espacio.referencia|default:"—" }}</strong>
+						</td>
+						<td>{{ row.espacio.pasillo|default:"—" }}</td>
+						<td>{% if row.espacio.es_stock_default %}<span class="status-badge status-badge--asignado">Stock</span>{% else %}—{% endif %}</td>
+						<td>{{ row.equipos }}</td>
+						<td class="text-end">
+							<a class="btn btn-outline-secondary btn-sm" href="{% url 'mapa_sedes' %}?edificio={{ panel.edificio_id }}&sector={{ panel.pk }}&espacio={{ row.espacio.pk }}">Abrir</a>
+						</td>
+					</tr>
+					{% empty %}
+					<tr><td colspan="5" class="text-center py-3 text-muted">Aun no hay espacios en este sector.</td></tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		</div>
+
+		{% elif panel_type == "edificio" %}
+		<div class="mapa-crumb">
+			<span><i class="bi bi-building" aria-hidden="true"></i> {{ panel.nombre_edificio }}</span>
+		</div>
+		<div class="section-block__header mb-3">
+			<div>
+				<h2 class="h4 mb-1">Edificio</h2>
+				<p class="text-muted mb-0">Contenedor de sectores y espacios.</p>
+			</div>
+			<div class="d-flex flex-wrap gap-2">
+				<button
+					class="btn btn-primary btn-sm"
+					type="button"
+					data-bs-toggle="modal"
+					data-bs-target="#modalSector"
+					data-edificio="{{ panel.pk }}"
+					data-edificio-nombre="{{ panel.nombre_edificio }}"
+				><i class="bi bi-plus-lg" aria-hidden="true"></i> Nuevo sector</button>
+				<a class="btn btn-outline-secondary btn-sm" href="{% url 'edificio_update' panel.pk %}">Editar</a>
+				{% if is_admin_role %}
+				<a class="btn btn-outline-danger btn-sm" href="{% url 'edificio_delete' panel.pk %}">Eliminar</a>
+				{% endif %}
+			</div>
+		</div>
+		{% if not panel_sectores %}
+		<div class="mapa-next mb-3">
+			<strong>Siguiente paso</strong>
+			<p class="mb-2">Crea un sector (por ejemplo Piso 1 o Almacen).</p>
+			<button
+				class="btn btn-primary btn-sm"
+				type="button"
+				data-bs-toggle="modal"
+				data-bs-target="#modalSector"
+				data-edificio="{{ panel.pk }}"
+				data-edificio-nombre="{{ panel.nombre_edificio }}"
+			>Nuevo sector</button>
+		</div>
+		{% else %}
+		<div class="table-responsive">
+			<table class="table table-sm align-middle mb-0">
+				<thead>
+					<tr>
+						<th>Sector</th>
+						<th>Espacios</th>
+						<th>Equipos</th>
+						<th></th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for row in panel_sectores %}
+					<tr class="table-row-click" data-href="{% url 'mapa_sedes' %}?edificio={{ panel.pk }}&sector={{ row.sector.pk }}">
+						<td><strong>{{ row.sector.nombre_zona }}</strong></td>
+						<td>{{ row.espacios_count }}</td>
+						<td>{{ row.equipos }}</td>
+						<td class="text-end">
+							<a class="btn btn-outline-secondary btn-sm" href="{% url 'mapa_sedes' %}?edificio={{ panel.pk }}&sector={{ row.sector.pk }}">Abrir</a>
+						</td>
+					</tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		</div>
+		{% endif %}
+		<p class="text-muted small mt-3 mb-0">{{ panel_equipos }} equipo{{ panel_equipos|pluralize:"s" }} en este edificio.</p>
+
+		{% else %}
+		<div class="mapa-panel-idle">
+			<div class="mapa-panel-idle__icon" aria-hidden="true"><i class="bi bi-diagram-3"></i></div>
+			<h2 class="h5">Explora el arbol de la izquierda</h2>
+			<p>Selecciona un edificio, sector o espacio para ver detalles y acciones.</p>
+			<ul class="mapa-panel-idle__tips">
+				<li><strong>+</strong> junto a un edificio → nuevo sector</li>
+				<li><strong>+</strong> junto a un sector → varios espacios</li>
+				<li>Abre un espacio → marca el almacén de stock</li>
+			</ul>
+		</div>
+		{% endif %}
+	</section>
+</div>
+{% endif %}
+
+<div class="modal fade" id="modalEdificio" tabindex="-1" aria-labelledby="modalEdificioLabel" aria-hidden="true">
+	<div class="modal-dialog">
+		<form method="post" class="modal-content">
+			{% csrf_token %}
+			<input type="hidden" name="accion" value="crear_edificio">
+			<div class="modal-header">
+				<h2 class="modal-title h5" id="modalEdificioLabel">Nuevo edificio</h2>
+				<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+			</div>
+			<div class="modal-body">
+				<p class="text-muted small">Paso 1 de 3. Luego podras agregar sectores con el boton +.</p>
+				<label class="form-label" for="modal_edificio_nombre">Nombre</label>
+				<input class="form-control" id="modal_edificio_nombre" name="nombre_edificio" required placeholder="Ej. Torre Central">
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+				<button type="submit" class="btn btn-primary">Crear edificio</button>
+			</div>
+		</form>
+	</div>
+</div>
+
+<div class="modal fade" id="modalSector" tabindex="-1" aria-labelledby="modalSectorLabel" aria-hidden="true">
+	<div class="modal-dialog">
+		<form method="post" class="modal-content">
+			{% csrf_token %}
+			<input type="hidden" name="accion" value="crear_sector">
+			<input type="hidden" name="edificio" id="modal_sector_edificio">
+			<div class="modal-header">
+				<h2 class="modal-title h5" id="modalSectorLabel">Nuevo sector</h2>
+				<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+			</div>
+			<div class="modal-body">
+				<p class="mapa-modal-context" id="modal_sector_contexto"></p>
+				<p class="text-muted small">Paso 2. Ejemplos: Piso 1, Ala Norte, Almacen.</p>
+				<label class="form-label" for="modal_sector_nombre">Nombre del sector</label>
+				<input class="form-control" id="modal_sector_nombre" name="nombre_sector" required placeholder="Piso 3">
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+				<button type="submit" class="btn btn-primary">Crear sector</button>
+			</div>
+		</form>
+	</div>
+</div>
+
+<div class="modal fade" id="modalEspacios" tabindex="-1" aria-labelledby="modalEspaciosLabel" aria-hidden="true">
+	<div class="modal-dialog">
+		<form method="post" class="modal-content">
+			{% csrf_token %}
+			<input type="hidden" name="accion" value="crear_espacios">
+			<input type="hidden" name="sector" id="modal_espacios_sector">
+			<div class="modal-header">
+				<h2 class="modal-title h5" id="modalEspaciosLabel">Agregar espacios</h2>
+				<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+			</div>
+			<div class="modal-body">
+				<p class="mapa-modal-context" id="modal_espacios_contexto"></p>
+				<p class="text-muted small">Paso 3. Escribe un espacio por linea; se crean todos de una vez.</p>
+				<label class="form-label" for="modal_espacios_lista">Lista de espacios</label>
+				<textarea class="form-control" id="modal_espacios_lista" name="espacios" rows="8" required placeholder="Escritorio 1&#10;Escritorio 2&#10;Sala juntas A&#10;Stock principal"></textarea>
+				<div class="form-check mt-3">
+					<input class="form-check-input" type="checkbox" value="1" id="modal_espacios_stock" name="marcar_stock">
+					<label class="form-check-label" for="modal_espacios_stock">El primero sera el almacén / stock por defecto</label>
+				</div>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+				<button type="submit" class="btn btn-primary">Crear espacios</button>
+			</div>
+		</form>
+	</div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+	var modalSector = document.getElementById("modalSector");
+	if (modalSector) {
+		modalSector.addEventListener("show.bs.modal", function (event) {
+			var btn = event.relatedTarget;
+			if (!btn) return;
+			document.getElementById("modal_sector_edificio").value = btn.getAttribute("data-edificio") || "";
+			document.getElementById("modal_sector_contexto").textContent =
+				"Edificio: " + (btn.getAttribute("data-edificio-nombre") || "");
+		});
+	}
+	var modalEspacios = document.getElementById("modalEspacios");
+	if (modalEspacios) {
+		modalEspacios.addEventListener("show.bs.modal", function (event) {
+			var btn = event.relatedTarget;
+			if (!btn) return;
+			document.getElementById("modal_espacios_sector").value = btn.getAttribute("data-sector") || "";
+			document.getElementById("modal_espacios_contexto").textContent =
+				"Sector: " + (btn.getAttribute("data-sector-nombre") || "");
+		});
+	}
+
+	var nav = document.getElementById("mapaSedesNav");
+	if (!nav) return;
+
+	function setExpanded(container, open) {
+		if (!container) return;
+		var toggle = container.querySelector(":scope > .mapa-sedes__row > [data-tree-toggle]");
+		var children = container.querySelector(":scope > .mapa-sedes__children, :scope > .mapa-sedes__espacios");
+		container.classList.toggle("is-collapsed", !open);
+		if (children) {
+			children.hidden = !open;
+		}
+		if (toggle) {
+			toggle.setAttribute("aria-expanded", open ? "true" : "false");
+		}
+	}
+
+	nav.addEventListener("click", function (event) {
+		var toggle = event.target.closest("[data-tree-toggle]");
+		if (!toggle || !nav.contains(toggle)) return;
+		event.preventDefault();
+		event.stopPropagation();
+		var kind = toggle.getAttribute("data-tree-toggle");
+		var container = kind === "edificio"
+			? toggle.closest("[data-tree-edificio]")
+			: toggle.closest("[data-tree-sector]");
+		if (!container) return;
+		var open = container.classList.contains("is-collapsed");
+		setExpanded(container, open);
+		if (open && kind === "edificio") {
+			/* keep sectors as they are */
+		}
+	});
+
+	var btnExpand = document.getElementById("mapaExpandirTodo");
+	var btnCollapse = document.getElementById("mapaContraerTodo");
+	if (btnExpand) {
+		btnExpand.addEventListener("click", function () {
+			nav.querySelectorAll("[data-tree-edificio], [data-tree-sector]").forEach(function (el) {
+				setExpanded(el, true);
+			});
+		});
+	}
+	if (btnCollapse) {
+		btnCollapse.addEventListener("click", function () {
+			nav.querySelectorAll("[data-tree-edificio], [data-tree-sector]").forEach(function (el) {
+				setExpanded(el, false);
+			});
+		});
+	}
+})();
+</script>
+{% endblock %}

@@ -22,8 +22,8 @@
 		/>
 	</div>
 	<div>
-		<label for="filter_area">Area</label>
-		<select id="filter_area" name="area" data-chip-label="Area">
+		<label for="filter_area">Departamento</label>
+		<select id="filter_area" name="area" data-chip-label="Departamento">
 			<option value="">Todos</option>
 			{% for value, label in area_choices %}
 				<option value="{{ value }}" {% if value|stringformat:"s" == selected_area %}selected{% endif %}>{{ label }}</option>
@@ -105,8 +105,9 @@
 				<th>Apellidos</th>
 				<th>Correo</th>
 				<th>Telefono</th>
-				<th>Area</th>
+				<th>Departamento</th>
 				<th>Puesto</th>
+				<th>Espacio fisico</th>
 				<th>Activo</th>
 				<th class="text-nowrap">Acciones</th>
 			</tr>
@@ -123,6 +124,7 @@
 				<td>{{ item.telefono }}</td>
 				<td>{{ item.area }}</td>
 				<td>{{ item.puesto }}</td>
+				<td>{{ item.ubicacion|default:"Sin puesto fijo" }}</td>
 				<td>
 					{% if item.activo %}
 					<span class="status-badge status-badge--asignado">Si</span>

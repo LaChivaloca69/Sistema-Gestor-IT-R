@@ -157,7 +157,6 @@ class SolicitudEquipoRevisionForm(forms.Form):
             (EstadoSolicitudEquipo.RECHAZADA, "Rechazar"),
             (EstadoSolicitudEquipo.COMPLETADA, "Cerrar solicitud"),
         ],
-        help_text="Cerrar termina la atencion. Si eliges un equipo, se asigna al personal destino.",
     )
     notas_it = forms.CharField(
         required=False,
@@ -168,7 +167,6 @@ class SolicitudEquipoRevisionForm(forms.Form):
         queryset=Equipo.objects.none(),
         required=False,
         label="Equipo a asignar",
-        help_text="Opcional al aprobar o cerrar. Solo equipos disponibles.",
     )
 
     def __init__(self, *args, solicitud=None, require_estado=True, **kwargs):

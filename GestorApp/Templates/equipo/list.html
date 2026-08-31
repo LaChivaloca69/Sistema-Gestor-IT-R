@@ -19,7 +19,7 @@
 	{% if selected_alerta == "sin_ubicacion" %}
 	<div class="dash-alert dash-alert--warn">
 		<div>
-			<strong>Filtro: sin ubicacion</strong>
+			<strong>Filtro: sin espacio fisico</strong>
 			<p class="mb-0">Registros activos sin lugar fisico asignado.</p>
 		</div>
 		<a class="btn btn-sm btn-outline-secondary" href="{% url inv.list_url %}">Quitar filtro</a>
@@ -68,7 +68,7 @@
 		<label for="filter_alerta">Aviso</label>
 		<select id="filter_alerta" name="alerta" data-chip-label="Aviso">
 			<option value="" {% if not selected_alerta %}selected{% endif %}>Todos</option>
-			<option value="sin_ubicacion" {% if selected_alerta == "sin_ubicacion" %}selected{% endif %}>Sin ubicacion</option>
+			<option value="sin_ubicacion" {% if selected_alerta == "sin_ubicacion" %}selected{% endif %}>Sin espacio fisico</option>
 			<option value="mant_largo" {% if selected_alerta == "mant_largo" %}selected{% endif %}>Mant. prolongado</option>
 			{% if inv.permite_asignacion %}
 			<option value="asignacion_antigua" {% if selected_alerta == "asignacion_antigua" %}selected{% endif %}>Asignacion antigua</option>
@@ -105,8 +105,8 @@
 	</div>
 	{% endif %}
 	<div>
-		<label for="filter_ubicacion">Ubicacion</label>
-		<select id="filter_ubicacion" name="ubicacion" data-chip-label="Ubicacion">
+		<label for="filter_ubicacion">Espacio fisico</label>
+		<select id="filter_ubicacion" name="ubicacion" data-chip-label="Espacio fisico">
 			<option value="">Todas</option>
 			{% for value, label in ubicacion_choices %}
 			<option value="{{ value }}" {% if value|stringformat:"s" == selected_ubicacion %}selected{% endif %}>{{ label }}</option>
@@ -114,10 +114,10 @@
 		</select>
 	</div>
 	<div>
-		<label for="filter_sin_ubicacion">Sin ubicacion</label>
-		<select id="filter_sin_ubicacion" name="sin_ubicacion" data-chip-label="Sin ubicacion">
+		<label for="filter_sin_ubicacion">Sin espacio fisico</label>
+		<select id="filter_sin_ubicacion" name="sin_ubicacion" data-chip-label="Sin espacio fisico">
 			<option value="" {% if not selected_sin_ubicacion %}selected{% endif %}>No</option>
-			<option value="1" {% if selected_sin_ubicacion == "1" %}selected{% endif %}>Solo sin ubicacion</option>
+			<option value="1" {% if selected_sin_ubicacion == "1" %}selected{% endif %}>Solo sin espacio</option>
 		</select>
 	</div>
 	<div>
@@ -172,7 +172,7 @@
 				{% elif inv.tipo == "Periferico" %}
 				<th>Equipo padre</th>
 				{% endif %}
-				<th>Ubicacion</th>
+				<th>Espacio fisico</th>
 				<th>Activo</th>
 				<th>Alta</th>
 				<th>Img</th>

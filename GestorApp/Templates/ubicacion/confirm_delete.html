@@ -4,14 +4,14 @@
 
 {% block content %}
 {% include "partials/page_header_open.html" with title="Eliminar ubicacion" description="Esta accion no se puede deshacer." %}
-	<a class="btn btn-outline-secondary" href="{% url 'ubicacion_list' %}">Volver</a>
+	<a class="btn btn-outline-secondary" href="{% url 'mapa_sedes' %}">Volver</a>
 {% include "partials/page_header_close.html" %}
 
 <div class="card border-danger-subtle shadow-sm mx-auto" style="max-width: 640px;">
 	<div class="card-body p-4">
 		<p class="mb-4">Estas seguro que deseas eliminar <strong>"{{ object }}"</strong>?</p>
 		<div class="d-flex justify-content-end gap-2">
-			<a class="btn btn-outline-secondary" href="{% url 'ubicacion_list' %}">Cancelar</a>
+			<a class="btn btn-outline-secondary" href="{% url 'mapa_sedes' %}">Cancelar</a>
 			<form method="post" class="d-inline">
 				{% csrf_token %}
 				<button class="btn btn-danger" type="submit">Eliminar</button>

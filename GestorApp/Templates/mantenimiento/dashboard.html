@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard mantenimientos{% endblock %}
+{% block title %}Panel mantenimientos{% endblock %}
 
 {% block content %}
-{% include "partials/page_header_open.html" with title="Dashboard de mantenimientos" description="Estado, avisos, costos y focos de atencion (panel, sin email)." %}
+{% include "partials/page_header_open.html" with title="Panel de mantenimientos" description="Estado, avisos, costos y focos de atencion (panel, sin email)." %}
 	<a class="btn btn-outline-secondary" href="{% url 'mantenimiento_list' %}">Lista</a>
-	<a class="btn btn-outline-secondary" href="{% url 'agendamantenimiento_list' %}">Cierres</a>
+	<a class="btn btn-outline-secondary" href="{% url 'agendamantenimiento_list' %}">Cierres de mantenimiento</a>
 	<a class="btn btn-primary" href="{% url 'mantenimiento_create' %}">Programar</a>
 {% include "partials/page_header_close.html" %}
 

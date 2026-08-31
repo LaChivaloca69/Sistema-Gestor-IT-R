@@ -4,7 +4,7 @@
 
 {% block content %}
 {% include "partials/page_header_open.html" with title="Movimientos de equipo" description="Bitacora de altas, bajas, asignaciones y cambios de ubicacion. Solo lectura." %}
-	<a class="btn btn-outline-secondary" href="{% url 'movimientoequipo_list' %}">Historial general</a>
+	<a class="btn btn-outline-secondary" href="{% url 'movimientoequipo_list' %}">Historial de actividad</a>
 	<a
 		class="btn btn-outline-secondary"
 		href="?export=csv{% for key, value in request.GET.items %}{% if key != 'export' and key != 'page' %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}"

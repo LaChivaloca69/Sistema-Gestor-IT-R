@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard inventario{% endblock %}
+{% block title %}Panel inventario{% endblock %}
 
 {% block content %}
-{% include "partials/page_header_open.html" with title="Dashboard de equipos" description="Estados, ubicaciones y focos de atencion (panel, sin email)." %}
+{% include "partials/page_header_open.html" with title="Panel de inventario" description="Estados, ubicaciones y focos de atencion (panel, sin email)." %}
 	<a class="btn btn-outline-secondary" href="{% url 'equipo_list' %}">Lista</a>
 	<a class="btn btn-primary" href="{% url 'equipo_create' %}">Nuevo equipo</a>
 {% include "partials/page_header_close.html" %}
@@ -33,7 +33,7 @@
 
 <section class="kpi-grid mb-4">
 	<a class="kpi-card" href="{% url 'equipo_list' %}?alerta=sin_ubicacion">
-		<span class="kpi-card__label">Sin ubicacion</span>
+		<span class="kpi-card__label">Sin espacio fisico</span>
 		<strong class="kpi-card__value">{{ equipo_dashboard.sin_ubicacion }}</strong>
 		<small>Activos sin lugar fisico</small>
 	</a>
@@ -130,7 +130,7 @@
 	<div class="section-block dash-panel">
 		<div class="section-block__header">
 			<div>
-				<h2>Sin ubicacion {% include "partials/info_hint.html" with text="Activos que requieren lugar fisico." %}</h2>
+				<h2>Sin espacio fisico {% include "partials/info_hint.html" with text="Activos que requieren lugar fisico." %}</h2>
 			</div>
 			<a class="btn btn-outline-secondary btn-sm" href="{% url 'equipo_list' %}?alerta=sin_ubicacion">Ver todos</a>
 		</div>
@@ -148,10 +148,10 @@
 					<tr class="table-row-click" data-href="{% url 'equipo_detail' item.pk %}">
 						<td><strong>{{ item.codigo_inventario }}</strong></td>
 						<td><span class="status-badge status-badge--{{ item.estado_equipo|slugify }}">{{ item.estado_equipo }}</span></td>
-						<td class="text-end"><a class="btn btn-primary btn-sm" href="{% url 'equipo_cambiar_ubicacion' item.pk %}">Ubicacion</a></td>
+						<td class="text-end"><a class="btn btn-primary btn-sm" href="{% url 'equipo_cambiar_ubicacion' item.pk %}">Espacio</a></td>
 					</tr>
 					{% empty %}
-					<tr><td colspan="3" class="text-center py-3">{% include "partials/empty_state.html" with title="Ubicacion completa" description="Todos los equipos activos tienen ubicacion asignada." icon="bi-check-circle" compact=1 %}</td></tr>
+					<tr><td colspan="3" class="text-center py-3">{% include "partials/empty_state.html" with title="Completo" description="Todos los equipos activos tienen espacio fisico." icon="bi-check-circle" compact=1 %}</td></tr>
 					{% endfor %}
 				</tbody>
 			</table>

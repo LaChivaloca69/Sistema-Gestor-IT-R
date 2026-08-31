@@ -1,15 +1,15 @@
 {% extends "base.html" %}
 {% load django_bootstrap5 %}
 
-{% block title %}{% if object %}Editar Ubicacion{% else %}Nueva Ubicacion{% endif %}{% endblock %}
+{% block title %}{% if object %}Editar espacio fisico{% else %}Nuevo espacio fisico{% endif %}{% endblock %}
 
 {% block content %}
 {% if object %}
-{% include "partials/page_header_open.html" with title="Editar ubicacion" description="Captura la informacion principal de la ubicacion." %}
+{% include "partials/page_header_open.html" with title="Editar espacio fisico" description="Captura la informacion principal del espacio." %}
 {% else %}
-{% include "partials/page_header_open.html" with title="Nueva ubicacion" description="Captura la informacion principal de la ubicacion." %}
+{% include "partials/page_header_open.html" with title="Nuevo espacio fisico" description="Captura la informacion principal del espacio." %}
 {% endif %}
-	<a class="btn btn-outline-secondary" href="{% url 'ubicacion_list' %}">Volver</a>
+	<a class="btn btn-outline-secondary" href="{% url 'mapa_sedes' %}">Volver</a>
 {% include "partials/page_header_close.html" %}
 
 <form method="post">
@@ -17,7 +17,7 @@
 	{{ form.non_field_errors }}
 	{% include "partials/form_fieldset.html" with legend="Datos" %}
 	<div class="actions">
-		<a class="btn btn-outline-secondary" href="{% url 'ubicacion_list' %}">Cancelar</a>
+		<a class="btn btn-outline-secondary" href="{% url 'mapa_sedes' %}">Cancelar</a>
 		<button class="btn btn-primary" type="submit">Guardar</button>
 	</div>
 </form>

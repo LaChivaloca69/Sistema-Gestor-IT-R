@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 
-{% block title %}Archivar / Purgar historial{% endblock %}
+{% block title %}Archivar historial{% endblock %}
 
 {% block content %}
-{% include "partials/page_header_open.html" with title="Retencion del historial" description="Archiva eventos viejos o purgalos de forma permanente segun la politica configurada." %}
+{% include "partials/page_header_open.html" with title="Archivar historial" description="Archiva eventos viejos o purgalos de forma permanente segun la politica configurada." %}
 	<a class="btn btn-outline-secondary" href="{% url 'movimientoequipo_list' %}">Ver historial</a>
 {% include "partials/page_header_close.html" %}
 
