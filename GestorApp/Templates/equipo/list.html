@@ -6,6 +6,7 @@
 {% include "partials/page_header_open.html" with title=inv.plural description=inv.description %}
 	{% if inv.tipo == "Equipo" %}
 	<a class="btn btn-outline-secondary" href="{% url 'equipo_dashboard' %}">Dashboard</a>
+	<a class="btn btn-outline-secondary" href="{% url 'inventario_importar' %}">Importar Excel</a>
 	{% endif %}
 	<a
 		class="btn btn-outline-secondary"

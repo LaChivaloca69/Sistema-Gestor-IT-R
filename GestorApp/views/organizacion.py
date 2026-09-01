@@ -83,6 +83,7 @@ from .helpers import (
     _apply_date_filters,
     _cerrar_asignaciones_activas,
     _crear_movimiento,
+    _propagar_custodia_personal_a_equipos,
     _deny_ticket_access,
     _end_of_month,
     _get_equipo_asignacion_activa,
@@ -401,10 +402,21 @@ def personal_create(request):
 
 def personal_update(request, pk):
     personal = get_object_or_404(Personal, pk=pk)
+    ubicacion_anterior_id = personal.ubicacion_id
+    area_anterior_id = personal.area_id
     if request.method == "POST":
         form = PersonalForm(request.POST, instance=personal, request_user=request.user)
         if form.is_valid():
-            personal = form.save()
+            with transaction.atomic():
+                personal = form.save()
+                equipos_actualizados = 0
+                if (
+                    personal.ubicacion_id != ubicacion_anterior_id
+                    or personal.area_id != area_anterior_id
+                ):
+                    equipos_actualizados = _propagar_custodia_personal_a_equipos(
+                        personal, request=request
+                    )
             historial.registrar_actualizacion(
                 request,
                 modulo=ModuloHistorial.PERSONAL,
@@ -414,6 +426,11 @@ def personal_update(request, pk):
                 enlace_nombre="personal_update",
             )
             messages.success(request, "Personal actualizado correctamente.")
+            if equipos_actualizados:
+                messages.info(
+                    request,
+                    f"Se actualizo la ubicacion de {equipos_actualizados} equipo(s) asignado(s).",
+                )
             return redirect("personal_list")
     else:
         form = PersonalForm(instance=personal, request_user=request.user)

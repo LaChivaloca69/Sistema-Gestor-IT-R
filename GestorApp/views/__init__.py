@@ -48,6 +48,7 @@ from .helpers import (  # noqa: F401
 from .organizacion import *  # noqa: F401,F403
 from .ubicaciones import *  # noqa: F401,F403
 from .equipo import *  # noqa: F401,F403
+from .inventory_import import *  # noqa: F401,F403
 from .equipo import (  # noqa: F401
     _asignaciones_antiguas_qs,
     _equipo_dashboard_context,

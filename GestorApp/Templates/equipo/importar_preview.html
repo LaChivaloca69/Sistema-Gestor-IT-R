@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}Vista previa importacion{% endblock %}
+
+{% block content %}
+{% include "partials/page_header_open.html" with title="Vista previa de importacion" description="Revisa las filas antes de confirmar. Solo se importan filas sin error." %}
+	<a class="btn btn-outline-secondary" href="{% url 'inventario_importar' %}">Cambiar archivo</a>
+{% include "partials/page_header_close.html" %}
+
+<section class="kpi-grid mb-4">
+	<div class="kpi-card">
+		<span class="kpi-card__label">Total filas</span>
+		<strong class="kpi-card__value">{{ summary.total }}</strong>
+	</div>
+	<div class="kpi-card">
+		<span class="kpi-card__label">Listas</span>
+		<strong class="kpi-card__value">{{ summary.importables }}</strong>
+		<small>{{ summary.equipos }} equipos · {{ summary.perifericos }} perifericos</small>
+	</div>
+	<div class="kpi-card">
+		<span class="kpi-card__label">Advertencias</span>
+		<strong class="kpi-card__value">{{ summary.warnings }}</strong>
+	</div>
+	<div class="kpi-card">
+		<span class="kpi-card__label">Errores</span>
+		<strong class="kpi-card__value">{{ summary.errors }}</strong>
+	</div>
+</section>
+
+<div class="table-responsive mb-4">
+	<table class="table table-sm table-hover align-middle">
+		<thead>
+			<tr>
+				<th>Hoja</th>
+				<th>Fila</th>
+				<th>Codigo</th>
+				<th>Categoria</th>
+				<th>Tipo</th>
+				<th>Estado</th>
+				<th>Detalle</th>
+			</tr>
+		</thead>
+		<tbody>
+			{% for row in rows %}
+			<tr class="{% if row.status == 'error' %}table-danger{% elif row.status == 'warning' %}table-warning{% else %}table-success{% endif %}">
+				<td>{{ row.sheet }}</td>
+				<td>{{ row.row_num }}</td>
+				<td>{{ row.codigo }}</td>
+				<td>{{ row.categoria }}</td>
+				<td>{{ row.tipo }}</td>
+				<td>
+					{% if row.status == 'error' %}Error{% elif row.status == 'warning' %}Advertencia{% else %}OK{% endif %}
+				</td>
+				<td>
+					{% if row.messages %}
+						{{ row.messages|join:" · " }}
+					{% else %}
+						Listo para importar
+					{% endif %}
+				</td>
+			</tr>
+			{% endfor %}
+		</tbody>
+	</table>
+</div>
+
+<form method="post" action="{% url 'inventario_importar_confirmar' %}" class="d-inline">
+	{% csrf_token %}
+	<input type="hidden" name="batch_id" value="{{ batch_id }}">
+	<a class="btn btn-outline-secondary" href="{% url 'inventario_importar_cancelar' %}">Cancelar</a>
+	<button
+		class="btn btn-primary"
+		type="submit"
+		{% if summary.importables == 0 %}disabled{% endif %}
+	>
+		Confirmar importacion ({{ summary.importables }} fila{{ summary.importables|pluralize }})
+	</button>
+</form>
+{% endblock %}

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% load django_bootstrap5 %}
+
+{% block title %}Importar inventario{% endblock %}
+
+{% block content %}
+{% include "partials/page_header_open.html" with title="Importar inventario" description="Carga masiva de equipos y perifericos desde Excel. Los perifericos se importan sin kit; vinculalos despues desde la ficha del equipo." %}
+	<a class="btn btn-outline-secondary" href="{% url 'inventario_importar_plantilla' %}">Descargar plantilla</a>
+	<a class="btn btn-outline-secondary" href="{% url 'equipo_dashboard' %}">Volver al panel</a>
+{% include "partials/page_header_close.html" %}
+
+<div class="card mb-4">
+	<div class="card-body">
+		<h2 class="h5">Pasos</h2>
+		<ol class="mb-0">
+			<li>Descarga la plantilla y llena las hojas <strong>Equipos</strong> y <strong>Perifericos</strong>.</li>
+			<li>Consulta la hoja <strong>Catalogos</strong> para valores validos (categorias, ubicaciones, personal).</li>
+			<li>Sube el archivo y revisa la vista previa antes de confirmar.</li>
+		</ol>
+	</div>
+</div>
+
+<form method="post" enctype="multipart/form-data">
+	{% csrf_token %}
+	{{ form.non_field_errors }}
+	{% bootstrap_form form %}
+	<div class="actions">
+		<a class="btn btn-outline-secondary" href="{% url 'equipo_dashboard' %}">Cancelar</a>
+		<button class="btn btn-primary" type="submit">Subir y revisar</button>
+	</div>
+</form>
+{% endblock %}

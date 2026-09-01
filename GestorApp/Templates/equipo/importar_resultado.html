@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}Resultado importacion{% endblock %}
+
+{% block content %}
+{% include "partials/page_header_open.html" with title="Resultado de importacion" description="Resumen de la carga masiva." %}
+	<a class="btn btn-outline-secondary" href="{% url 'equipo_list' %}">Ver equipos</a>
+	<a class="btn btn-outline-secondary" href="{% url 'periferico_list' %}">Ver perifericos</a>
+	<a class="btn btn-primary" href="{% url 'inventario_importar' %}">Nueva importacion</a>
+{% include "partials/page_header_close.html" %}
+
+<section class="kpi-grid mb-4">
+	<div class="kpi-card">
+		<span class="kpi-card__label">Equipos creados</span>
+		<strong class="kpi-card__value">{{ result.equipos_creados }}</strong>
+	</div>
+	<div class="kpi-card">
+		<span class="kpi-card__label">Perifericos creados</span>
+		<strong class="kpi-card__value">{{ result.perifericos_creados }}</strong>
+	</div>
+	<div class="kpi-card">
+		<span class="kpi-card__label">Asignaciones</span>
+		<strong class="kpi-card__value">{{ result.asignaciones_creadas }}</strong>
+	</div>
+	<div class="kpi-card">
+		<span class="kpi-card__label">Filas omitidas</span>
+		<strong class="kpi-card__value">{{ result.filas_omitidas }}</strong>
+	</div>
+</section>
+
+{% if result.errores_ejecucion %}
+<div class="card border-danger mb-4">
+	<div class="card-header">Errores al guardar</div>
+	<ul class="list-group list-group-flush">
+		{% for error in result.errores_ejecucion %}
+		<li class="list-group-item">{{ error }}</li>
+		{% endfor %}
+	</ul>
+</div>
+{% endif %}
+
+{% if summary.errors %}
+<div class="card mb-4">
+	<div class="card-header">Filas no importadas (errores de validacion)</div>
+	<div class="table-responsive">
+		<table class="table table-sm mb-0">
+			<thead>
+				<tr>
+					<th>Fila</th>
+					<th>Codigo</th>
+					<th>Motivo</th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for row in rows %}
+				{% if row.status == 'error' %}
+				<tr>
+					<td>{{ row.sheet }} · {{ row.row_num }}</td>
+					<td>{{ row.codigo }}</td>
+					<td>{{ row.messages|join:" · " }}</td>
+				</tr>
+				{% endif %}
+				{% endfor %}
+			</tbody>
+		</table>
+	</div>
+</div>
+{% endif %}
+{% endblock %}

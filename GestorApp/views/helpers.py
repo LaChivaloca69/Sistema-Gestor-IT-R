@@ -12,6 +12,7 @@ from ..cobertura import ticket_asignados_q_for_user
 from ..roles import is_admin_user, is_operativo
 from ..models import (
     AsignacionEquipo,
+    Equipo,
     EstadoAsignacion,
     EstadoEquipo,
     EstadoSupport,
@@ -401,6 +402,66 @@ def _aplicar_asignacion_a_equipo(equipo, personal, request=None):
         _sync_perifericos_con_padre(equipo, request=request)
 
     return ubicacion_anterior, equipo.ubicacion
+
+
+def _propagar_custodia_personal_a_equipos(personal, request=None):
+    """
+    Sincroniza departamento y espacio fisico del custodio con sus equipos
+    con asignacion activa (p. ej. al cambiar el puesto del empleado).
+    """
+    if not personal:
+        return 0
+
+    personal = (
+        Personal.objects.select_related("area", "ubicacion")
+        .filter(pk=personal.pk)
+        .first()
+    )
+    if not personal:
+        return 0
+
+    equipo_ids = (
+        AsignacionEquipo.objects.filter(
+            personal=personal,
+            estado_asignacion=EstadoAsignacion.ACTIVA,
+        )
+        .values_list("equipo_id", flat=True)
+        .distinct()
+    )
+
+    actualizados = 0
+    for equipo_id in equipo_ids:
+        equipo = Equipo.objects.select_related("ubicacion", "area").filter(pk=equipo_id).first()
+        if not equipo:
+            continue
+
+        area_anterior_id = equipo.area_id
+        ubicacion_anterior_id = equipo.ubicacion_id
+        ubicacion_anterior = equipo.ubicacion
+        _, ubicacion_nueva = _aplicar_asignacion_a_equipo(equipo, personal, request=request)
+        equipo.refresh_from_db(fields=["area_id", "ubicacion_id"])
+
+        if (
+            equipo.area_id == area_anterior_id
+            and equipo.ubicacion_id == ubicacion_anterior_id
+        ):
+            continue
+
+        actualizados += 1
+        if ubicacion_anterior != ubicacion_nueva:
+            _crear_movimiento(
+                equipo,
+                TipoMovimiento.CAMBIO_UBICACION,
+                origen=ubicacion_anterior,
+                destino=ubicacion_nueva,
+                responsable=personal,
+                observaciones=(
+                    "Actualizacion automatica por cambio de espacio del custodio."
+                ),
+                request=request,
+            )
+
+    return actualizados
 
 
 def _liberar_equipo_tras_devolucion(equipo, request=None):

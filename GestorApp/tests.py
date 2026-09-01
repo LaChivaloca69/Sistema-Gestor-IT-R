@@ -8,6 +8,7 @@ from GestorApp.models import (
     Bitacora,
     CategoriaEquipo,
     ComentarioTicket,
+    Edificio,
     Equipo,
     EstadoAsignacion,
     EstadoEquipo,
@@ -18,6 +19,8 @@ from GestorApp.models import (
     SeguimientoTicket,
     SolicitudEquipo,
     TicketIT,
+    Ubicacion,
+    ZonaEdificio,
 )
 from GestorApp.roles import ROLE_ADMIN, ROLE_TECNICO, ROLE_USUARIO, ensure_role_groups, set_user_role
 from GestorApp import historial as historial_mod
@@ -652,3 +655,191 @@ class TicketComentarioTests(TestCase):
         )
         self.assertEqual(response.status_code, 302)
         self.assertTrue(ComentarioTicket.objects.filter(pk=comentario.pk).exists())
+
+
+class PropagarCustodiaPersonalTests(TestCase):
+    def setUp(self):
+        self.edificio = Edificio.objects.create(nombre_edificio="Torre A")
+        self.zona = ZonaEdificio.objects.create(
+            edificio=self.edificio,
+            nombre_zona="Piso 1",
+        )
+        self.ubicacion_a = Ubicacion.objects.create(
+            edificio=self.edificio,
+            zona=self.zona,
+            referencia="Escritorio 101",
+        )
+        self.ubicacion_b = Ubicacion.objects.create(
+            edificio=self.edificio,
+            zona=self.zona,
+            referencia="Escritorio 202",
+        )
+        self.personal = Personal.objects.create(
+            numero_empleado="EMP-UBI-01",
+            nombre="Ana",
+            apellido_paterno="Lopez",
+            ubicacion=self.ubicacion_a,
+        )
+        self.categoria = CategoriaEquipo.objects.create(nombre_categoria="Laptop")
+        self.equipo = Equipo.objects.create(
+            codigo_inventario="INV-UBI-001",
+            categoria=self.categoria,
+            estado_equipo=EstadoEquipo.ASIGNADO,
+            ubicacion=self.ubicacion_a,
+        )
+        AsignacionEquipo.objects.create(
+            equipo=self.equipo,
+            personal=self.personal,
+            estado_asignacion=EstadoAsignacion.ACTIVA,
+        )
+
+    def test_propaga_ubicacion_a_equipos_asignados(self):
+        from GestorApp.models import MovimientoEquipo, TipoMovimiento
+        from GestorApp.views.helpers import _propagar_custodia_personal_a_equipos
+
+        self.personal.ubicacion = self.ubicacion_b
+        self.personal.save(update_fields=["ubicacion"])
+
+        actualizados = _propagar_custodia_personal_a_equipos(self.personal)
+        self.equipo.refresh_from_db()
+
+        self.assertEqual(actualizados, 1)
+        self.assertEqual(self.equipo.ubicacion_id, self.ubicacion_b.pk)
+        movimiento = MovimientoEquipo.objects.get(equipo=self.equipo)
+        self.assertEqual(movimiento.tipo_movimiento, TipoMovimiento.CAMBIO_UBICACION)
+
+    def test_no_propaga_sin_asignacion_activa(self):
+        from GestorApp.views.helpers import _propagar_custodia_personal_a_equipos
+
+        AsignacionEquipo.objects.filter(equipo=self.equipo).update(
+            estado_asignacion=EstadoAsignacion.DEVUELTA
+        )
+        self.personal.ubicacion = self.ubicacion_b
+        self.personal.save(update_fields=["ubicacion"])
+
+        actualizados = _propagar_custodia_personal_a_equipos(self.personal)
+        self.equipo.refresh_from_db()
+
+        self.assertEqual(actualizados, 0)
+        self.assertEqual(self.equipo.ubicacion_id, self.ubicacion_a.pk)
+
+
+class InventarioImportTests(TestCase):
+    def setUp(self):
+        ensure_role_groups()
+        self.password = "StrongPass123!"
+        self.admin = User.objects.create_user(username="import_admin", password=self.password)
+        set_user_role(self.admin, ROLE_ADMIN)
+
+        self.edificio = Edificio.objects.create(nombre_edificio="Torre B")
+        self.zona = ZonaEdificio.objects.create(edificio=self.edificio, nombre_zona="Piso 2")
+        self.ubicacion = Ubicacion.objects.create(
+            edificio=self.edificio,
+            zona=self.zona,
+            referencia="Almacen IT",
+            es_stock_default=True,
+        )
+        self.categoria_equipo = CategoriaEquipo.objects.create(
+            nombre_categoria="Laptop",
+            tipo="Equipo",
+        )
+        self.categoria_periferico = CategoriaEquipo.objects.create(
+            nombre_categoria="Monitor",
+            tipo="Periferico",
+        )
+        self.personal = Personal.objects.create(
+            numero_empleado="EMP-IMP-01",
+            nombre="Luis",
+            apellido_paterno="Ramos",
+            ubicacion=self.ubicacion,
+        )
+
+    def _build_workbook_bytes(self):
+        from io import BytesIO
+
+        from openpyxl import Workbook
+
+        from GestorApp.inventory_import import EQUIPOS_HEADERS, PERIFERICOS_HEADERS
+
+        wb = Workbook()
+        ws_eq = wb.active
+        ws_eq.title = "Equipos"
+        ws_eq.append(EQUIPOS_HEADERS)
+        ws_eq.append(
+            [
+                "INV-IMP-001",
+                "Laptop",
+                "Dell",
+                "Latitude",
+                "SER-IMP-001",
+                "Asignado",
+                str(self.ubicacion),
+                "EMP-IMP-01",
+                "",
+                "Import test",
+                "Legado",
+            ]
+        )
+        ws_per = wb.create_sheet("Perifericos")
+        ws_per.append(PERIFERICOS_HEADERS)
+        ws_per.append(
+            [
+                "PER-IMP-001",
+                "Monitor",
+                "LG",
+                "24MK",
+                "SER-PER-001",
+                "En Stock",
+                str(self.ubicacion),
+                "Monitor importado",
+            ]
+        )
+        buffer = BytesIO()
+        wb.save(buffer)
+        return buffer.getvalue()
+
+    def test_parse_and_execute_import(self):
+        from io import BytesIO
+
+        from GestorApp.inventory_import import execute_import, parse_import_workbook
+
+        rows, errors = parse_import_workbook(BytesIO(self._build_workbook_bytes()))
+        self.assertEqual(errors, [])
+        self.assertEqual(len(rows), 2)
+        self.assertTrue(all(r.status in {"ok", "warning"} for r in rows))
+
+        result = execute_import(rows)
+        self.assertEqual(result["equipos_creados"], 1)
+        self.assertEqual(result["perifericos_creados"], 1)
+        self.assertEqual(result["asignaciones_creadas"], 1)
+
+        equipo = Equipo.objects.get(codigo_inventario="INV-IMP-001")
+        periferico = Equipo.objects.get(codigo_inventario="PER-IMP-001")
+        self.assertEqual(equipo.estado_equipo, EstadoEquipo.ASIGNADO)
+        self.assertIsNone(periferico.equipo_padre_id)
+        self.assertTrue(
+            AsignacionEquipo.objects.filter(
+                equipo=equipo,
+                personal=self.personal,
+                estado_asignacion=EstadoAsignacion.ACTIVA,
+            ).exists()
+        )
+
+    def test_import_view_requires_login(self):
+        response = self.client.get(reverse("inventario_importar"))
+        self.assertEqual(response.status_code, 302)
+
+    def test_import_wizard_preview(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        self.client.login(username="import_admin", password=self.password)
+        upload = SimpleUploadedFile(
+            "inventario.xlsx",
+            self._build_workbook_bytes(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        response = self.client.post(reverse("inventario_importar"), {"archivo": upload})
+        self.assertEqual(response.status_code, 302)
+        response = self.client.get(reverse("inventario_importar_preview"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["summary"]["importables"], 2)

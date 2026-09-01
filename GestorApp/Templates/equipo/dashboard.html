@@ -5,6 +5,7 @@
 {% block content %}
 {% include "partials/page_header_open.html" with title="Panel de inventario" description="Estados, ubicaciones y focos de atencion (panel, sin email)." %}
 	<a class="btn btn-outline-secondary" href="{% url 'equipo_list' %}">Lista</a>
+	<a class="btn btn-outline-secondary" href="{% url 'inventario_importar' %}">Importar Excel</a>
 	<a class="btn btn-primary" href="{% url 'equipo_create' %}">Nuevo equipo</a>
 {% include "partials/page_header_close.html" %}
 

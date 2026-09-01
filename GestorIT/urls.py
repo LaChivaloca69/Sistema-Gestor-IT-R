@@ -112,6 +112,31 @@ urlpatterns = [
     ),
     path('Equipos/dashboard/', views.operativo_required(views.equipo_dashboard), name='equipo_dashboard'),
     path(
+        'Inventario/importar/',
+        views.operativo_required(views.inventario_importar),
+        name='inventario_importar',
+    ),
+    path(
+        'Inventario/importar/plantilla/',
+        views.operativo_required(views.inventario_importar_plantilla),
+        name='inventario_importar_plantilla',
+    ),
+    path(
+        'Inventario/importar/vista-previa/',
+        views.operativo_required(views.inventario_importar_preview),
+        name='inventario_importar_preview',
+    ),
+    path(
+        'Inventario/importar/confirmar/',
+        views.operativo_required(views.inventario_importar_confirmar),
+        name='inventario_importar_confirmar',
+    ),
+    path(
+        'Inventario/importar/cancelar/',
+        views.operativo_required(views.inventario_importar_cancelar),
+        name='inventario_importar_cancelar',
+    ),
+    path(
         'Equipos/create/',
         views.operativo_required(views.equipo_create),
         {'tipo': 'Equipo'},
