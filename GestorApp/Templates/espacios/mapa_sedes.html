@@ -55,9 +55,10 @@
 		<h2>Arma tu primera sede en un minuto</h2>
 		<p>Define edificio, sectores y espacios. Si marcas un almacén, los equipos en stock y las devoluciones quedaran ahi.</p>
 		<ol class="mapa-welcome__list">
-			<li>Escribe el nombre de la sede</li>
+			<li>Escribe el nombre de tu edificio / sede</li>
 			<li>Lista pisos o sectores</li>
-			<li>Opcional: espacios (escritorios) y almacén</li>
+			<li>Elige como repartir los espacios (evita duplicados)</li>
+			<li>Opcional: espacios y almacén</li>
 		</ol>
 	</div>
 	<form method="post" class="mapa-welcome__form">
@@ -72,9 +73,19 @@
 			<textarea id="welcome_sectores" name="sectores" rows="4" placeholder="Piso 1&#10;Piso 2&#10;Piso 3"></textarea>
 		</div>
 		<div class="mapa-welcome__field">
-			<label for="welcome_espacios">3. Espacios por sector <small>(opcional, uno por linea)</small></label>
-			<textarea id="welcome_espacios" name="espacios" rows="3" placeholder="Escritorio 1&#10;Escritorio 2&#10;Sala juntas"></textarea>
-			<label class="mapa-welcome__inline" for="welcome_n">O crear automaticamente</label>
+			<label for="welcome_distribucion">3. Como repartir espacios</label>
+			<select id="welcome_distribucion" name="distribucion">
+				<option value="solo_primero" selected>Solo en el primer sector</option>
+				<option value="repartir">Repartir la lista entre sectores</option>
+				<option value="compartidos">Mismos espacios en cada sector</option>
+				<option value="por_bloque">Por sector (usar encabezados # Piso 1)</option>
+			</select>
+			<p class="text-muted small mb-0 mt-1">Evita duplicar escritorios en todos los pisos. El Almacen solo recibe “Stock principal”.</p>
+		</div>
+		<div class="mapa-welcome__field">
+			<label for="welcome_espacios">4. Espacios <small>(opcional, uno por linea)</small></label>
+			<textarea id="welcome_espacios" name="espacios" rows="4" placeholder="Escritorio 1&#10;Escritorio 2&#10;Sala juntas&#10;&#10;O con bloques:&#10;# Piso 1&#10;Esc 101&#10;# Piso 2&#10;Esc 201"></textarea>
+			<label class="mapa-welcome__inline" for="welcome_n">O crear automaticamente (cantidad)</label>
 			<input id="welcome_n" type="number" min="0" max="50" name="espacios_por_sector" placeholder="Ej. 10">
 		</div>
 		<div class="mapa-welcome__checks">
@@ -135,9 +146,22 @@
 					<textarea class="form-control" id="plantilla_sectores" name="sectores" rows="3" placeholder="Piso 1&#10;Piso 2"></textarea>
 				</div>
 				<div class="col-md-4">
+					<label class="form-label" for="plantilla_distribucion">Distribucion de espacios</label>
+					<select class="form-select" id="plantilla_distribucion" name="distribucion">
+						<option value="solo_primero" selected>Solo en el primer sector</option>
+						<option value="repartir">Repartir la lista entre sectores</option>
+						<option value="compartidos">Mismos espacios en cada sector</option>
+						<option value="por_bloque">Por sector (encabezados # Piso 1)</option>
+					</select>
+				</div>
+				<div class="col-md-8">
 					<label class="form-label" for="plantilla_espacios">Espacios <small class="text-muted">(opcional)</small></label>
-					<textarea class="form-control" id="plantilla_espacios" name="espacios" rows="3" placeholder="Escritorio 1&#10;Sala juntas"></textarea>
-					<input class="form-control mt-2" type="number" min="0" max="100" name="espacios_por_sector" placeholder="O cantidad automatica">
+					<textarea class="form-control" id="plantilla_espacios" name="espacios" rows="4" placeholder="Escritorio 1&#10;Escritorio 2&#10;Sala juntas&#10;&#10;# Piso 1&#10;Esc 101&#10;# Piso 2&#10;Esc 201"></textarea>
+					<div class="form-text">Con “Por sector”, usa lineas <code># Piso 1</code> o <code>Piso 1:</code>.</div>
+				</div>
+				<div class="col-md-4">
+					<label class="form-label" for="plantilla_n">O cantidad automatica</label>
+					<input class="form-control" id="plantilla_n" type="number" min="0" max="100" name="espacios_por_sector" placeholder="Ej. 10">
 				</div>
 			</div>
 			<div class="mapa-welcome__checks mt-3">
@@ -335,6 +359,7 @@
 			<dt class="col-sm-4">Equipos aqui</dt>
 			<dd class="col-sm-8"><strong>{{ panel_equipos }}</strong></dd>
 		</dl>
+		{% include "partials/mapa_equipos_en_lugar.html" %}
 
 		{% elif panel_type == "sector" %}
 		<div class="mapa-crumb">
@@ -406,6 +431,7 @@
 				</tbody>
 			</table>
 		</div>
+		{% include "partials/mapa_equipos_en_lugar.html" %}
 
 		{% elif panel_type == "edificio" %}
 		<div class="mapa-crumb">
@@ -471,6 +497,7 @@
 		</div>
 		{% endif %}
 		<p class="text-muted small mt-3 mb-0">{{ panel_equipos }} equipo{{ panel_equipos|pluralize:"s" }} en este edificio.</p>
+		{% include "partials/mapa_equipos_en_lugar.html" %}
 
 		{% else %}
 		<div class="mapa-panel-idle">

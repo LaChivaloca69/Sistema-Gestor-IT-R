@@ -70,6 +70,8 @@ class EquipoForm(forms.ModelForm):
         fields = [
             "codigo_inventario",
             "numero_serie",
+            "tag_1",
+            "tag_2",
             "categoria",
             "marca",
             "modelo",
@@ -80,14 +82,14 @@ class EquipoForm(forms.ModelForm):
             "origen_alta",
             "orden_compra",
             "detalle_orden",
-            "estado_equipo",
             "ubicacion",
             "fecha_alta",
-            "activo",
         ]
         labels = {
             "codigo_inventario": "Código de inventario (ID)",
             "numero_serie": "Número de serie",
+            "tag_1": "Tag 1",
+            "tag_2": "Tag 2",
             "marca": "Marca",
             "modelo": "Modelo",
             "categoria": "Categoría",
@@ -97,36 +99,39 @@ class EquipoForm(forms.ModelForm):
             "origen_alta": "Origen de alta",
             "orden_compra": "Orden de compra",
             "detalle_orden": "Producto de la orden",
-            "estado_equipo": "Estado",
             "ubicacion": "Espacio fisico",
             "fecha_alta": "Fecha de alta",
-            "activo": "Activo",
             "imagen": "Imagen",
         }
         help_texts = {
             "codigo_inventario": "Código único de inventario.",
-            "numero_serie": "Número de serie (si aplica).",
+            "numero_serie": "Número de serie del equipo.",
+            "tag_1": "Opcional. 6 digitos.",
+            "tag_2": "Opcional. 4 digitos.",
             "origen_alta": (
-                "Compra: con OC. Legado: equipos viejos sin documento. "
+                "Compra: con orden de compra. Legado: equipos viejos sin documento. "
                 "Otros: donacion, transferencia, etc."
             ),
-            "orden_compra": "Opcional. Solo OC en estado Terminado con cupo disponible.",
+            "orden_compra": "Opcional. Solo Ordenes terminadas con cupo disponible.",
             "detalle_orden": (
                 "Obligatorio si es Compra. Cada alta descuenta 1 de la cantidad de la linea."
             ),
             "proveedor": "Proveedor.",
-            "Numero_Pedimiento": "Número de pedimiento (si aplica).",
+            "Numero_Pedimiento": "Número de pedimiento (si se cuenta con el).",
             "descripcion_equipo": "Descripción detallada.",
-            "estado_equipo": (
-                "Disponible/Asignado se sincronizan con la asignacion activa. "
-                "Usa En Mantenimiento/Baja con cuidado."
+            "ubicacion": (
+                "Lugar fisico del equipo (ubicacion). "
             ),
-            "ubicacion": "Almacen o lugar fisico del equipo.",
-            "fecha_alta": "Fecha en que se dio de alta.",
         }
         widgets = {
             "descripcion_equipo": forms.Textarea(attrs={"rows": 4}),
             "fecha_alta": forms.DateInput(attrs={"type": "date"}),
+            "tag_1": forms.TextInput(
+                attrs={"inputmode": "numeric", "pattern": r"\d{6}", "maxlength": "6"}
+            ),
+            "tag_2": forms.TextInput(
+                attrs={"inputmode": "numeric", "pattern": r"\d{4}", "maxlength": "4"}
+            ),
         }
 
     def __init__(self, *args, tipo=None, **kwargs):
@@ -218,6 +223,27 @@ class EquipoForm(forms.ModelForm):
                 "zona__nombre_zona",
                 "referencia",
             )
+
+    def clean_numero_serie(self):
+        value = self.cleaned_data.get("numero_serie")
+        if value is None:
+            return None
+        value = str(value).strip()
+        return value or None
+
+    def clean_tag_1(self):
+        value = self.cleaned_data.get("tag_1")
+        if value is None:
+            return None
+        value = str(value).strip()
+        return value or None
+
+    def clean_tag_2(self):
+        value = self.cleaned_data.get("tag_2")
+        if value is None:
+            return None
+        value = str(value).strip()
+        return value or None
 
     def clean(self):
         cleaned = super().clean()
@@ -394,7 +420,7 @@ class EquipoVincularPerifericoForm(forms.Form):
     periferico = forms.ModelChoiceField(
         queryset=Equipo.objects.none(),
         label="Periferico",
-        help_text="Solo perifericos libres (sin equipo padre).",
+        help_text="Solo perifericos libres.",
     )
     observaciones = forms.CharField(
         required=False,

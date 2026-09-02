@@ -170,6 +170,73 @@ def _split_lines(value):
     return items
 
 
+def _es_sector_almacen(nombre):
+    return (nombre or "").strip().lower() in {"almacen", "almacén", "bodega", "stock"}
+
+
+def _etiqueta_distribucion(modo):
+    return {
+        "compartidos": "mismos espacios en cada sector",
+        "solo_primero": "solo en el primer sector",
+        "repartir": "lista repartida entre sectores",
+        "por_bloque": "espacios por sector (bloques)",
+    }.get(modo, modo)
+
+
+def _chunk_lista(items, n_buckets):
+    """Reparte items en n_buckets bloques consecutivos lo mas parejos posible."""
+    if n_buckets <= 0:
+        return []
+    if not items:
+        return [[] for _ in range(n_buckets)]
+    n = len(items)
+    base, rem = divmod(n, n_buckets)
+    result = []
+    idx = 0
+    for i in range(n_buckets):
+        size = base + (1 if i < rem else 0)
+        result.append(items[idx : idx + size])
+        idx += size
+    return result
+
+
+def _parse_espacios_por_bloque(texto, nombres_sectores):
+    """
+    Interpreta bloques con encabezado de sector:
+      # Piso 1
+      Escritorio 1
+      Piso 2:
+      Escritorio 2
+    Devuelve (mapa_nombre_sector -> [refs], refs_sin_sector).
+    """
+    mapa = {nombre: [] for nombre in nombres_sectores}
+    lookup = {nombre.casefold(): nombre for nombre in nombres_sectores}
+    sin_sector = []
+    actual = None
+
+    for raw in str(texto or "").splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+
+        header = None
+        if line.startswith("#"):
+            header = line.lstrip("#").strip().rstrip(":")
+        elif line.endswith(":"):
+            header = line[:-1].strip()
+
+        if header is not None:
+            actual = lookup.get(header.casefold())
+            # Si el encabezado no coincide con un sector, se ignora el bloque.
+            continue
+
+        if actual is not None:
+            mapa[actual].append(line)
+        else:
+            sin_sector.append(line)
+    return mapa, sin_sector
+
+
 def _crear_espacios_en_sector(edificio, sector, referencias, marcar_stock=False):
     creados = []
     for ref in referencias:
@@ -196,6 +263,9 @@ def _handle_mapa_sedes_post(request):
         espacios_n = _parse_int_param(request.POST.get("espacios_por_sector")) or 0
         incluir_almacen = request.POST.get("incluir_almacen") == "1"
         marcar_stock = request.POST.get("marcar_stock") == "1"
+        modo = (request.POST.get("distribucion") or "solo_primero").strip().lower()
+        if modo not in {"compartidos", "solo_primero", "repartir", "por_bloque"}:
+            modo = "solo_primero"
 
         if not nombre:
             messages.error(request, "Captura el nombre del edificio o sede.")
@@ -211,12 +281,44 @@ def _handle_mapa_sedes_post(request):
             )
             if not sectores:
                 sectores = ["Piso 1"]
-            if incluir_almacen and "Almacen" not in sectores and "Almacén" not in sectores:
+            if incluir_almacen and not any(_es_sector_almacen(s) for s in sectores):
                 sectores.append("Almacen")
 
-            refs_base = _split_lines(espacios_texto)
-            if not refs_base and espacios_n > 0:
-                refs_base = [f"Espacio {i}" for i in range(1, espacios_n + 1)]
+            sectores_ops = [s for s in sectores if not _es_sector_almacen(s)]
+            if not sectores_ops:
+                sectores_ops = ["Piso 1"]
+                sectores = sectores_ops + [s for s in sectores if _es_sector_almacen(s)]
+
+            refs_por_sector = {nombre_s: [] for nombre_s in sectores_ops}
+
+            if modo == "por_bloque":
+                mapa_bloques, sin_sector = _parse_espacios_por_bloque(
+                    espacios_texto, sectores_ops
+                )
+                for nombre_s, refs in mapa_bloques.items():
+                    refs_por_sector[nombre_s] = list(refs)
+                if sin_sector:
+                    refs_por_sector[sectores_ops[0]] = (
+                        list(refs_por_sector[sectores_ops[0]]) + sin_sector
+                    )
+                if not any(refs_por_sector.values()) and espacios_n > 0:
+                    refs_por_sector[sectores_ops[0]] = [
+                        f"Espacio {i}" for i in range(1, espacios_n + 1)
+                    ]
+            else:
+                refs_base = _split_lines(espacios_texto)
+                if not refs_base and espacios_n > 0:
+                    refs_base = [f"Espacio {i}" for i in range(1, espacios_n + 1)]
+                if refs_base:
+                    if modo == "compartidos":
+                        for nombre_s in sectores_ops:
+                            refs_por_sector[nombre_s] = list(refs_base)
+                    elif modo == "repartir":
+                        chunks = _chunk_lista(refs_base, len(sectores_ops))
+                        for nombre_s, chunk in zip(sectores_ops, chunks):
+                            refs_por_sector[nombre_s] = list(chunk)
+                    else:  # solo_primero
+                        refs_por_sector[sectores_ops[0]] = list(refs_base)
 
             stock_espacio = None
             first_sector = None
@@ -228,16 +330,20 @@ def _handle_mapa_sedes_post(request):
                 )
                 if first_sector is None:
                     first_sector = sector
-                es_almacen = nombre_sector.lower() in {"almacen", "almacén", "bodega", "stock"}
-                if es_almacen:
-                    refs = refs_base or ["Stock principal"]
+                if _es_sector_almacen(nombre_sector):
+                    # Almacen solo recibe stock; no copia escritorios.
                     creados = _crear_espacios_en_sector(
-                        edificio, sector, refs, marcar_stock=marcar_stock
+                        edificio,
+                        sector,
+                        ["Stock principal"],
+                        marcar_stock=marcar_stock,
                     )
                     if marcar_stock and creados:
                         stock_espacio = creados[0]
-                elif refs_base:
-                    _crear_espacios_en_sector(edificio, sector, refs_base)
+                else:
+                    refs = refs_por_sector.get(nombre_sector) or []
+                    if refs:
+                        _crear_espacios_en_sector(edificio, sector, refs)
 
             if marcar_stock and stock_espacio is None:
                 sector_stock = ZonaEdificio.objects.create(
@@ -254,7 +360,8 @@ def _handle_mapa_sedes_post(request):
         messages.success(
             request,
             f'Sede "{edificio.nombre_edificio}" creada'
-            + (" con almacén de stock." if stock_espacio else "."),
+            + (" con almacén de stock." if stock_espacio else ".")
+            + f" Distribucion: {_etiqueta_distribucion(modo)}.",
         )
         return redirect(
             _mapa_sedes_url(
@@ -331,6 +438,29 @@ def _handle_mapa_sedes_post(request):
     return redirect("mapa_sedes")
 
 
+def _equipos_activos_en_ubicaciones(ubicacion_ids):
+    """Equipos activos (no Baja) ubicados en los espacios indicados."""
+    ids = [uid for uid in ubicacion_ids if uid]
+    if not ids:
+        return Equipo.objects.none()
+    return (
+        Equipo.objects.filter(activo=True, ubicacion_id__in=ids)
+        .exclude(estado_equipo=EstadoEquipo.BAJA)
+        .select_related(
+            "categoria",
+            "ubicacion",
+            "ubicacion__zona",
+            "area",
+        )
+        .order_by(
+            "ubicacion__zona__nombre_zona",
+            "ubicacion__referencia",
+            "ubicacion__pasillo",
+            "codigo_inventario",
+        )
+    )
+
+
 def mapa_sedes(request):
     if request.method == "POST":
         return _handle_mapa_sedes_post(request)
@@ -388,6 +518,9 @@ def mapa_sedes(request):
     panel_type = None
     panel_espacios = []
     panel_equipos = 0
+    panel_equipos_lista = []
+    panel_equipos_limit = 300
+    panel_equipos_truncado = False
 
     if sel_espacio:
         panel = get_object_or_404(
@@ -397,6 +530,8 @@ def mapa_sedes(request):
         sel_sector = panel.zona_id
         sel_edificio = panel.edificio_id
         panel_equipos = equipo_por_espacio.get(panel.pk, 0)
+        qs_equipos = _equipos_activos_en_ubicaciones([panel.pk])
+        panel_equipos_lista = list(qs_equipos[: panel_equipos_limit + 1])
     elif sel_sector:
         panel = get_object_or_404(
             ZonaEdificio.objects.select_related("edificio"), pk=sel_sector
@@ -411,13 +546,24 @@ def mapa_sedes(request):
             for espacio in espacios_by_sector.get(panel.pk, [])
         ]
         panel_equipos = sum(row["equipos"] for row in panel_espacios)
+        espacio_ids = [row["espacio"].pk for row in panel_espacios]
+        qs_equipos = _equipos_activos_en_ubicaciones(espacio_ids)
+        panel_equipos_lista = list(qs_equipos[: panel_equipos_limit + 1])
     elif sel_edificio:
         panel = get_object_or_404(Edificio, pk=sel_edificio)
         panel_type = "edificio"
+        espacio_ids = []
         sectores = zonas_by_edificio.get(panel.pk, [])
         for sector in sectores:
             for espacio in espacios_by_sector.get(sector.pk, []):
                 panel_equipos += equipo_por_espacio.get(espacio.pk, 0)
+                espacio_ids.append(espacio.pk)
+        qs_equipos = _equipos_activos_en_ubicaciones(espacio_ids)
+        panel_equipos_lista = list(qs_equipos[: panel_equipos_limit + 1])
+
+    if len(panel_equipos_lista) > panel_equipos_limit:
+        panel_equipos_truncado = True
+        panel_equipos_lista = panel_equipos_lista[:panel_equipos_limit]
 
     tree = []
     for edificio in edificios_qs:
@@ -461,6 +607,9 @@ def mapa_sedes(request):
             "panel_espacios": panel_espacios,
             "panel_sectores": panel_sectores,
             "panel_equipos": panel_equipos,
+            "panel_equipos_lista": panel_equipos_lista,
+            "panel_equipos_truncado": panel_equipos_truncado,
+            "panel_equipos_limit": panel_equipos_limit,
             "equipo_por_espacio": equipo_por_espacio,
             "sel_edificio": sel_edificio,
             "sel_sector": sel_sector,

@@ -212,10 +212,20 @@ class OrdenCompraSubirForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["folio_orden"].required = False
         self.fields["folio_orden"].help_text = "Dejalo vacio para generar uno automatico (OC-000001)."
-        self.fields["archivo_pdf"].required = True
+        tiene_pdf = bool(
+            self.instance and self.instance.pk and getattr(self.instance, "archivo_pdf", None)
+        )
+        self.fields["archivo_pdf"].required = not tiene_pdf
+        if tiene_pdf:
+            self.fields["archivo_pdf"].help_text = (
+                "Opcional: deja vacio para conservar el PDF actual."
+            )
 
     def clean_archivo_pdf(self):
-        return _validar_pdf_upload(self.cleaned_data.get("archivo_pdf"))
+        archivo = self.cleaned_data.get("archivo_pdf")
+        if not archivo:
+            return archivo
+        return _validar_pdf_upload(archivo)
 
 
 

@@ -311,6 +311,8 @@ def _filtrar_equipos(request, tipo=None):
         items = items.filter(
             Q(codigo_inventario__icontains=search_query)
             | Q(numero_serie__icontains=search_query)
+            | Q(tag_1__icontains=search_query)
+            | Q(tag_2__icontains=search_query)
             | Q(marca__icontains=search_query)
             | Q(modelo__icontains=search_query)
             | Q(descripcion_equipo__icontains=search_query)
@@ -396,6 +398,8 @@ def _export_equipos_csv(queryset, inv=None):
         [
             "Codigo",
             "Serie",
+            "Tag 1",
+            "Tag 2",
             "Marca",
             "Modelo",
             "Categoria",
@@ -416,6 +420,8 @@ def _export_equipos_csv(queryset, inv=None):
             [
                 equipo.codigo_inventario,
                 equipo.numero_serie or "",
+                equipo.tag_1 or "",
+                equipo.tag_2 or "",
                 equipo.marca or "",
                 equipo.modelo or "",
                 str(equipo.categoria) if equipo.categoria_id else "",

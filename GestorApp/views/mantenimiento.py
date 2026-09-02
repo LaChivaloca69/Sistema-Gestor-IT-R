@@ -619,8 +619,15 @@ def mantenimiento_iniciar(request, pk):
     if request.method != "POST":
         return redirect("mantenimiento_detail", pk=pk)
     try:
-        mantenimiento.iniciar()
-        _sync_equipo_inicio_mantenimiento(mantenimiento, request=request)
+        with transaction.atomic():
+            # Validar sync antes de persistir En Proceso (evita estado a medias).
+            equipo = mantenimiento.equipo
+            if not equipo or equipo.estado_equipo == EstadoEquipo.BAJA:
+                raise ValidationError(
+                    "No se puede iniciar mantenimiento sobre un equipo en Baja."
+                )
+            mantenimiento.iniciar()
+            _sync_equipo_inicio_mantenimiento(mantenimiento, request=request)
     except ValidationError as exc:
         messages.error(request, " ".join(exc.messages) if hasattr(exc, "messages") else str(exc))
         return redirect("mantenimiento_detail", pk=pk)
@@ -673,10 +680,11 @@ def mantenimiento_reabrir(request, pk):
     if request.method != "POST":
         return redirect("mantenimiento_detail", pk=pk)
     try:
-        estado_anterior = mantenimiento.estado_mantenimiento
-        mantenimiento.reabrir()
-        if mantenimiento.estado_mantenimiento == EstadoMantenimiento.EN_PROCESO:
-            _sync_equipo_inicio_mantenimiento(mantenimiento, request=request)
+        with transaction.atomic():
+            estado_anterior = mantenimiento.estado_mantenimiento
+            mantenimiento.reabrir()
+            if mantenimiento.estado_mantenimiento == EstadoMantenimiento.EN_PROCESO:
+                _sync_equipo_inicio_mantenimiento(mantenimiento, request=request)
     except ValidationError as exc:
         messages.error(request, " ".join(exc.messages) if hasattr(exc, "messages") else str(exc))
         return redirect("mantenimiento_detail", pk=pk)

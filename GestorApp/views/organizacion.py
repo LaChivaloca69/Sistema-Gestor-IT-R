@@ -88,6 +88,7 @@ from .helpers import (
     _end_of_month,
     _get_equipo_asignacion_activa,
     _get_equipo_responsable,
+    _liberar_equipo_tras_devolucion,
     _month_bounds,
     _ordenes_for_user,
     _parse_date,
@@ -441,15 +442,54 @@ def personal_delete(request, pk):
     personal = get_object_or_404(Personal, pk=pk)
     if request.method == "POST":
         etiqueta = str(personal)
-        historial.registrar_eliminacion(
-            request,
-            modulo=ModuloHistorial.PERSONAL,
-            titulo=f"Personal eliminado: {etiqueta}",
-            objeto=personal,
-            metadata={"personal_id": personal.pk},
-            nivel=NivelHistorial.CRITICO,
-        )
-        personal.delete()
+        with transaction.atomic():
+            activas = list(
+                AsignacionEquipo.objects.filter(
+                    personal=personal,
+                    estado_asignacion=EstadoAsignacion.ACTIVA,
+                ).select_related("equipo")
+            )
+            now = timezone.now()
+            for asignacion in activas:
+                equipo = asignacion.equipo
+                asignacion.estado_asignacion = EstadoAsignacion.DEVUELTA
+                asignacion.fecha_devolucion = now
+                if not asignacion.observaciones:
+                    asignacion.observaciones = (
+                        "Cerrada automaticamente por eliminacion de personal."
+                    )
+                asignacion.save(
+                    update_fields=[
+                        "estado_asignacion",
+                        "fecha_devolucion",
+                        "observaciones",
+                    ]
+                )
+                _reconciliar_estado_equipo(equipo)
+                ubicacion_anterior, ubicacion_nueva = _liberar_equipo_tras_devolucion(
+                    equipo, request=request
+                )
+                _crear_movimiento(
+                    equipo,
+                    TipoMovimiento.CAMBIO_ASIGNACION,
+                    origen=ubicacion_anterior,
+                    destino=ubicacion_nueva,
+                    responsable=personal,
+                    observaciones=f"Devolucion automatica: eliminacion de {etiqueta}.",
+                    request=request,
+                )
+            historial.registrar_eliminacion(
+                request,
+                modulo=ModuloHistorial.PERSONAL,
+                titulo=f"Personal eliminado: {etiqueta}",
+                objeto=personal,
+                metadata={
+                    "personal_id": personal.pk,
+                    "asignaciones_cerradas": len(activas),
+                },
+                nivel=NivelHistorial.CRITICO,
+            )
+            personal.delete()
         messages.success(request, "Personal eliminado correctamente.")
         return redirect("personal_list")
     return render(request, "personal/confirm_delete.html", {"object": personal})

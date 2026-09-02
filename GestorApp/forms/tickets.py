@@ -82,7 +82,7 @@ class TicketITForm(forms.ModelForm):
         model = TicketIT
         exclude = ["folio_ticket", "fecha_support", "status"]
         labels = {
-            "requerimiento": "Problema que presenta",
+            "requerimiento": "Que Problema o solicitud tienes?",
             "solicitado_por": "Solicitado por",
             "asignado_a": "Asignado a",
             "area": "Departamento",
@@ -105,7 +105,7 @@ class TicketITForm(forms.ModelForm):
             "asignado_a": "Tecnico o staff responsable del ticket.",
             "detalle": "Proporcione detalles adicionales sobre el problema.",
             "descripcion": "Describa detalladamente el problema o solicitud.",
-            "imagen": "Adjunte una imagen del problema, si aplica.",
+            "imagen": "Adjuntar una Imagen del problema (opcional).",
         }
 
     def __init__(self, *args, **kwargs):
@@ -137,8 +137,7 @@ class TicketITForm(forms.ModelForm):
             if is_operativo(self.request_user):
                 equipos_qs = Equipo.objects.order_by("codigo_inventario")
                 equipo_help = (
-                    "Puedes elegir cualquier equipo del inventario. "
-                    "Si no aplica a uno registrado, elige Otro equipo."
+                    "Si el equipo no esta registrado, selecciona Otro equipo."
                 )
             else:
                 equipos_qs = _get_personal_active_equipos(self.request_personal)
@@ -147,8 +146,8 @@ class TicketITForm(forms.ModelForm):
                         Q(pk=self.instance.equipo_id) | Q(pk__in=equipos_qs.values("pk"))
                     ).order_by("codigo_inventario")
                 equipo_help = (
-                    "Solo aparecen los equipos asignados a ti. "
-                    "Si pides ayuda para un equipo que no es tuyo, elige Otro equipo."
+                    "Tus Equipos asignados."
+                    "Si pides ayuda para un equipo que no es tuyo, selecciona Otro equipo."
                 )
             self.fields["equipo"].queryset = equipos_qs
             self.fields["equipo"].required = False

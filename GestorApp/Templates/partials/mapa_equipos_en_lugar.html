@@ -1,0 +1,77 @@
+<div class="mapa-equipos mt-4">
+	<div class="section-block__header mb-2">
+		<div>
+			<h3 class="h6 mb-0">Equipos en este lugar</h3>
+			<p class="text-muted small mb-0">
+				{% if panel_type == "espacio" %}
+				Inventario ubicado en este espacio fisico.
+				{% elif panel_type == "sector" %}
+				Inventario de todos los espacios de este sector.
+				{% else %}
+				Inventario de todos los espacios de este edificio.
+				{% endif %}
+			</p>
+		</div>
+		{% if panel_equipos %}
+		<span class="status-badge status-badge--asignado">{{ panel_equipos }}</span>
+		{% endif %}
+	</div>
+	<div class="table-responsive">
+		<table class="table table-sm table-hover align-middle mb-0">
+			<thead>
+				<tr>
+					<th>Codigo</th>
+					<th>Categoria</th>
+					<th>Marca / modelo</th>
+					<th>Estado</th>
+					{% if panel_type != "espacio" %}
+					<th>Espacio</th>
+					{% endif %}
+					<th>Tag 1</th>
+					<th>Tag 2</th>
+					<th></th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for item in panel_equipos_lista %}
+				<tr class="table-row-click" data-href="{% url 'equipo_detail' item.pk %}">
+					<td><strong>{{ item.codigo_inventario }}</strong></td>
+					<td>{{ item.categoria }}</td>
+					<td>{{ item.marca|default:"-" }} {{ item.modelo|default:"" }}</td>
+					<td><span class="status-badge status-badge--{{ item.estado_equipo|slugify }}">{{ item.estado_equipo }}</span></td>
+					{% if panel_type != "espacio" %}
+					<td>
+						{% if item.ubicacion %}
+						<a href="{% url 'mapa_sedes' %}?edificio={{ item.ubicacion.edificio_id }}&sector={{ item.ubicacion.zona_id }}&espacio={{ item.ubicacion_id }}">
+							{{ item.ubicacion.referencia|default:item.ubicacion.pasillo|default:"—" }}
+						</a>
+						{% if panel_type == "edificio" and item.ubicacion.zona %}
+						<span class="text-muted small">· {{ item.ubicacion.zona.nombre_zona }}</span>
+						{% endif %}
+						{% else %}
+						—
+						{% endif %}
+					</td>
+					{% endif %}
+					<td>{{ item.tag_1|default:"-" }}</td>
+					<td>{{ item.tag_2|default:"-" }}</td>
+					<td class="text-end">
+						<a class="btn btn-outline-secondary btn-sm" href="{% url 'equipo_detail' item.pk %}">Ver</a>
+					</td>
+				</tr>
+				{% empty %}
+				<tr>
+					<td colspan="{% if panel_type != 'espacio' %}8{% else %}7{% endif %}" class="text-center py-3 text-muted">
+						No hay equipos activos en este lugar.
+					</td>
+				</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+	</div>
+	{% if panel_equipos_truncado %}
+	<p class="text-muted small mt-2 mb-0">
+		Mostrando los primeros {{ panel_equipos_limit }} de {{ panel_equipos }} equipos.
+	</p>
+	{% endif %}
+</div>

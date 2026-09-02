@@ -8,6 +8,16 @@
 
 {% block content %}
 
+{% if not has_attention_alerts %}
+<section class="dash-ok" aria-label="Estado operativo">
+	<i class="bi bi-check-circle" aria-hidden="true"></i>
+	<div>
+		<strong>Todo al dia</strong>
+		<p class="mb-0">No hay avisos criticos por ahora.</p>
+	</div>
+</section>
+{% endif %}
+
 {% if user.is_authenticated %}
 <section class="dash-header">
 	<div>
@@ -52,15 +62,7 @@
 	{% endif %}
 </section>
 
-{% if not has_attention_alerts %}
-<section class="dash-ok" aria-label="Estado operativo">
-	<i class="bi bi-check-circle" aria-hidden="true"></i>
-	<div>
-		<strong>Todo al dia</strong>
-		<p class="mb-0">No hay avisos criticos por ahora.</p>
-	</div>
-</section>
-{% endif %}
+
 <!--
 <section class="section-block">
 	<div class="section-block__header">

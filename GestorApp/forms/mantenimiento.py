@@ -110,10 +110,7 @@ class MantenimientoForm(forms.ModelForm):
             )
 
         User = get_user_model()
-        user_qs = User.objects.filter(is_staff=True)
-        if any(field.name == "is_active" for field in User._meta.fields):
-            user_qs = user_qs.filter(is_active=True)
-        user_qs = user_qs.order_by(User.USERNAME_FIELD)
+        user_qs = operativo_users_queryset(User)
 
         choices = [("", "---------"), ("Proveedores", "Proveedores")]
         for user in user_qs:

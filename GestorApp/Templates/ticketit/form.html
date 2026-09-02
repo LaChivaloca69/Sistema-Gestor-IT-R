@@ -5,9 +5,9 @@
 
 {% block content %}
 {% if object %}
-{% include "partials/page_header_open.html" with title="Editar Support" description="Captura la informacion principal del soporte." %}
+{% include "partials/page_header_open.html" with title="Editar Ticket" description="Captura la informacion principal del Ticket." %}
 {% else %}
-{% include "partials/page_header_open.html" with title="Nuevo Support" description="Captura la informacion principal del soporte." %}
+{% include "partials/page_header_open.html" with title="Nuevo Ticket" description="Captura la informacion principal del Ticket." %}
 {% endif %}
 	{% if object %}
 		<a class="btn btn-outline-primary" href="{% url 'ticketit_detail' object.pk %}">Ver detalle</a>

@@ -416,6 +416,12 @@ def solicitud_equipo_cancelar(request, pk):
     if obj.solicitante_id != request.user.id and not is_operativo(request.user):
         messages.error(request, "No puedes cancelar esta solicitud.")
         return redirect("solicitud_equipo_list")
+    if obj.esta_cerrada:
+        messages.error(
+            request,
+            "La solicitud ya esta cerrada y no se puede cancelar.",
+        )
+        return redirect("solicitud_equipo_detail", pk=pk)
     if not obj.puede_cancelar_solicitante and not is_operativo(request.user):
         messages.error(request, "La solicitud ya no se puede cancelar.")
         return redirect("solicitud_equipo_detail", pk=pk)

@@ -1,3 +1,5 @@
+from datetime import date, timedelta
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
@@ -12,9 +14,14 @@ from GestorApp.models import (
     Equipo,
     EstadoAsignacion,
     EstadoEquipo,
+    EstadoMantenimiento,
     EstadoSolicitudEquipo,
+    EstadoSupport,
     HistorialActividad,
+    Mantenimiento,
     ModuloHistorial,
+    OrdenCompra,
+    OrigenOrdenCompra,
     Personal,
     SeguimientoTicket,
     SolicitudEquipo,
@@ -113,19 +120,263 @@ class SmokeFlowTests(TestCase):
         self.assertEqual(equipo_form.status_code, 200)
         self.assertContains(equipo_form, "codigo_inventario")
 
-        # Alta minima de equipo (legado, sin OC)
+        # Alta minima de equipo (legado, sin OC). Estado/activo salen del default del modelo.
         create = self.client.post(
             reverse("equipo_create"),
             {
                 "codigo_inventario": "SMOKE-EQ-001",
                 "categoria": self.categoria.pk,
                 "origen_alta": "Legado",
-                "estado_equipo": "En Stock",
                 "fecha_alta": "2026-01-15",
-                "activo": "on",
             },
         )
         self.assertEqual(create.status_code, 302)
+        creado = Equipo.objects.get(codigo_inventario="SMOKE-EQ-001")
+        self.assertEqual(creado.estado_equipo, EstadoEquipo.DISPONIBLE)
+        self.assertTrue(creado.activo)
+
+
+class EquipoFormCriticosTests(TestCase):
+    """Bypass de baja/reactivacion y numero_serie vacio."""
+
+    def setUp(self):
+        ensure_role_groups()
+        self.password = "StrongPass123!"
+        self.tech = User.objects.create_user(username="eq_tech", password=self.password)
+        set_user_role(self.tech, ROLE_TECNICO)
+        self.admin = User.objects.create_user(username="eq_admin", password=self.password)
+        set_user_role(self.admin, ROLE_ADMIN)
+        self.categoria = CategoriaEquipo.objects.create(nombre_categoria="Laptops Crit")
+        self.equipo = Equipo.objects.create(
+            codigo_inventario="CRIT-EQ-001",
+            categoria=self.categoria,
+            origen_alta="Legado",
+            estado_equipo=EstadoEquipo.DISPONIBLE,
+            activo=True,
+        )
+
+    def _update_payload(self, **overrides):
+        data = {
+            "codigo_inventario": self.equipo.codigo_inventario,
+            "categoria": self.categoria.pk,
+            "origen_alta": "Legado",
+            "fecha_alta": "2026-01-15",
+            "numero_serie": "",
+            "marca": "",
+            "modelo": "",
+            "Numero_Pedimiento": "",
+            "descripcion_equipo": "",
+            "proveedor": "",
+            "orden_compra": "",
+            "detalle_orden": "",
+            "ubicacion": "",
+        }
+        data.update(overrides)
+        return data
+
+    def test_update_ignora_estado_baja_en_post(self):
+        self.client.login(username="eq_tech", password=self.password)
+        response = self.client.post(
+            reverse("equipo_update", args=[self.equipo.pk]),
+            self._update_payload(estado_equipo="Baja", activo=""),
+        )
+        self.assertEqual(response.status_code, 302)
+        self.equipo.refresh_from_db()
+        self.assertEqual(self.equipo.estado_equipo, EstadoEquipo.DISPONIBLE)
+        self.assertTrue(self.equipo.activo)
+
+    def test_form_no_incluye_estado_ni_activo(self):
+        from GestorApp.forms.equipo import EquipoForm
+
+        form = EquipoForm(tipo=self.categoria.tipo)
+        self.assertNotIn("estado_equipo", form.fields)
+        self.assertNotIn("activo", form.fields)
+
+    def test_varios_equipos_sin_serie_no_rompen_unique(self):
+        self.client.login(username="eq_tech", password=self.password)
+        for i in range(2):
+            response = self.client.post(
+                reverse("equipo_create"),
+                {
+                    "codigo_inventario": f"CRIT-SERIE-{i}",
+                    "categoria": self.categoria.pk,
+                    "origen_alta": "Legado",
+                    "fecha_alta": "2026-01-15",
+                    "numero_serie": "   ",
+                },
+            )
+            self.assertEqual(response.status_code, 302, msg=response.content[:500] if response.status_code != 302 else "")
+        equipos = Equipo.objects.filter(codigo_inventario__startswith="CRIT-SERIE-")
+        self.assertEqual(equipos.count(), 2)
+        self.assertTrue(all(e.numero_serie is None for e in equipos))
+
+    def test_tags_opcionales_con_longitud_exacta(self):
+        from GestorApp.forms.equipo import EquipoForm
+
+        base = {
+            "codigo_inventario": "CRIT-TAG-001",
+            "categoria": self.categoria.pk,
+            "origen_alta": "Legado",
+            "fecha_alta": "2026-01-15",
+            "numero_serie": "",
+            "marca": "",
+            "modelo": "",
+            "Numero_Pedimiento": "",
+            "descripcion_equipo": "",
+            "proveedor": "",
+            "orden_compra": "",
+            "detalle_orden": "",
+            "ubicacion": "",
+        }
+        ok = EquipoForm(
+            {**base, "tag_1": "123456", "tag_2": "7890"},
+            tipo=self.categoria.tipo,
+        )
+        self.assertTrue(ok.is_valid(), ok.errors)
+        equipo = ok.save()
+        self.assertEqual(equipo.tag_1, "123456")
+        self.assertEqual(equipo.tag_2, "7890")
+
+        vacio = EquipoForm(
+            {**base, "codigo_inventario": "CRIT-TAG-002", "tag_1": "", "tag_2": ""},
+            tipo=self.categoria.tipo,
+        )
+        self.assertTrue(vacio.is_valid(), vacio.errors)
+        self.assertIsNone(vacio.save().tag_1)
+
+        malo = EquipoForm(
+            {**base, "codigo_inventario": "CRIT-TAG-003", "tag_1": "12345", "tag_2": "12"},
+            tipo=self.categoria.tipo,
+        )
+        self.assertFalse(malo.is_valid())
+        self.assertIn("tag_1", malo.errors)
+        self.assertIn("tag_2", malo.errors)
+
+
+class AltosMantenimientoPersonalComprasTests(TestCase):
+    """Regresion altos #3-#7: iniciar, combo tecnico, personal delete, cancelar, OC PDF."""
+
+    def setUp(self):
+        ensure_role_groups()
+        self.password = "StrongPass123!"
+        self.admin = User.objects.create_user(username="alto_admin", password=self.password)
+        set_user_role(self.admin, ROLE_ADMIN)
+        self.tech = User.objects.create_user(username="alto_tech", password=self.password)
+        set_user_role(self.tech, ROLE_TECNICO)
+        self.categoria = CategoriaEquipo.objects.create(nombre_categoria="Alto Cat")
+
+    def test_iniciar_mantenimiento_con_equipo_baja_no_deja_en_proceso(self):
+        equipo = Equipo.objects.create(
+            codigo_inventario="ALTO-BAJA-001",
+            categoria=self.categoria,
+            origen_alta="Legado",
+            estado_equipo=EstadoEquipo.BAJA,
+            activo=False,
+        )
+        man = Mantenimiento.objects.create(
+            equipo=equipo,
+            tipo_mantenimiento="Correctivo",
+            fecha_programada=date.today(),
+            estado_mantenimiento=EstadoMantenimiento.PROGRAMADO,
+        )
+        self.client.login(username="alto_tech", password=self.password)
+        response = self.client.post(reverse("mantenimiento_iniciar", args=[man.pk]))
+        self.assertEqual(response.status_code, 302)
+        man.refresh_from_db()
+        equipo.refresh_from_db()
+        self.assertEqual(man.estado_mantenimiento, EstadoMantenimiento.PROGRAMADO)
+        self.assertEqual(equipo.estado_equipo, EstadoEquipo.BAJA)
+
+    def test_mantenimiento_form_incluye_tecnico_it(self):
+        from GestorApp.forms.mantenimiento import MantenimientoForm
+
+        form = MantenimientoForm()
+        values = {value for value, _label in form.fields["tecnico_responsable"].choices}
+        self.assertIn("alto_tech", values)
+        self.assertIn("alto_admin", values)
+
+    def test_personal_delete_libera_equipos_asignados(self):
+        user = User.objects.create_user(username="alto_emp", password=self.password)
+        set_user_role(user, ROLE_USUARIO)
+        personal = Personal.objects.create(
+            numero_empleado="EMP-ALTO-1",
+            nombre="Empleado",
+            apellido_paterno="Prueba",
+            user=user,
+            activo=True,
+        )
+        equipo = Equipo.objects.create(
+            codigo_inventario="ALTO-ASIG-001",
+            categoria=self.categoria,
+            origen_alta="Legado",
+            estado_equipo=EstadoEquipo.ASIGNADO,
+            activo=True,
+        )
+        AsignacionEquipo.objects.create(
+            equipo=equipo,
+            personal=personal,
+            estado_asignacion=EstadoAsignacion.ACTIVA,
+        )
+        self.client.login(username="alto_admin", password=self.password)
+        response = self.client.post(reverse("personal_delete", args=[personal.pk]))
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(Personal.objects.filter(pk=personal.pk).exists())
+        equipo.refresh_from_db()
+        self.assertEqual(equipo.estado_equipo, EstadoEquipo.DISPONIBLE)
+        self.assertFalse(
+            AsignacionEquipo.objects.filter(
+                equipo=equipo,
+                estado_asignacion=EstadoAsignacion.ACTIVA,
+            ).exists()
+        )
+
+    def test_no_cancelar_solicitud_completada(self):
+        solicitante = User.objects.create_user(username="alto_sol", password=self.password)
+        set_user_role(solicitante, ROLE_USUARIO)
+        solicitud = SolicitudEquipo.objects.create(
+            solicitante=solicitante,
+            titulo="Monitor",
+            justificacion="Necesito monitor",
+            estado=EstadoSolicitudEquipo.COMPLETADA,
+        )
+        self.client.login(username="alto_tech", password=self.password)
+        response = self.client.post(
+            reverse("solicitud_equipo_cancelar", args=[solicitud.pk])
+        )
+        self.assertEqual(response.status_code, 302)
+        solicitud.refresh_from_db()
+        self.assertEqual(solicitud.estado, EstadoSolicitudEquipo.COMPLETADA)
+
+    def test_oc_subida_update_sin_reenviar_pdf(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        from GestorApp.forms.compras import OrdenCompraSubirForm
+
+        pdf = SimpleUploadedFile(
+            "orden.pdf",
+            b"%PDF-1.4 minimal",
+            content_type="application/pdf",
+        )
+        orden = OrdenCompra.objects.create(
+            origen=OrigenOrdenCompra.SUBIDO,
+            folio_orden="OC-ALTO-001",
+            notas="inicial",
+        )
+        orden.archivo_pdf.save("orden.pdf", pdf, save=True)
+        form = OrdenCompraSubirForm(
+            data={
+                "folio_orden": orden.folio_orden,
+                "estado": orden.estado,
+                "notas": "actualizado sin pdf",
+            },
+            files={},
+            instance=orden,
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        form.save()
+        orden.refresh_from_db()
+        self.assertEqual(orden.notas, "actualizado sin pdf")
+        self.assertTrue(orden.archivo_pdf)
 
 
 class AuditoriaHistorialTests(TestCase):
@@ -512,6 +763,48 @@ class BitacoraAnswerFlowTests(TestCase):
         response = self.client.post(reverse("bitacora_delete", args=[bitacora.pk]))
         self.assertEqual(response.status_code, 302)
         self.assertTrue(Bitacora.objects.filter(pk=bitacora.pk).exists())
+
+
+class TicketCierreLimpiaPendientesTests(TestCase):
+    """Al concluir un check, limpia fechas de proximo seguimiento de checks abiertos previos."""
+
+    def setUp(self):
+        ensure_role_groups()
+        self.password = "StrongPass123!"
+        self.tech = User.objects.create_user(username="chk_tech", password=self.password)
+        set_user_role(self.tech, ROLE_TECNICO)
+        self.ticket = TicketIT.objects.create(
+            descripcion="Impresora sin red",
+            requerimiento="Revisar cableado",
+            solicitado_por=self.tech,
+        )
+
+    def test_concluir_limpia_fecha_proximo_de_checks_abiertos(self):
+        proxima = date.today() + timedelta(days=2)
+        abierto = SeguimientoTicket.objects.create(
+            ticket=self.ticket,
+            usuario=self.tech,
+            avance_realizado="Se reviso puerto",
+            fecha_proximo_seguimiento=proxima,
+            ya_terminado=False,
+        )
+        cierre = SeguimientoTicket.objects.create(
+            ticket=self.ticket,
+            usuario=self.tech,
+            solucion="Se reemplazo el switch",
+            fecha_proximo_seguimiento=proxima,
+            ya_terminado=True,
+        )
+
+        abierto.refresh_from_db()
+        cierre.refresh_from_db()
+        self.ticket.refresh_from_db()
+
+        self.assertEqual(self.ticket.status, EstadoSupport.CERRADO)
+        self.assertIsNone(abierto.fecha_proximo_seguimiento)
+        self.assertFalse(abierto.ya_terminado)
+        self.assertIsNone(cierre.fecha_proximo_seguimiento)
+        self.assertTrue(cierre.ya_terminado)
 
 
 class TicketComentarioTests(TestCase):

@@ -4,6 +4,7 @@ from datetime import timedelta
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
+from django.core.validators import RegexValidator
 from django.db import IntegrityError, models
 from django.db.models.signals import post_delete
 from django.dispatch import receiver
@@ -243,6 +244,32 @@ class OrigenAltaEquipo(models.TextChoices):
 class Equipo(models.Model):
     codigo_inventario = models.CharField(max_length=50, unique=True)
     numero_serie = models.CharField(max_length=100, unique=True, blank=True, null=True)
+    tag_1 = models.CharField(
+        max_length=6,
+        blank=True,
+        null=True,
+        verbose_name="Tag 1",
+        help_text="Opcional. Exactamente 6 digitos.",
+        validators=[
+            RegexValidator(
+                regex=r"^\d{6}$",
+                message="Tag 1 debe tener exactamente 6 digitos.",
+            )
+        ],
+    )
+    tag_2 = models.CharField(
+        max_length=4,
+        blank=True,
+        null=True,
+        verbose_name="Tag 2",
+        help_text="Opcional. Exactamente 4 digitos.",
+        validators=[
+            RegexValidator(
+                regex=r"^\d{4}$",
+                message="Tag 2 debe tener exactamente 4 digitos.",
+            )
+        ],
+    )
     categoria = models.ForeignKey(CategoriaEquipo, on_delete=models.PROTECT)
     marca = models.CharField(max_length=80, blank=True, null=True)
     modelo = models.CharField(max_length=80, blank=True, null=True)
@@ -300,8 +327,36 @@ class Equipo(models.Model):
     def __str__(self):
         return self.codigo_inventario
 
+    def save(self, *args, **kwargs):
+        if self.numero_serie is not None and not str(self.numero_serie).strip():
+            self.numero_serie = None
+        elif self.numero_serie is not None:
+            self.numero_serie = str(self.numero_serie).strip()
+        if self.tag_1 is not None and not str(self.tag_1).strip():
+            self.tag_1 = None
+        elif self.tag_1 is not None:
+            self.tag_1 = str(self.tag_1).strip()
+        if self.tag_2 is not None and not str(self.tag_2).strip():
+            self.tag_2 = None
+        elif self.tag_2 is not None:
+            self.tag_2 = str(self.tag_2).strip()
+        super().save(*args, **kwargs)
+
     def clean(self):
         super().clean()
+        # Varios NULL son validos con unique; "" no lo es.
+        if self.numero_serie is not None and not str(self.numero_serie).strip():
+            self.numero_serie = None
+        elif self.numero_serie is not None:
+            self.numero_serie = str(self.numero_serie).strip()
+        if self.tag_1 is not None and not str(self.tag_1).strip():
+            self.tag_1 = None
+        elif self.tag_1 is not None:
+            self.tag_1 = str(self.tag_1).strip()
+        if self.tag_2 is not None and not str(self.tag_2).strip():
+            self.tag_2 = None
+        elif self.tag_2 is not None:
+            self.tag_2 = str(self.tag_2).strip()
         tipo = None
         if self.categoria_id:
             tipo = self.categoria.tipo
@@ -736,6 +791,9 @@ class TicketIT(models.Model):
         - Sin seguimientos: Abierto (o En Revision si ya se tomo el ticket)
         - Ultimo seguimiento abierto: En Proceso
         - Ultimo seguimiento concluido: Cerrado
+
+        Al concluir, SeguimientoTicket.save() limpia fecha_proximo_seguimiento
+        de checks abiertos previos (historial intacto, sin alertas pendientes).
         """
         ultimo_seguimiento = self.seguimientos.order_by('-fecha_check', '-pk').first()
 
@@ -877,7 +935,19 @@ class SeguimientoTicket(models.Model):
             self.folio_check = self.ticket.folio_ticket
         if self.folio_check:
             self.folio_check = self.folio_check.upper()
+        # Un check concluido no agenda proximo seguimiento.
+        if self.ya_terminado and self.fecha_proximo_seguimiento is not None:
+            self.fecha_proximo_seguimiento = None
         super().save(*args, **kwargs)
+
+        # Al cerrar el ticket, limpia fechas pendientes de checks abiertos previos
+        # (siguen como historial intermedio, sin alertas huérfanas).
+        if self.ya_terminado and self.ticket_id:
+            type(self).objects.filter(
+                ticket_id=self.ticket_id,
+                ya_terminado=False,
+                fecha_proximo_seguimiento__isnull=False,
+            ).exclude(pk=self.pk).update(fecha_proximo_seguimiento=None)
 
         if self.ticket_id:
             self.ticket.refresh_status_from_followups()
