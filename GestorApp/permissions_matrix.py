@@ -151,6 +151,14 @@ PERMISSION_MATRIX = [
     ),
     (
         "Admin",
+        "Guia de SLA",
+        False,
+        False,
+        True,
+        "Documentacion de tiempos y estados de tickets. No modifica nada.",
+    ),
+    (
+        "Admin",
         "Quitar roles / archivar historial",
         False,
         False,

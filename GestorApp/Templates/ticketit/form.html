@@ -27,10 +27,39 @@
 <p class="text-muted small mb-3">
 	El estado se actualiza automaticamente desde el detalle del ticket y los seguimientos.
 </p>
+{% elif problema_info %}
+<div class="dash-alert dash-alert--info d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+	<div class="d-flex align-items-center gap-3">
+		<span class="fs-2 text-primary" aria-hidden="true"><i class="bi {{ problema_info.icono }}"></i></span>
+		<div>
+			<strong class="d-block">{{ problema_info.titulo }}</strong>
+			<span class="text-muted small">
+				Prioridad sugerida: <span class="status-badge status-badge--{{ problema_info.prioridad_badge }}">{{ problema_info.prioridad_sugerida }}</span>
+				(puedes ajustarla abajo si tu situación lo amerita)
+			</span>
+		</div>
+	</div>
+	{% if not is_operativo_role %}
+	<a class="btn btn-outline-secondary btn-sm" href="{% url 'ticketit_create' %}">
+		<i class="bi bi-arrow-left me-1"></i>Cambiar problema
+	</a>
+	{% endif %}
+</div>
+{% endif %}
+
+{% if problema_info and not is_operativo_role %}
+<style>
+	#row-tipo_ticket, #row-sub_tipo_ticket {
+		display: none !important;
+	}
+</style>
 {% endif %}
 
 <form method="post" enctype="multipart/form-data">
 			{% csrf_token %}
+			{% if problema_info %}
+			<input type="hidden" name="problema_id" value="{{ problema_info.id }}">
+			{% endif %}
 			{{ form.non_field_errors }}
 			{% include "partials/form_fieldset.html" with legend="Datos del ticket" %}
 			<div class="actions">

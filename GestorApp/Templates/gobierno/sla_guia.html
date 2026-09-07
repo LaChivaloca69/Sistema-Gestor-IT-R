@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block title %}Como funciona el SLA{% endblock %}
+
+{% block content %}
+{% include "partials/page_header_open.html" with title="Como funciona el SLA" description="Guia de lectura del acuerdo de nivel de servicio de tickets. Documenta el comportamiento actual; no modifica tiempos ni permisos." %}
+	<a class="btn btn-outline-secondary" href="{% url 'permisos_matriz' %}">Matriz de permisos</a>
+	<a class="btn btn-outline-secondary" href="{% url 'home' %}">Volver</a>
+{% include "partials/page_header_close.html" %}
+
+<section class="section-block mb-3">
+	<div class="section-block__header">
+		<div>
+			<h2>Que significa</h2>
+		</div>
+	</div>
+	<p class="mb-0">{{ que_es }}</p>
+</section>
+
+<section class="section-block mb-3">
+	<div class="section-block__header">
+		<div>
+			<h2>Como se mide</h2>
+			<p>Fecha de creacion + horas de la prioridad = fecha limite.</p>
+		</div>
+	</div>
+	<ul class="mb-0">
+		{% for item in como_se_mide %}
+		<li>{{ item }}</li>
+		{% endfor %}
+	</ul>
+</section>
+
+<section class="section-block mb-3">
+	<div class="section-block__header">
+		<div>
+			<h2>Tiempos por prioridad</h2>
+			<p>Horas calendario desde que se crea el ticket.</p>
+		</div>
+	</div>
+	<div class="table-responsive">
+		<table class="table table-sm align-middle mb-0 perm-matrix">
+			<thead class="table-light">
+				<tr>
+					<th>Prioridad</th>
+					<th>Horas SLA</th>
+					<th>Equivalente</th>
+					<th>Aviso por vencer</th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for row in filas_prioridad %}
+				<tr>
+					<td>
+						<span class="status-badge status-badge--prio-{{ row.prioridad|slugify }}">{{ row.prioridad }}</span>
+					</td>
+					<td><strong>{{ row.horas }} h</strong></td>
+					<td>{{ row.equivalente }}</td>
+					<td class="text-muted">{{ row.aviso }}</td>
+				</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+	</div>
+	<p class="text-muted small mt-3 mb-0">{{ aviso_regla }}</p>
+</section>
+
+<section class="section-block mb-3">
+	<div class="section-block__header">
+		<div>
+			<h2>Criterios y ejemplos por prioridad</h2>
+			<p>Guia de referencia para clasificar incidentes y solicitudes.</p>
+		</div>
+	</div>
+	<div class="table-responsive">
+		<table class="table table-sm align-middle mb-0 perm-matrix">
+			<thead class="table-light">
+				<tr>
+					<th>Prioridad</th>
+					<th>Objetivo</th>
+					<th>Criterio de aplicacion</th>
+					<th>Ejemplos tipicos</th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for row in criterios_prioridad %}
+				<tr>
+					<td>
+						<span class="status-badge status-badge--{{ row.badge }}">{{ row.prioridad }}</span>
+					</td>
+					<td><strong>{{ row.horas }}</strong></td>
+					<td>{{ row.criterio }}</td>
+					<td class="text-muted small">{{ row.ejemplos }}</td>
+				</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+	</div>
+	<p class="text-muted small mt-3 mb-0">{{ prioridad_regla_usuario }}</p>
+</section>
+
+<section class="section-block mb-3">
+	<div class="section-block__header">
+		<div>
+			<h2>Estados que se muestran</h2>
+		</div>
+	</div>
+	<div class="table-responsive">
+		<table class="table table-sm align-middle mb-0 perm-matrix">
+			<thead class="table-light">
+				<tr>
+					<th>Estado</th>
+					<th>Cuando aplica</th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for row in estados %}
+				<tr>
+					<td>
+						<span class="status-badge status-badge--{{ row.badge }}">{{ row.nombre }}</span>
+					</td>
+					<td>{{ row.cuando }}</td>
+				</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+	</div>
+</section>
+
+<section class="section-block mb-3">
+	<div class="section-block__header">
+		<div>
+			<h2>Donde se ve</h2>
+		</div>
+	</div>
+	<div class="table-responsive">
+		<table class="table table-sm align-middle mb-0 perm-matrix">
+			<thead class="table-light">
+				<tr>
+					<th>Lugar</th>
+					<th>Que muestra</th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for row in donde_se_ve %}
+				<tr>
+					<td><strong>{{ row.lugar }}</strong></td>
+					<td class="text-muted">{{ row.detalle }}</td>
+				</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+	</div>
+</section>
+
+<section class="section-block mb-3">
+	<div class="section-block__header">
+		<div>
+			<h2>Que no hace el SLA</h2>
+		</div>
+	</div>
+	<ul class="mb-0">
+		{% for item in no_hace %}
+		<li>{{ item }}</li>
+		{% endfor %}
+	</ul>
+</section>
+{% endblock %}

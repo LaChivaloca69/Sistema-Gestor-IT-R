@@ -467,6 +467,11 @@
                                 <span class="sidebar-link__text">Matriz permisos</span>
                                 <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>
                             </a>
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'sla_guia' %}active{% endif %}" href="{% url 'sla_guia' %}" data-nav-id="guia-sla" data-nav-label="Guia SLA tiempos prioridad tickets" title="Como funciona el SLA">
+                                <span class="sidebar-link__icon" aria-hidden="true"><i class="bi bi-hourglass-split"></i></span>
+                                <span class="sidebar-link__text">Como funciona el SLA</span>
+                                <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>
+                            </a>
                         </div>
                     </section>
                     {% endif %}

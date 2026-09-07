@@ -3237,3 +3237,74 @@ body.calendar-modal-open {
         display: none;
     }
 }
+
+/* ==========================================================
+   Selector de problemas para tickets (pantalla previa usuario)
+   ========================================================== */
+.problem-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.15rem;
+    margin-bottom: 1.5rem;
+}
+
+.problem-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 1.25rem;
+    background: linear-gradient(180deg, var(--app-surface), var(--app-surface-alt));
+    border: 1px solid var(--app-border);
+    border-radius: 1.1rem;
+    text-decoration: none;
+    color: inherit;
+    box-shadow: var(--app-shadow);
+    transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.problem-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(15, 118, 110, 0.45);
+    color: inherit;
+    text-decoration: none;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
+}
+
+.problem-card__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 0.85rem;
+    background: var(--app-surface);
+    border: 1px solid var(--app-border);
+    color: var(--app-primary, #0f766e);
+    font-size: 1.5rem;
+    margin-bottom: 0.85rem;
+}
+
+.problem-card__title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    margin-bottom: 0.4rem;
+    color: var(--app-text);
+}
+
+.problem-card__desc {
+    font-size: 0.85rem;
+    color: var(--app-muted);
+    line-height: 1.45;
+    margin-bottom: 1rem;
+    flex-grow: 1;
+}
+
+.problem-card__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--app-border);
+    font-size: 0.8rem;
+}
+

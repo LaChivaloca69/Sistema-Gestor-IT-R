@@ -28,6 +28,7 @@ from .models import (
 )
 from .permissions_matrix import matrix_for_template
 from .roles import admin_required, is_operativo, operativo_required
+from .sla_guide import sla_guide_for_template
 
 
 # ---- Matriz de permisos ----
@@ -36,6 +37,11 @@ from .roles import admin_required, is_operativo, operativo_required
 def permisos_matriz(request):
     context = matrix_for_template()
     return render(request, "gobierno/permisos_matriz.html", context)
+
+
+@admin_required
+def sla_guia(request):
+    return render(request, "gobierno/sla_guia.html", sla_guide_for_template())
 
 
 # ---- Coberturas ----

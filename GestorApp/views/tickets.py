@@ -26,6 +26,7 @@ from ..forms.tickets import (
     SeguimientoTicketForm,
     TicketITForm,
 )
+from ..ticket_catalog import CATALOGO_PROBLEMAS, get_problema_by_id
 from ..roles import (
     ROLE_ADMIN,
     ROLE_CHOICES,
@@ -375,6 +376,23 @@ def ticketit_comentario_delete(request, pk, comentario_id):
 
 
 def ticketit_create(request):
+    is_operativo_user = is_operativo(request.user)
+    problema_id = request.POST.get("problema_id") or request.GET.get("problema")
+    problema_info = get_problema_by_id(problema_id)
+    manual = request.GET.get("manual") == "1"
+
+    # Si es usuario regular y no ha seleccionado problema ni modo manual, mostrar pantalla previa
+    if not is_operativo_user and request.method == "GET" and not problema_info and not manual:
+        return render(
+            request,
+            "ticketit/selector_problema.html",
+            {
+                "title": "¿Qué problema se te presenta?",
+                "description": "Selecciona la opción que mejor describa tu caso para asignarle la atención adecuada.",
+                "problemas": CATALOGO_PROBLEMAS,
+            },
+        )
+
     if request.method == "POST":
         form = TicketITForm(request.POST, request.FILES, request_user=request.user)
         if form.is_valid():
@@ -390,12 +408,19 @@ def ticketit_create(request):
             messages.success(request, "Support creado correctamente.")
             return redirect("ticketit_detail", pk=ticket.pk)
     else:
-        form = TicketITForm(request_user=request.user)
+        initial = {}
+        if problema_info:
+            initial["tipo_ticket"] = problema_info["tipo_ticket"]
+            initial["sub_tipo_ticket"] = problema_info["sub_tipo_ticket"]
+            initial["prioridad"] = problema_info["prioridad_sugerida"]
+        form = TicketITForm(request_user=request.user, initial=initial)
+
     return render(
         request,
         "ticketit/form.html",
         {
             "form": form,
+            "problema_info": problema_info,
             "can_manage_flow": user_can_manage_ticket_flow(request.user),
             "can_edit": True,
         },

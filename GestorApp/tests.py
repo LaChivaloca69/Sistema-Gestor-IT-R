@@ -523,7 +523,7 @@ class TicketCreateEquipoChoicesTests(TestCase):
 
     def test_create_form_lists_only_assigned_equipment_and_otro(self):
         self.client.login(username="ticket_user", password=self.password)
-        response = self.client.get(reverse("ticketit_create"))
+        response = self.client.get(reverse("ticketit_create") + "?manual=1")
         self.assertEqual(response.status_code, 200)
         form = response.context["form"]
         pks = set(form.fields["equipo"].queryset.values_list("pk", flat=True))
@@ -1136,3 +1136,142 @@ class InventarioImportTests(TestCase):
         response = self.client.get(reverse("inventario_importar_preview"))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["summary"]["importables"], 2)
+
+
+class SlaGuiaAdminTests(TestCase):
+    """Pantalla Admin de documentacion del SLA: solo lectura y solo Administrador."""
+
+    def setUp(self):
+        ensure_role_groups()
+        self.password = "StrongPass123!"
+        self.admin = User.objects.create_user(username="sla_admin", password=self.password)
+        set_user_role(self.admin, ROLE_ADMIN)
+        self.tech = User.objects.create_user(username="sla_tech", password=self.password)
+        set_user_role(self.tech, ROLE_TECNICO)
+
+    def test_admin_ve_guia_en_texto(self):
+        self.client.login(username="sla_admin", password=self.password)
+        response = self.client.get(reverse("sla_guia"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Service Level Agreement")
+        self.assertContains(response, "Urgente")
+        self.assertContains(response, "4 h")
+        self.assertContains(response, "168")
+        self.assertContains(response, "Por vencer")
+        self.assertContains(response, "Esta pantalla solo documenta")
+        self.assertNotContains(response, "SLA_HORAS_POR_PRIORIDAD")
+
+    def test_tecnico_no_entra(self):
+        self.client.login(username="sla_tech", password=self.password)
+        response = self.client.get(reverse("sla_guia"))
+        self.assertNotEqual(response.status_code, 200)
+
+
+class TicketSelectorProblemaTests(TestCase):
+    """Pantalla previa '¿Qué problema se te presenta?' para usuarios normales."""
+
+    def setUp(self):
+        ensure_role_groups()
+        self.password = "StrongPass123!"
+        self.usuario = User.objects.create_user(username="user_sel", password=self.password)
+        set_user_role(self.usuario, ROLE_USUARIO)
+        self.tecnico = User.objects.create_user(username="tech_sel", password=self.password)
+        set_user_role(self.tecnico, ROLE_TECNICO)
+        self.admin = User.objects.create_user(username="admin_sel", password=self.password)
+        set_user_role(self.admin, ROLE_ADMIN)
+
+    def test_usuario_ve_pantalla_previa_con_tarjetas(self):
+        self.client.login(username="user_sel", password=self.password)
+        response = self.client.get(reverse("ticketit_create"))
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "ticketit/selector_problema.html")
+        self.assertContains(response, "¿Qué problema se te presenta?")
+        self.assertContains(response, "Contraseñas y accesos")
+        self.assertContains(response, "Impresora o escáner")
+        self.assertContains(response, "Sistemas de planta (SAP / BPCS)")
+        self.assertContains(response, "Formulario detallado")
+
+    def test_tecnico_y_admin_van_directo_al_formulario(self):
+        # Tecnico va directo al formulario
+        self.client.login(username="tech_sel", password=self.password)
+        res_tech = self.client.get(reverse("ticketit_create"))
+        self.assertEqual(res_tech.status_code, 200)
+        self.assertTemplateUsed(res_tech, "ticketit/form.html")
+        self.assertIn("form", res_tech.context)
+        self.assertNotContains(res_tech, "¿Qué problema se te presenta?")
+
+        # Admin va directo al formulario
+        self.client.login(username="admin_sel", password=self.password)
+        res_admin = self.client.get(reverse("ticketit_create"))
+        self.assertEqual(res_admin.status_code, 200)
+        self.assertTemplateUsed(res_admin, "ticketit/form.html")
+        self.assertIn("form", res_admin.context)
+        self.assertNotContains(res_admin, "¿Qué problema se te presenta?")
+
+    def test_usuario_elige_problema_prellena_datos_y_permite_cambiar_prioridad(self):
+        self.client.login(username="user_sel", password=self.password)
+        # 1. El usuario selecciona la tarjeta 'impresora'
+        response = self.client.get(reverse("ticketit_create") + "?problema=impresora")
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "ticketit/form.html")
+        self.assertContains(response, "Impresora o escáner")
+        self.assertContains(response, "Prioridad sugerida:")
+
+        form = response.context["form"]
+        self.assertEqual(form.initial.get("tipo_ticket"), "HELPDESK")
+        self.assertEqual(form.initial.get("sub_tipo_ticket"), "Impresora")
+        self.assertEqual(form.initial.get("prioridad"), "Baja")
+
+        # 2. El usuario decide cambiar la prioridad de 'Baja' a 'Alta' y guarda
+        post_data = {
+            "requerimiento": "Impresora atascada en facturacion",
+            "descripcion": "No salen las facturas para embarques urgentes.",
+            "tipo_ticket": "HELPDESK",
+            "sub_tipo_ticket": "Impresora",
+            "prioridad": "Alta",  # Cambio manual de prioridad permitido
+            "problema_id": "impresora",
+        }
+        res_post = self.client.post(reverse("ticketit_create"), post_data)
+        self.assertEqual(res_post.status_code, 302)
+
+        ticket = TicketIT.objects.filter(requerimiento="Impresora atascada en facturacion").first()
+        self.assertIsNotNone(ticket)
+        self.assertEqual(ticket.tipo_ticket, "HELPDESK")
+        self.assertEqual(ticket.sub_tipo_ticket, "Impresora")
+        self.assertEqual(ticket.prioridad, "Alta")  # Se respeto la prioridad cambiada por el usuario
+
+    def test_usuario_modo_manual(self):
+        self.client.login(username="user_sel", password=self.password)
+        response = self.client.get(reverse("ticketit_create") + "?manual=1")
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "ticketit/form.html")
+        self.assertIn("form", response.context)
+        self.assertIsNone(response.context["problema_info"])
+
+
+class MisEquiposViewTests(TestCase):
+    """Pruebas para la vista 'Mis equipos'."""
+
+    def setUp(self):
+        ensure_role_groups()
+        self.password = "StrongPass123!"
+        self.user = User.objects.create_user(username="me_user", password=self.password)
+        set_user_role(self.user, ROLE_USUARIO)
+        self.personal = Personal.objects.create(
+            numero_empleado="EMP-ME01",
+            user=self.user,
+            nombre="Mis",
+            apellido_paterno="Equipos",
+        )
+
+    def test_sin_equipos_asigna_boton_solicitar_equipo(self):
+        self.client.login(username="me_user", password=self.password)
+        response = self.client.get(reverse("mis_equipos"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("solicitud_equipo_create"))
+        self.assertContains(response, "Solicitar equipo")
+        # El empty state no debe enlazar a ticketit_create
+        self.assertNotContains(response, "abre un ticket si necesitas soporte")
+
+
+

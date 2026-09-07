@@ -141,6 +141,7 @@ _MODULE = {
     "personal_admin_remove": ("Admin", None, "Quitar roles", None),
     "historial_retencion_admin": ("Admin", None, "Archivar historial", None),
     "permisos_matriz": ("Admin", None, "Matriz de permisos", None),
+    "sla_guia": ("Admin", None, "Como funciona el SLA", None),
     # Solicitudes de equipo (menu General)
     "solicitud_equipo_list": ("General", None, "Solicitudes de equipo", None),
     "solicitud_equipo_create": ("General", None, "Nueva solicitud", "solicitud_equipo_list"),

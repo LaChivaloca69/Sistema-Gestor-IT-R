@@ -119,8 +119,18 @@ class TicketITForm(forms.ModelForm):
             tipo_ticket = self.data.get("tipo_ticket")
         elif self.instance and self.instance.pk:
             tipo_ticket = self.instance.tipo_ticket
+        elif self.initial and self.initial.get("tipo_ticket"):
+            tipo_ticket = self.initial.get("tipo_ticket")
+            self.fields["tipo_ticket"].initial = tipo_ticket
 
         self.fields["sub_tipo_ticket"].choices = get_subtipo_ticket_choices(tipo_ticket)
+        if not (self.data.get("sub_tipo_ticket") or (self.instance and self.instance.pk)):
+            if self.initial and self.initial.get("sub_tipo_ticket"):
+                self.fields["sub_tipo_ticket"].initial = self.initial.get("sub_tipo_ticket")
+
+        if not (self.data.get("prioridad") or (self.instance and self.instance.pk)):
+            if self.initial and self.initial.get("prioridad"):
+                self.fields["prioridad"].initial = self.initial.get("prioridad")
         current_tipo_equipo = None
         if self.instance and self.instance.pk:
             current_tipo_equipo = self.instance.tipo_equipo

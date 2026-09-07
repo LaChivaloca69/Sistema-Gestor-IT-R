@@ -381,6 +381,7 @@ urlpatterns = [
 
     # -------------- Gobierno / roles --------------
     path('Gobierno/permisos/', views.admin_required(gobierno_views.permisos_matriz), name='permisos_matriz'),
+    path('Gobierno/sla/', views.admin_required(gobierno_views.sla_guia), name='sla_guia'),
     path('Gobierno/coberturas/', views.operativo_required(gobierno_views.cobertura_list), name='cobertura_list'),
     path('Gobierno/coberturas/create/', views.operativo_required(gobierno_views.cobertura_create), name='cobertura_create'),
     path('Gobierno/coberturas/update/<int:pk>/', views.operativo_required(gobierno_views.cobertura_update), name='cobertura_update'),

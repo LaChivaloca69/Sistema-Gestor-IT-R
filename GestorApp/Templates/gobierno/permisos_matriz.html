@@ -4,6 +4,7 @@
 
 {% block content %}
 {% include "partials/page_header_open.html" with title="Matriz de permisos" description="Quien puede que en Gestor IT, segun el rol de negocio. Roles: Usuario, Tecnico IT y Administrador (prioridad Admin > Tecnico > Usuario). Esta matriz documenta el comportamiento actual; no modifica permisos." %}
+	<a class="btn btn-outline-secondary" href="{% url 'sla_guia' %}">Como funciona el SLA</a>
 	<a class="btn btn-outline-secondary" href="{% url 'home' %}">Volver</a>
 {% include "partials/page_header_close.html" %}
 
