@@ -60,7 +60,7 @@
 		</div>
 
 		{% if can_manage and revision_form %}
-		<form method="post">
+		<form method="post" action="{% url 'solicitud_equipo_revisar' object.pk %}">
 			{% csrf_token %}
 			<input type="hidden" name="form_type" value="decision">
 			{{ revision_form.non_field_errors }}

@@ -1,7 +1,6 @@
 """Vistas de gobierno: matriz de permisos, coberturas y solicitudes de equipo."""
 
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
@@ -9,7 +8,7 @@ from django.utils import timezone
 
 from . import historial
 from .cobertura import coberturas_activas_para_suplente
-from .gobierno_forms import (
+from .forms.gobierno import (
     CoberturaTicketsForm,
     SolicitudEquipoForm,
     SolicitudEquipoRevisionForm,
@@ -22,31 +21,27 @@ from .models import (
     EstadoSolicitudEquipo,
     ModuloHistorial,
     Personal,
-    SeguimientoSolicitudEquipo,
     SolicitudEquipo,
     TipoMovimiento,
 )
 from .permissions_matrix import matrix_for_template
-from .roles import admin_required, is_operativo, operativo_required
+from .roles import is_operativo
 from .sla_guide import sla_guide_for_template
 
 
 # ---- Matriz de permisos ----
 
-@admin_required
 def permisos_matriz(request):
     context = matrix_for_template()
     return render(request, "gobierno/permisos_matriz.html", context)
 
 
-@admin_required
 def sla_guia(request):
     return render(request, "gobierno/sla_guia.html", sla_guide_for_template())
 
 
 # ---- Coberturas ----
 
-@operativo_required
 def cobertura_list(request):
     today = timezone.localdate()
     items = CoberturaTickets.objects.select_related(
@@ -77,7 +72,6 @@ def cobertura_list(request):
     )
 
 
-@operativo_required
 def cobertura_create(request):
     if request.method == "POST":
         form = CoberturaTicketsForm(request.POST)
@@ -105,7 +99,6 @@ def cobertura_create(request):
     )
 
 
-@operativo_required
 def cobertura_update(request, pk):
     obj = get_object_or_404(CoberturaTickets, pk=pk)
     if request.method == "POST":
@@ -132,7 +125,6 @@ def cobertura_update(request, pk):
     )
 
 
-@operativo_required
 def cobertura_delete(request, pk):
     obj = get_object_or_404(CoberturaTickets, pk=pk)
     if request.method == "POST":
@@ -164,7 +156,6 @@ def _solicitudes_qs_for(user):
     return qs.filter(solicitante=user)
 
 
-@login_required
 def solicitud_equipo_list(request):
     items = _solicitudes_qs_for(request.user).order_by("-fecha_creacion", "-pk")
     estado = request.GET.get("estado", "")
@@ -188,7 +179,6 @@ def solicitud_equipo_list(request):
     )
 
 
-@login_required
 def solicitud_equipo_create(request):
     if request.method == "POST":
         form = SolicitudEquipoForm(request.POST, user=request.user)
@@ -223,7 +213,6 @@ def solicitud_equipo_create(request):
     )
 
 
-@login_required
 def solicitud_equipo_detail(request, pk):
     obj = get_object_or_404(_solicitudes_qs_for(request.user), pk=pk)
     is_staff_user = is_operativo(request.user)
@@ -385,7 +374,6 @@ def _aplicar_decision_solicitud(request, obj, form):
     return True, assign_msg
 
 
-@operativo_required
 def solicitud_equipo_revisar(request, pk):
     obj = get_object_or_404(SolicitudEquipo, pk=pk)
     if not obj.puede_gestionar_it:
@@ -416,7 +404,6 @@ def solicitud_equipo_revisar(request, pk):
     return redirect("solicitud_equipo_detail", pk=pk)
 
 
-@login_required
 def solicitud_equipo_cancelar(request, pk):
     obj = get_object_or_404(SolicitudEquipo, pk=pk)
     if obj.solicitante_id != request.user.id and not is_operativo(request.user):
@@ -454,28 +441,3 @@ def solicitud_equipo_cancelar(request, pk):
         {"object": obj},
     )
 
-
-@operativo_required
-def seguimiento_solicitud_update(request, pk):
-    seguimiento = get_object_or_404(
-        SeguimientoSolicitudEquipo.objects.select_related("solicitud"),
-        pk=pk,
-    )
-    messages.info(
-        request,
-        "La revision IT ya no se usa. Usa Decision en la solicitud.",
-    )
-    return redirect("solicitud_equipo_detail", pk=seguimiento.solicitud_id)
-
-
-@admin_required
-def seguimiento_solicitud_delete(request, pk):
-    seguimiento = get_object_or_404(
-        SeguimientoSolicitudEquipo.objects.select_related("solicitud"),
-        pk=pk,
-    )
-    messages.info(
-        request,
-        "La revision IT ya no se usa. Usa Decision en la solicitud.",
-    )
-    return redirect("solicitud_equipo_detail", pk=seguimiento.solicitud_id)

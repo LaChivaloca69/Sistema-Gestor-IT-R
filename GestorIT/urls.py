@@ -317,7 +317,7 @@ urlpatterns = [
     path('Ticketit/create/', login_required(views.ticketit_create), name='ticketit_create'),
     path('Ticketit/<int:pk>/', login_required(views.ticketit_detail), name='ticketit_detail'),
     path('Ticketit/update/<int:pk>/', login_required(views.ticketit_update), name='ticketit_update'),
-    path('Ticketit/delete/<int:pk>/', login_required(views.ticketit_delete), name='ticketit_delete'),
+    path('Ticketit/delete/<int:pk>/', views.admin_required(views.ticketit_delete), name='ticketit_delete'),
     path(
         'Ticketit/<int:pk>/marcar-revision/',
         views.operativo_required(views.ticketit_marcar_revision),
@@ -398,16 +398,6 @@ urlpatterns = [
         'SolicitudesEquipo/<int:pk>/cancelar/',
         login_required(gobierno_views.solicitud_equipo_cancelar),
         name='solicitud_equipo_cancelar',
-    ),
-    path(
-        'SolicitudesEquipo/seguimiento/update/<int:pk>/',
-        views.operativo_required(gobierno_views.seguimiento_solicitud_update),
-        name='seguimiento_solicitud_update',
-    ),
-    path(
-        'SolicitudesEquipo/seguimiento/delete/<int:pk>/',
-        views.admin_required(gobierno_views.seguimiento_solicitud_delete),
-        name='seguimiento_solicitud_delete',
     ),
 ]
 

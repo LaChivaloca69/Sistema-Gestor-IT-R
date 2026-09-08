@@ -218,28 +218,23 @@ def _mantenimientos_alerta_context(
     today=None,
     horizon_days=MANTENIMIENTO_ALERTA_DIAS,
     proximos_days=MANTENIMIENTO_PROXIMOS_DIAS,
+    include_lists=True,
 ):
     today = today or timezone.localdate()
     activos = _mantenimientos_activos_qs()
-    vencidos_qs = activos.filter(fecha_programada__lt=today).order_by(
-        "fecha_programada", "pk"
-    )
+    vencidos_qs = activos.filter(fecha_programada__lt=today)
     por_vencer_qs = activos.filter(
         fecha_programada__gte=today,
         fecha_programada__lte=today + timedelta(days=horizon_days),
-    ).order_by("fecha_programada", "pk")
+    )
     proximos_30_qs = activos.filter(
         fecha_programada__gte=today,
         fecha_programada__lte=today + timedelta(days=proximos_days),
-    ).order_by("fecha_programada", "pk")
+    )
     ciclos_qs = _proximos_ciclos_mantenimiento_qs(today=today, horizon_days=horizon_days)
     ciclos_vencidos_qs = ciclos_qs.filter(proxima_fecha_mantenimiento__lt=today)
     ciclos_por_vencer_qs = ciclos_qs.filter(proxima_fecha_mantenimiento__gte=today)
-    return {
-        "mantenimientos_vencidos": list(vencidos_qs[:8]),
-        "mantenimientos_por_vencer": list(por_vencer_qs[:8]),
-        "mantenimientos_proximos_lista": list(proximos_30_qs[:6]),
-        "mantenimientos_ciclos": list(ciclos_qs[:8]),
+    data = {
         "mantenimientos_vencidos_count": vencidos_qs.count(),
         "mantenimientos_por_vencer_count": por_vencer_qs.count(),
         "mantenimientos_proximos_count": proximos_30_qs.count(),
@@ -249,6 +244,23 @@ def _mantenimientos_alerta_context(
         "mantenimientos_alerta_dias": horizon_days,
         "mantenimientos_proximos_dias": proximos_days,
     }
+    if include_lists:
+        data["mantenimientos_vencidos"] = list(
+            vencidos_qs.order_by("fecha_programada", "pk")[:8]
+        )
+        data["mantenimientos_por_vencer"] = list(
+            por_vencer_qs.order_by("fecha_programada", "pk")[:8]
+        )
+        data["mantenimientos_proximos_lista"] = list(
+            proximos_30_qs.order_by("fecha_programada", "pk")[:6]
+        )
+        data["mantenimientos_ciclos"] = list(ciclos_qs[:8])
+    else:
+        data["mantenimientos_vencidos"] = []
+        data["mantenimientos_por_vencer"] = []
+        data["mantenimientos_proximos_lista"] = []
+        data["mantenimientos_ciclos"] = []
+    return data
 
 
 def _parse_date_param(value):

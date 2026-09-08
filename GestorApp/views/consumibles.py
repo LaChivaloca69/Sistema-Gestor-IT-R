@@ -374,9 +374,13 @@ def consumible_dashboard(request):
     )
 
 
-def _consumibles_alerta_context():
+def _consumibles_alerta_context(include_lists=True):
     qs = ProductoConsumible.objects.filter(activo=True).filter(_productos_bajo_stock_q())
-    return {
+    data = {
         "consumibles_bajo_count": qs.count(),
-        "consumibles_bajo": list(qs.order_by("stock_actual", "nombre")[:8]),
     }
+    if include_lists:
+        data["consumibles_bajo"] = list(qs.order_by("stock_actual", "nombre")[:8])
+    else:
+        data["consumibles_bajo"] = []
+    return data

@@ -10,7 +10,7 @@ from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Count, Exists, F, Max, OuterRef, Q, Sum
+from django.db.models import BooleanField, Case, Count, Exists, F, Max, OuterRef, Q, Sum, Value, When
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -129,6 +129,24 @@ def _mark_inventario_nav(request, inv):
 
 
 def _equipo_queryset():
+    has_asignaciones = Exists(AsignacionEquipo.objects.filter(equipo=OuterRef("pk")))
+    has_mantenimientos = Exists(Mantenimiento.objects.filter(equipo=OuterRef("pk")))
+    has_tickets = Exists(TicketIT.objects.filter(equipo=OuterRef("pk")))
+    has_perifericos = Exists(Equipo.objects.filter(equipo_padre=OuterRef("pk")))
+    has_movimientos_extra = Exists(
+        MovimientoEquipo.objects.filter(equipo=OuterRef("pk")).exclude(
+            tipo_movimiento=TipoMovimiento.DADA_DE_ALTA
+        )
+    )
+    puede_eliminar = Case(
+        When(has_asignaciones, then=Value(False)),
+        When(has_mantenimientos, then=Value(False)),
+        When(has_tickets, then=Value(False)),
+        When(has_perifericos, then=Value(False)),
+        When(has_movimientos_extra, then=Value(False)),
+        default=Value(True),
+        output_field=BooleanField(),
+    )
     return Equipo.objects.select_related(
         "categoria",
         "proveedor",
@@ -140,7 +158,10 @@ def _equipo_queryset():
         "detalle_orden",
         "equipo_padre",
         "equipo_padre__categoria",
-    ).annotate(perifericos_count=Count("perifericos", distinct=True))
+    ).annotate(
+        perifericos_count=Count("perifericos", distinct=True),
+        puede_eliminar_fisico_annotated=puede_eliminar,
+    )
 
 
 def _equipos_sin_ubicacion_qs(tipo=None):
@@ -203,21 +224,28 @@ def _equipos_alerta_context(
     asignacion_dias=EQUIPO_ASIGNACION_ALERTA_DIAS,
     mant_dias=EQUIPO_MANTENIMIENTO_LARGO_DIAS,
     tipo=TipoCategoriaInventario.EQUIPO,
+    include_lists=True,
 ):
     today = today or timezone.localdate()
-    sin_ubicacion_qs = _equipos_sin_ubicacion_qs(tipo=tipo).order_by("codigo_inventario")
+    sin_ubicacion_qs = _equipos_sin_ubicacion_qs(tipo=tipo)
     mant_largo_qs = _equipos_mantenimiento_largo_qs(dias=mant_dias, tipo=tipo)
     asign_antiguas_qs = _asignaciones_antiguas_qs(today=today, dias=asignacion_dias, tipo=tipo)
-    return {
-        "equipos_sin_ubicacion": list(sin_ubicacion_qs[:8]),
+    data = {
         "equipos_sin_ubicacion_count": sin_ubicacion_qs.count(),
-        "equipos_mant_largo": list(mant_largo_qs[:8]),
         "equipos_mant_largo_count": mant_largo_qs.count(),
-        "asignaciones_antiguas": list(asign_antiguas_qs[:8]),
         "asignaciones_antiguas_count": asign_antiguas_qs.count(),
         "equipos_asignacion_alerta_dias": asignacion_dias,
         "equipos_mant_largo_dias": mant_dias,
     }
+    if include_lists:
+        data["equipos_sin_ubicacion"] = list(sin_ubicacion_qs.order_by("codigo_inventario")[:8])
+        data["equipos_mant_largo"] = list(mant_largo_qs[:8])
+        data["asignaciones_antiguas"] = list(asign_antiguas_qs[:8])
+    else:
+        data["equipos_sin_ubicacion"] = []
+        data["equipos_mant_largo"] = []
+        data["asignaciones_antiguas"] = []
+    return data
 
 
 def _equipo_dashboard_context(today=None, tipo=TipoCategoriaInventario.EQUIPO):

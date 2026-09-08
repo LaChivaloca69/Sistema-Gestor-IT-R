@@ -148,8 +148,6 @@ _MODULE = {
     "solicitud_equipo_detail": ("General", None, "Detalle", "solicitud_equipo_list"),
     "solicitud_equipo_cancelar": ("General", None, "Cancelar", "solicitud_equipo_list"),
     "solicitud_equipo_revisar": ("General", None, "Revisar", "solicitud_equipo_list"),
-    "seguimiento_solicitud_update": ("General", None, "Decision solicitud", "solicitud_equipo_list"),
-    "seguimiento_solicitud_delete": ("General", None, "Decision solicitud", "solicitud_equipo_list"),
 }
 
 _SKIP = {"login", "logout", "signup", "home"}
@@ -161,6 +159,7 @@ _DETAIL_RESOLVERS = {
     "bitacora_delete": ("GestorApp.models.Bitacora", "folio_bitacora"),
     "answer_update": ("GestorApp.models.Answer", "__str__"),
     "answer_delete": ("GestorApp.models.Answer", "__str__"),
+    "ticketit_detail": ("GestorApp.models.TicketIT", "folio_ticket"),
     "ticketit_update": ("GestorApp.models.TicketIT", "folio_ticket"),
     "ticketit_delete": ("GestorApp.models.TicketIT", "folio_ticket"),
     "equipo_detail": ("GestorApp.models.Equipo", "codigo_inventario"),
@@ -171,6 +170,15 @@ _DETAIL_RESOLVERS = {
     "equipo_asignar": ("GestorApp.models.Equipo", "codigo_inventario"),
     "equipo_devolver": ("GestorApp.models.Equipo", "codigo_inventario"),
     "equipo_cambiar_ubicacion": ("GestorApp.models.Equipo", "codigo_inventario"),
+    "equipo_vincular_periferico": ("GestorApp.models.Equipo", "codigo_inventario"),
+    "periferico_vincular_equipo": ("GestorApp.models.Equipo", "codigo_inventario"),
+    "periferico_desvincular": ("GestorApp.models.Equipo", "codigo_inventario"),
+    "periferico_reemplazar": ("GestorApp.models.Equipo", "codigo_inventario"),
+    "producto_consumible_detail": ("GestorApp.models.ProductoConsumible", "nombre"),
+    "producto_consumible_update": ("GestorApp.models.ProductoConsumible", "nombre"),
+    "producto_consumible_delete": ("GestorApp.models.ProductoConsumible", "nombre"),
+    "producto_consumible_movimiento": ("GestorApp.models.ProductoConsumible", "nombre"),
+    "producto_consumible_movimiento_libre": ("GestorApp.models.ProductoConsumible", "nombre"),
     "mantenimiento_detail": ("GestorApp.models.Mantenimiento", "folio_mantenimiento"),
     "mantenimiento_update": ("GestorApp.models.Mantenimiento", "folio_mantenimiento"),
     "mantenimiento_delete": ("GestorApp.models.Mantenimiento", "folio_mantenimiento"),
@@ -184,8 +192,6 @@ _DETAIL_RESOLVERS = {
     "solicitud_equipo_detail": ("GestorApp.models.SolicitudEquipo", "folio"),
     "solicitud_equipo_cancelar": ("GestorApp.models.SolicitudEquipo", "folio"),
     "solicitud_equipo_revisar": ("GestorApp.models.SolicitudEquipo", "folio"),
-    "seguimiento_solicitud_update": ("GestorApp.models.SeguimientoSolicitudEquipo", "__str__"),
-    "seguimiento_solicitud_delete": ("GestorApp.models.SeguimientoSolicitudEquipo", "__str__"),
     "cobertura_update": ("GestorApp.models.CoberturaTickets", "__str__"),
     "historial_actividad_detail": ("GestorApp.models.HistorialActividad", "titulo"),
 }

@@ -23,9 +23,11 @@ from GestorApp.models import (
     OrdenCompra,
     OrigenOrdenCompra,
     Personal,
+    ProductoConsumible,
     SeguimientoTicket,
     SolicitudEquipo,
     TicketIT,
+    TipoCategoriaInventario,
     Ubicacion,
     ZonaEdificio,
 )
@@ -1272,6 +1274,211 @@ class MisEquiposViewTests(TestCase):
         self.assertContains(response, "Solicitar equipo")
         # El empty state no debe enlazar a ticketit_create
         self.assertNotContains(response, "abre un ticket si necesitas soporte")
+
+
+class QueryOptimizationTests(TestCase):
+    """Verificación de optimizaciones N+1 y reducción de consultas a BD."""
+
+    def setUp(self):
+        ensure_role_groups()
+        self.password = "StrongPass123!"
+        self.admin = User.objects.create_user(username="perf_admin", password=self.password)
+        set_user_role(self.admin, ROLE_ADMIN)
+
+    def test_equipo_puede_eliminar_fisico_annotated_in_queryset(self):
+        cat = CategoriaEquipo.objects.create(nombre_categoria="Laptop Perf")
+        eq1 = Equipo.objects.create(codigo_inventario="EQ-PERF-01", categoria=cat)
+
+        from GestorApp.views.equipo import _equipo_queryset
+
+        eq_from_qs = _equipo_queryset().get(pk=eq1.pk)
+        self.assertTrue(hasattr(eq_from_qs, "puede_eliminar_fisico_annotated"))
+        self.assertTrue(eq_from_qs.puede_eliminar_fisico)
+
+        # Si agregamos un ticket al equipo, la anotación debe marcar False
+        TicketIT.objects.create(
+            equipo=eq1,
+            solicitado_por=self.admin,
+            requerimiento="Falla test",
+            descripcion="Desc test",
+        )
+        eq_with_ticket = _equipo_queryset().get(pk=eq1.pk)
+        self.assertFalse(eq_with_ticket.puede_eliminar_fisico_annotated)
+        self.assertFalse(eq_with_ticket.puede_eliminar_fisico)
+
+    def test_ticket_tiene_seguimientos_uses_annotated_count(self):
+        ticket = TicketIT.objects.create(
+            solicitado_por=self.admin,
+            requerimiento="Ticket N1",
+            descripcion="Prueba",
+            status=EstadoSupport.ABIERTO,
+        )
+        # Sin anotación hace la consulta normal
+        self.assertFalse(ticket.tiene_seguimientos)
+        self.assertTrue(ticket.puede_marcar_en_revision)
+
+        # Con anotación seguimientos_count=0
+        ticket.seguimientos_count = 0
+        self.assertFalse(ticket.tiene_seguimientos)
+        self.assertTrue(ticket.puede_marcar_en_revision)
+
+        # Con anotación seguimientos_count > 0
+        ticket.seguimientos_count = 3
+        self.assertTrue(ticket.tiene_seguimientos)
+        self.assertFalse(ticket.puede_marcar_en_revision)
+
+    def test_roles_group_names_uses_prefetched_groups(self):
+        from GestorApp.roles import _group_names, get_user_role
+
+        user = User.objects.create_user(username="perf_user", password=self.password)
+        set_user_role(user, ROLE_TECNICO)
+
+        # Recargar con prefetch
+        user_prefetched = User.objects.prefetch_related("groups").get(pk=user.pk)
+        # Al acceder a _group_names con prefetch, no debe realizar consultas SQL adicionales
+        with self.assertNumQueries(0):
+            names = _group_names(user_prefetched)
+            self.assertIn(ROLE_TECNICO, names)
+            role = get_user_role(user_prefetched)
+            self.assertEqual(role, ROLE_TECNICO)
+
+    def test_alert_contexts_support_include_lists_false(self):
+        from GestorApp.views.consumibles import _consumibles_alerta_context
+        from GestorApp.views.equipo import _equipos_alerta_context
+        from GestorApp.views.mantenimiento import _mantenimientos_alerta_context
+        from GestorApp.views.tickets import _seguimientos_alerta_context
+
+        cons = _consumibles_alerta_context(include_lists=False)
+        self.assertIn("consumibles_bajo_count", cons)
+        self.assertEqual(cons["consumibles_bajo"], [])
+
+        eq = _equipos_alerta_context(include_lists=False)
+        self.assertIn("equipos_sin_ubicacion_count", eq)
+        self.assertEqual(eq["equipos_sin_ubicacion"], [])
+
+        mant = _mantenimientos_alerta_context(include_lists=False)
+        self.assertIn("mantenimientos_vencidos_count", mant)
+        self.assertEqual(mant["mantenimientos_vencidos"], [])
+
+        seg = _seguimientos_alerta_context(include_lists=False)
+        self.assertIn("seguimientos_vencidos_count", seg)
+        self.assertEqual(seg["seguimientos_vencidos"], [])
+
+
+class SecurityAndUIFixesTests(TestCase):
+    """Pruebas para los puntos 5 al 8 (seguridad, rutas y UI)."""
+
+    def setUp(self):
+        ensure_role_groups()
+        self.password = "StrongPass123!"
+        self.admin = User.objects.create_user(username="sec_admin", password=self.password)
+        set_user_role(self.admin, ROLE_ADMIN)
+        self.tech = User.objects.create_user(username="sec_tech", password=self.password)
+        set_user_role(self.tech, ROLE_TECNICO)
+        self.user = User.objects.create_user(username="sec_user", password=self.password)
+        set_user_role(self.user, ROLE_USUARIO)
+
+        self.personal_user = Personal.objects.create(
+            numero_empleado="EMP-SEC01",
+            user=self.user,
+            nombre="Sec",
+            apellido_paterno="User",
+        )
+        self.ticket = TicketIT.objects.create(
+            solicitado_por=self.user,
+            requerimiento="Ticket prueba seguridad",
+            descripcion="Detalle",
+            status=EstadoSupport.ABIERTO,
+        )
+
+    def test_punto_5_ticketit_delete_requiere_admin(self):
+        # Usuario normal no puede acceder a delete
+        self.client.login(username="sec_user", password=self.password)
+        res_user = self.client.get(reverse("ticketit_delete", args=[self.ticket.pk]))
+        self.assertNotEqual(res_user.status_code, 200)
+
+        # Técnico tampoco puede acceder a delete
+        self.client.login(username="sec_tech", password=self.password)
+        res_tech = self.client.get(reverse("ticketit_delete", args=[self.ticket.pk]))
+        self.assertNotEqual(res_tech.status_code, 200)
+
+        # Admin sí puede acceder
+        self.client.login(username="sec_admin", password=self.password)
+        res_admin = self.client.get(reverse("ticketit_delete", args=[self.ticket.pk]))
+        self.assertEqual(res_admin.status_code, 200)
+        self.assertTemplateUsed(res_admin, "ticketit/confirm_delete.html")
+
+    def test_punto_6_gobierno_urls_protect_without_double_decoration(self):
+        # Admin entra a permisos_matriz y sla_guia
+        self.client.login(username="sec_admin", password=self.password)
+        self.assertEqual(self.client.get(reverse("permisos_matriz")).status_code, 200)
+        self.assertEqual(self.client.get(reverse("sla_guia")).status_code, 200)
+
+        # Usuario normal no entra
+        self.client.login(username="sec_user", password=self.password)
+        self.assertNotEqual(self.client.get(reverse("permisos_matriz")).status_code, 200)
+        self.assertNotEqual(self.client.get(reverse("sla_guia")).status_code, 200)
+
+    def test_punto_7_solicitud_detail_form_action_uses_revisar_endpoint(self):
+        cat = CategoriaEquipo.objects.create(nombre_categoria="Laptop Sec")
+        sol = SolicitudEquipo.objects.create(
+            solicitante=self.user,
+            personal=self.personal_user,
+            categoria=cat,
+            titulo="Laptop adicional",
+            justificacion="Requerida para soporte",
+            estado=EstadoSolicitudEquipo.PENDIENTE,
+        )
+        self.client.login(username="sec_admin", password=self.password)
+        res = self.client.get(reverse("solicitud_equipo_detail", args=[sol.pk]))
+        self.assertEqual(res.status_code, 200)
+        revisar_url = reverse("solicitud_equipo_revisar", args=[sol.pk])
+        self.assertContains(res, f'action="{revisar_url}"')
+
+    def test_punto_8_ticketit_detail_breadcrumb_resolves_ticket_folio(self):
+        from GestorApp.breadcrumbs import _resolve_detail_label
+
+        label = _resolve_detail_label("ticketit_detail", {"pk": self.ticket.pk})
+        self.assertEqual(label, self.ticket.folio_ticket)
+        self.assertNotEqual(label, "Detalle")
+
+    def test_punto_9_consumibles_and_perifericos_breadcrumbs_resolve_labels(self):
+        from GestorApp.breadcrumbs import _resolve_detail_label
+
+        cat = CategoriaEquipo.objects.create(
+            nombre_categoria="Toner",
+            tipo=TipoCategoriaInventario.CONSUMIBLE,
+        )
+        prod = ProductoConsumible.objects.create(
+            sku="CON-TEST-01",
+            nombre="Toner Negro HP",
+            categoria=cat,
+        )
+        self.assertEqual(
+            _resolve_detail_label("producto_consumible_detail", {"pk": prod.pk}),
+            "Toner Negro HP",
+        )
+        self.assertEqual(
+            _resolve_detail_label("producto_consumible_update", {"pk": prod.pk}),
+            "Toner Negro HP",
+        )
+
+        cat_eq = CategoriaEquipo.objects.create(
+            nombre_categoria="Monitor",
+            tipo=TipoCategoriaInventario.PERIFERICO,
+        )
+        eq = Equipo.objects.create(codigo_inventario="PER-TEST-01", categoria=cat_eq)
+        self.assertEqual(
+            _resolve_detail_label("equipo_vincular_periferico", {"pk": eq.pk}),
+            "PER-TEST-01",
+        )
+        self.assertEqual(
+            _resolve_detail_label("periferico_desvincular", {"pk": eq.pk}),
+            "PER-TEST-01",
+        )
+
+
+
 
 
 

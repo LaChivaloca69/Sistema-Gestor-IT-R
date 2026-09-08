@@ -28,9 +28,9 @@ def _compute_nav_badges(user):
     )
 
     badges = {}
-    abiertos = _tickets_abiertos_qs(user).annotate(seguimientos_count=Count("seguimientos"))
+    abiertos = _tickets_abiertos_qs(user)
     sla = abiertos.filter(_tickets_sla_vencidos_q(timezone.now())).count()
-    sin_check = abiertos.filter(seguimientos_count=0).count()
+    sin_check = abiertos.filter(seguimientos__isnull=True).count()
     tickets_badge = sla or sin_check
     if tickets_badge:
         badges["tickets"] = {
@@ -45,7 +45,7 @@ def _compute_nav_badges(user):
 
     if is_operativo(user):
         today = timezone.localdate()
-        seg = _seguimientos_alerta_context(today=today)
+        seg = _seguimientos_alerta_context(today=today, include_lists=False)
         seg_count = seg["seguimientos_vencidos_count"] + seg["seguimientos_por_vencer_count"]
         if seg_count:
             badges["seguimiento"] = {
@@ -59,7 +59,7 @@ def _compute_nav_badges(user):
                 "por_vencer": seg["seguimientos_por_vencer_count"],
             }
 
-        mant = _mantenimientos_alerta_context(today=today)
+        mant = _mantenimientos_alerta_context(today=today, include_lists=False)
         mant_count = (
             mant["mantenimientos_vencidos_count"] + mant["mantenimientos_por_vencer_count"]
         )
@@ -75,7 +75,7 @@ def _compute_nav_badges(user):
                 "por_vencer": mant["mantenimientos_por_vencer_count"],
             }
 
-        eq = _equipos_alerta_context(today=today)
+        eq = _equipos_alerta_context(today=today, include_lists=False)
         eq_count = (
             eq["equipos_sin_ubicacion_count"]
             + eq["equipos_mant_largo_count"]
@@ -110,7 +110,7 @@ def _compute_nav_badges(user):
                 "title": f"{sol_count} solicitud(es) por revisar",
             }
 
-        cons = _consumibles_alerta_context()
+        cons = _consumibles_alerta_context(include_lists=False)
         if cons["consumibles_bajo_count"]:
             badges["consumibles"] = {
                 "count": cons["consumibles_bajo_count"],

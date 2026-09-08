@@ -32,7 +32,7 @@ def _group_names(user):
         return set()
     if hasattr(user, "_role_group_names_cache"):
         return user._role_group_names_cache
-    names = set(user.groups.values_list("name", flat=True))
+    names = {g.name for g in user.groups.all()}
     user._role_group_names_cache = names
     return names
 

@@ -182,9 +182,13 @@ def puesto_delete(request, pk):
 
 
 def personal_list(request):
-    items = Personal.objects.select_related(
-        "user", "area", "puesto", "ubicacion", "ubicacion__edificio", "ubicacion__zona"
-    ).all()
+    items = (
+        Personal.objects.select_related(
+            "user", "area", "puesto", "ubicacion", "ubicacion__edificio", "ubicacion__zona"
+        )
+        .prefetch_related("user__groups")
+        .all()
+    )
     search_query = (request.GET.get("q") or "").strip()
     selected_area = request.GET.get("area", "")
     selected_puesto = request.GET.get("puesto", "")
@@ -302,7 +306,11 @@ def personal_admin_remove(request):
         )
         return redirect("personal_admin_remove")
     items = []
-    for personal in Personal.objects.select_related("user").filter(user__isnull=False):
+    for personal in (
+        Personal.objects.select_related("user")
+        .prefetch_related("user__groups")
+        .filter(user__isnull=False)
+    ):
         role = get_user_role(personal.user)
         if role in {ROLE_TECNICO, ROLE_ADMIN} and not personal.user.is_superuser:
             personal.rol_label = role

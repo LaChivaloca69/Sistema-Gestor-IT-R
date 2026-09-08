@@ -472,6 +472,10 @@ class Equipo(models.Model):
 
     @property
     def puede_eliminar_fisico(self):
+        if hasattr(self, "_puede_eliminar_fisico"):
+            return bool(self._puede_eliminar_fisico)
+        if hasattr(self, "puede_eliminar_fisico_annotated"):
+            return bool(self.puede_eliminar_fisico_annotated)
         if self.asignaciones.exists() or self.mantenimientos.exists():
             return False
         if self.ticketit_set.exists():
@@ -731,16 +735,18 @@ class TicketIT(models.Model):
         verbose_name_plural = 'Support'
 
     @property
+    def tiene_seguimientos(self):
+        if hasattr(self, "seguimientos_count"):
+            return bool(self.seguimientos_count)
+        return self.seguimientos.exists()
+
+    @property
     def puede_marcar_en_revision(self):
-        return self.status == EstadoSupport.ABIERTO and not self.seguimientos.exists()
+        return self.status == EstadoSupport.ABIERTO and not self.tiene_seguimientos
 
     @property
     def puede_reabrir(self):
         return self.status == EstadoSupport.CERRADO
-
-    @property
-    def tiene_seguimientos(self):
-        return self.seguimientos.exists()
 
     @property
     def puede_eliminar(self):

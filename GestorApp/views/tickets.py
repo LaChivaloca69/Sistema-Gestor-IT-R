@@ -478,7 +478,7 @@ def ticketit_delete(request, pk):
         return _deny_ticket_access(request)
     if not user_can_delete_ticket(request.user, ticket):
         if not is_admin_user(request.user):
-            messages.error(request, "Solo el personal de soporte puede eliminar tickets.")
+            messages.error(request, "Solo los administradores pueden eliminar tickets.")
         else:
             messages.error(
                 request,
@@ -592,23 +592,30 @@ def _seguimientos_pendientes_qs():
     )
 
 
-def _seguimientos_alerta_context(today=None, horizon_days=SEGUIMIENTO_ALERTA_DIAS):
+def _seguimientos_alerta_context(today=None, horizon_days=SEGUIMIENTO_ALERTA_DIAS, include_lists=True):
     today = today or timezone.localdate()
     pendientes = _seguimientos_pendientes_qs()
-    vencidos_qs = pendientes.filter(
-        fecha_proximo_seguimiento__lt=today
-    ).order_by("fecha_proximo_seguimiento", "pk")
+    vencidos_qs = pendientes.filter(fecha_proximo_seguimiento__lt=today)
     por_vencer_qs = pendientes.filter(
         fecha_proximo_seguimiento__gte=today,
         fecha_proximo_seguimiento__lte=today + timedelta(days=horizon_days),
-    ).order_by("fecha_proximo_seguimiento", "pk")
-    return {
-        "seguimientos_vencidos": list(vencidos_qs[:8]),
-        "seguimientos_por_vencer": list(por_vencer_qs[:8]),
+    )
+    data = {
         "seguimientos_vencidos_count": vencidos_qs.count(),
         "seguimientos_por_vencer_count": por_vencer_qs.count(),
         "seguimientos_alerta_dias": horizon_days,
     }
+    if include_lists:
+        data["seguimientos_vencidos"] = list(
+            vencidos_qs.order_by("fecha_proximo_seguimiento", "pk")[:8]
+        )
+        data["seguimientos_por_vencer"] = list(
+            por_vencer_qs.order_by("fecha_proximo_seguimiento", "pk")[:8]
+        )
+    else:
+        data["seguimientos_vencidos"] = []
+        data["seguimientos_por_vencer"] = []
+    return data
 
 
 def seguimientoticket_list(request):
