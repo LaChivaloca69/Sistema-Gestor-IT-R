@@ -23,7 +23,7 @@
 	<section class="ticket-panel">
 		<div class="ticket-panel__header">
 			<div>
-				<h2 class="h5 mb-0">{{ item.equipo.codigo_inventario }}</h2>
+				<h2 class="h5 mb-0"><a href="{% url 'equipo_detail' item.equipo_id %}">{{ item.equipo.codigo_inventario }}</a></h2>
 				<p class="text-muted small mb-0">
 					{{ item.equipo.categoria }}
 					· {{ item.equipo.marca|default:"-" }} {{ item.equipo.modelo|default:"" }}
@@ -59,7 +59,7 @@
 					<tbody>
 						{% for pe in kit %}
 						<tr>
-							<td><strong>{{ pe.codigo_inventario }}</strong></td>
+							<td><strong><a href="{% url 'equipo_detail' pe.pk %}">{{ pe.codigo_inventario }}</a></strong></td>
 							<td>{{ pe.categoria }}</td>
 							<td>{{ pe.marca|default:"-" }} {{ pe.modelo|default:"" }}</td>
 							<td><span class="status-badge status-badge--{{ pe.estado_equipo|slugify }}">{{ pe.estado_equipo }}</span></td>

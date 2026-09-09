@@ -1,64 +1,16 @@
 """Forms de plantillas y órdenes de compra."""
-from datetime import datetime
-from decimal import Decimal
 
 from django import forms
-from django.contrib.auth import get_user_model
-from django.contrib.auth.forms import UserCreationForm
-from django.contrib.auth.models import User
-from django.core.exceptions import ValidationError
-from django.db import transaction
-from django.db.models import Q
-from django.utils import timezone
 
 from .. import document_engine
-from ..cobertura import operativo_user_choices
 from ..models import (
-    AccionHistorial,
-    AgendaMantenimiento,
-    Answer,
-    Area,
-    AsignacionEquipo,
-    Bitacora,
-    CategoriaEquipo,
-    CoberturaTickets,
     DetalleOrdenCompra,
-    Edificio,
-    Equipo,
-    EstadoAsignacion,
-    EstadoEquipo,
-    EstadoMantenimiento,
     EstadoOrdenCompra,
-    EstadoSolicitudEquipo,
-    EstadoSupport,
     IvaOpcion,
-    Mantenimiento,
-    MovimientoEquipo,
     OrdenCompra,
-    OrigenAltaEquipo,
-    Personal,
     PlantillaDocumento,
     Proveedor,
-    Puesto,
-    SeguimientoTicket,
-    SolicitudEquipo,
-    TicketIT,
     TipoPlantillaDocumento,
-    TipoProveedor,
-    Ubicacion,
-    UrgenciaSolicitudEquipo,
-    ZonaEdificio,
-)
-from ..roles import (
-    ROLE_ADMIN,
-    ROLE_CHOICES,
-    ROLE_TECNICO,
-    ROLE_USUARIO,
-    get_user_role,
-    is_admin_user,
-    is_operativo,
-    operativo_users_queryset,
-    set_user_role,
 )
 
 
@@ -177,8 +129,9 @@ class OrdenCompraCrearForm(forms.ModelForm):
             "tipo_moneda": forms.RadioSelect,
         }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, restrict_estado=False, **kwargs):
         super().__init__(*args, **kwargs)
+        self.restrict_estado = restrict_estado
         self.fields["folio_orden"].required = False
         self.fields["folio_orden"].help_text = "Dejalo vacio para generar uno automatico (OC-000001)."
         self.fields["proveedor"].queryset = Proveedor.objects.filter(activo=True).order_by("nombre_proveedor")
@@ -187,10 +140,21 @@ class OrdenCompraCrearForm(forms.ModelForm):
         self.fields["plantilla"].required = False
         self.fields["plantilla"].empty_label = "Plantilla por defecto"
         self.fields["iva_porcentaje"].required = False
+        if restrict_estado:
+            self.fields["estado"].disabled = True
+            self.fields["estado"].help_text = "Solo IT puede marcar la orden como Terminada."
+            if not (self.instance and self.instance.pk):
+                self.fields["estado"].initial = EstadoOrdenCompra.BORRADOR
 
     def clean(self):
         cleaned = super().clean()
-        return _sync_iva_porcentaje(self, cleaned)
+        cleaned = _sync_iva_porcentaje(self, cleaned)
+        if self.restrict_estado:
+            if self.instance and self.instance.pk:
+                cleaned["estado"] = self.instance.estado
+            else:
+                cleaned["estado"] = EstadoOrdenCompra.BORRADOR
+        return cleaned
 
 
 
@@ -208,8 +172,9 @@ class OrdenCompraSubirForm(forms.ModelForm):
             "notas": forms.Textarea(attrs={"rows": 3}),
         }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, restrict_estado=False, **kwargs):
         super().__init__(*args, **kwargs)
+        self.restrict_estado = restrict_estado
         self.fields["folio_orden"].required = False
         self.fields["folio_orden"].help_text = "Dejalo vacio para generar uno automatico (OC-000001)."
         tiene_pdf = bool(
@@ -220,6 +185,20 @@ class OrdenCompraSubirForm(forms.ModelForm):
             self.fields["archivo_pdf"].help_text = (
                 "Opcional: deja vacio para conservar el PDF actual."
             )
+        if restrict_estado:
+            self.fields["estado"].disabled = True
+            self.fields["estado"].help_text = "Solo IT puede marcar la orden como Terminada."
+            if not (self.instance and self.instance.pk):
+                self.fields["estado"].initial = EstadoOrdenCompra.BORRADOR
+
+    def clean(self):
+        cleaned = super().clean()
+        if self.restrict_estado:
+            if self.instance and self.instance.pk:
+                cleaned["estado"] = self.instance.estado
+            else:
+                cleaned["estado"] = EstadoOrdenCompra.BORRADOR
+        return cleaned
 
     def clean_archivo_pdf(self):
         archivo = self.cleaned_data.get("archivo_pdf")

@@ -7,9 +7,11 @@
 		<ul class="dropdown-menu dropdown-menu-end">
 			<li><a class="dropdown-item" href="{{ update_url }}">Editar</a></li>
 			{% if extra_items %}{{ extra_items }}{% endif %}
-			{% if is_admin_role and delete_url %}
+			{% if delete_url %}
+			{% if is_admin_role or allow_row_delete %}
 			<li><hr class="dropdown-divider"></li>
 			<li><a class="dropdown-item text-danger" href="{{ delete_url }}">Eliminar</a></li>
+			{% endif %}
 			{% endif %}
 		</ul>
 	</div>

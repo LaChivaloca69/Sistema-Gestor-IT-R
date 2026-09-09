@@ -9,6 +9,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
 from .. import historial
+from ..forms.common import _get_user_personal
 from ..forms.consumibles import MovimientoStockForm, ProductoConsumibleForm
 from ..models import (
     AccionHistorial,
@@ -32,15 +33,6 @@ def _producto_queryset():
     return ProductoConsumible.objects.select_related(
         "categoria", "ubicacion", "ubicacion__edificio", "proveedor"
     )
-
-
-def _get_responsable_from_user(user):
-    if not user or not getattr(user, "is_authenticated", False):
-        return None
-    try:
-        return user.personal_profile
-    except Exception:
-        return None
 
 
 def _productos_bajo_stock_q():
@@ -275,7 +267,7 @@ def producto_consumible_movimiento(request, pk, tipo=None):
                     form.cleaned_data["cantidad"],
                     motivo=form.cleaned_data.get("motivo"),
                     responsable=form.cleaned_data.get("responsable")
-                    or _get_responsable_from_user(request.user),
+                    or _get_user_personal(request.user),
                     orden_compra=form.cleaned_data.get("orden_compra"),
                     request=request,
                 )
@@ -289,7 +281,7 @@ def producto_consumible_movimiento(request, pk, tipo=None):
                 return redirect("producto_consumible_detail", pk=pk)
     else:
         form = MovimientoStockForm(producto=producto, tipo_fijo=tipo_fijo)
-        resp = _get_responsable_from_user(request.user)
+        resp = _get_user_personal(request.user)
         if resp:
             form.fields["responsable"].initial = resp.pk
 

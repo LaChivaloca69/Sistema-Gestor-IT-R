@@ -47,9 +47,6 @@ def get_user_role(user):
     for role in ROLE_PRIORITY:
         if role in names:
             return role
-    # Compatibilidad temporal con cuentas antiguas solo-is_staff.
-    if getattr(user, "is_staff", False):
-        return ROLE_ADMIN
     return ROLE_USUARIO
 
 
@@ -107,7 +104,6 @@ def operativo_users_queryset(user_model=None):
     qs = user_model.objects.filter(
         Q(is_superuser=True)
         | Q(groups__name__in=[ROLE_TECNICO, ROLE_ADMIN])
-        | Q(is_staff=True)
     )
     if any(field.name == "is_active" for field in user_model._meta.fields):
         qs = qs.filter(is_active=True)

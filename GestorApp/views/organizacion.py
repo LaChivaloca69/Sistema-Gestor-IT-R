@@ -1,24 +1,12 @@
 """Organización: áreas, puestos, personal, proveedores."""
-import csv
-from datetime import date, datetime, timedelta
 
-from django import forms
 from django.contrib import messages
-from django.contrib.auth import get_user_model, login
-from django.contrib.auth.password_validation import validate_password
-from django.core.exceptions import ValidationError
-from django.core.files.base import ContentFile
-from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Count, Q, Sum, Max, F
-from django.http import HttpResponse, JsonResponse
+from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-from django.urls import NoReverseMatch, reverse
 
-from .. import document_engine
 from .. import historial
-from ..cobertura import coberturas_activas_para_suplente, ticket_asignados_q_for_user
 from ..forms.organizacion import (
     AreaForm,
     PersonalForm,
@@ -27,84 +15,34 @@ from ..forms.organizacion import (
 )
 from ..roles import (
     ROLE_ADMIN,
-    ROLE_CHOICES,
     ROLE_TECNICO,
     ROLE_USUARIO,
-    admin_required,
     get_user_role,
     is_admin_user,
-    is_operativo,
-    operativo_required,
     set_user_role,
 )
 from ..models import (
-    AccionHistorial,
-    AgendaMantenimiento,
-    Answer,
     Area,
     AsignacionEquipo,
-    Bitacora,
-    CategoriaEquipo,
-    DetalleOrdenCompra,
-    Edificio,
-    Equipo,
     EstadoAsignacion,
-    EstadoEquipo,
-    EstadoMantenimiento,
-    EstadoOrdenCompra,
-    EstadoSupport,
     HistorialActividad,
-    IvaOpcion,
-    Mantenimiento,
     ModuloHistorial,
-    MovimientoEquipo,
     NivelHistorial,
-    OrdenCompra,
-    OrigenAltaEquipo,
-    OrigenOrdenCompra,
     Personal,
-    PlantillaDocumento,
-    PrioridadSupport,
     Proveedor,
     Puesto,
-    SLA_HORAS_POR_PRIORIDAD,
-    SeguimientoTicket,
-    TicketIT,
-    TipoMoneda,
     TipoMovimiento,
-    TipoMantenimiento,
     TipoProveedor,
-    TipoTicketSupport,
-    TipoPlantillaDocumento,
-    Ubicacion,
-    ZonaEdificio,
 )
 from .helpers import (
     _apply_date_filters,
-    _cerrar_asignaciones_activas,
     _crear_movimiento,
     _propagar_custodia_personal_a_equipos,
-    _deny_ticket_access,
-    _end_of_month,
-    _get_equipo_asignacion_activa,
-    _get_equipo_responsable,
     _liberar_equipo_tras_devolucion,
     _month_bounds,
-    _ordenes_for_user,
     _parse_date,
     _quick_range_bounds,
     _reconciliar_estado_equipo,
-    _ticket_dashboard_context,
-    _ticket_has_seguimientos,
-    _tickets_abiertos_qs,
-    _tickets_for_user,
-    _tickets_sla_por_vencer_q,
-    _tickets_sla_vencidos_q,
-    user_can_delete_ticket,
-    user_can_edit_ticket,
-    user_can_manage_orden,
-    user_can_manage_ticket_flow,
-    user_can_view_ticket,
 )
 
 def area_list(request):

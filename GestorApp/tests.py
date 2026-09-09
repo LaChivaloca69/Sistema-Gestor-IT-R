@@ -1,20 +1,25 @@
 from datetime import date, timedelta
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.core.exceptions import ValidationError
+from django.db import IntegrityError
+from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from GestorApp.models import (
     Answer,
     AsignacionEquipo,
     Bitacora,
     CategoriaEquipo,
+    CoberturaTickets,
     ComentarioTicket,
     Edificio,
     Equipo,
     EstadoAsignacion,
     EstadoEquipo,
     EstadoMantenimiento,
+    EstadoOrdenCompra,
     EstadoSolicitudEquipo,
     EstadoSupport,
     HistorialActividad,
@@ -28,6 +33,8 @@ from GestorApp.models import (
     SolicitudEquipo,
     TicketIT,
     TipoCategoriaInventario,
+    TipoMovimiento,
+    TipoMovimientoStock,
     Ubicacion,
     ZonaEdificio,
 )
@@ -39,6 +46,7 @@ User = get_user_model()
 
 
 class AuthFlowTests(TestCase):
+    @override_settings(SIGNUP_ENABLED=True)
     def test_signup_creates_user_and_logs_in(self):
         response = self.client.post(
             reverse("signup"),
@@ -55,6 +63,23 @@ class AuthFlowTests(TestCase):
         self.assertRedirects(response, reverse("home"))
         self.assertTrue(User.objects.filter(username="testuser").exists())
         self.assertTrue(response.wsgi_request.user.is_authenticated)
+
+    def test_signup_desactivado_redirige_a_login(self):
+        response = self.client.get(reverse("signup"))
+        self.assertRedirects(response, reverse("login"))
+        post = self.client.post(
+            reverse("signup"),
+            {
+                "username": "blockeduser",
+                "numero_empleado": "EMP-101",
+                "nombre": "Blocked",
+                "apellido_paterno": "User",
+                "password1": "StrongPass123!",
+                "password2": "StrongPass123!",
+            },
+        )
+        self.assertRedirects(post, reverse("login"))
+        self.assertFalse(User.objects.filter(username="blockeduser").exists())
 
     def test_login_success_redirects_home(self):
         User.objects.create_user(username="testuser", password="StrongPass123!")
@@ -331,6 +356,9 @@ class AltosMantenimientoPersonalComprasTests(TestCase):
                 estado_asignacion=EstadoAsignacion.ACTIVA,
             ).exists()
         )
+        user.refresh_from_db()
+        self.assertTrue(User.objects.filter(pk=user.pk).exists())
+        self.assertFalse(user.is_active)
 
     def test_no_cancelar_solicitud_completada(self):
         solicitante = User.objects.create_user(username="alto_sol", password=self.password)
@@ -1364,6 +1392,31 @@ class QueryOptimizationTests(TestCase):
         self.assertIn("seguimientos_vencidos_count", seg)
         self.assertEqual(seg["seguimientos_vencidos"], [])
 
+    def test_parse_date_accepts_whitespace_and_iso(self):
+        from datetime import date
+
+        from GestorApp.views.helpers import _parse_date
+
+        self.assertEqual(_parse_date("2026-09-09"), date(2026, 9, 9))
+        self.assertEqual(_parse_date(" 2026-09-09 "), date(2026, 9, 9))
+        self.assertIsNone(_parse_date(""))
+        self.assertIsNone(_parse_date(None))
+        self.assertIsNone(_parse_date("09/09/2026"))
+
+    def test_get_user_personal_unified_helper(self):
+        from GestorApp.forms.common import _get_user_personal
+
+        user = User.objects.create_user(username="pers_helper", password=self.password)
+        self.assertIsNone(_get_user_personal(user))
+        personal = Personal.objects.create(
+            numero_empleado="EMP-HELPER",
+            user=user,
+            nombre="Helper",
+            apellido_paterno="Test",
+        )
+        self.assertEqual(_get_user_personal(user), personal)
+        self.assertIsNone(_get_user_personal(None))
+
 
 class SecurityAndUIFixesTests(TestCase):
     """Pruebas para los puntos 5 al 8 (seguridad, rutas y UI)."""
@@ -1476,6 +1529,248 @@ class SecurityAndUIFixesTests(TestCase):
             _resolve_detail_label("periferico_desvincular", {"pk": eq.pk}),
             "PER-TEST-01",
         )
+
+
+class UserFailureHardeningTests(TestCase):
+    """Regresiones de fallos provocables por un usuario autenticado."""
+
+    def setUp(self):
+        ensure_role_groups()
+        self.password = "StrongPass123!"
+        self.usuario = User.objects.create_user(username="fail_user", password=self.password)
+        set_user_role(self.usuario, ROLE_USUARIO)
+        self.tech = User.objects.create_user(username="fail_tech", password=self.password)
+        set_user_role(self.tech, ROLE_TECNICO)
+        self.personal_activo = Personal.objects.create(
+            user=self.usuario,
+            numero_empleado="FAIL-1",
+            nombre="Activo",
+            apellido_paterno="Uno",
+            activo=True,
+        )
+        self.personal_inactivo = Personal.objects.create(
+            numero_empleado="FAIL-2",
+            nombre="Inactivo",
+            apellido_paterno="Dos",
+            activo=False,
+        )
+        self.categoria = CategoriaEquipo.objects.create(nombre_categoria="Laptop Fail")
+
+    def test_fecha_support_client_no_falsea_sla(self):
+        self.client.login(username="fail_user", password=self.password)
+        pasado = (timezone.now() - timedelta(days=400)).isoformat()
+        before = timezone.now()
+        response = self.client.post(
+            reverse("ticketit_create") + "?manual=1",
+            {
+                "requerimiento": "Pantalla negra",
+                "descripcion": "No enciende desde ayer.",
+                "tipo_ticket": "HELPDESK",
+                "prioridad": "Media",
+                "fecha_support_client": pasado,
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        ticket = TicketIT.objects.get(requerimiento="Pantalla negra")
+        self.assertGreaterEqual(ticket.fecha_support, before - timedelta(seconds=5))
+
+    def test_tipo_fijo_ignora_ajuste_forjado(self):
+        from GestorApp.forms.consumibles import MovimientoStockForm
+
+        cat = CategoriaEquipo.objects.create(
+            nombre_categoria="Toner Fail",
+            tipo=TipoCategoriaInventario.CONSUMIBLE,
+        )
+        producto = ProductoConsumible.objects.create(
+            sku="FAIL-SKU-1",
+            nombre="Toner",
+            categoria=cat,
+            stock_actual=10,
+        )
+        form = MovimientoStockForm(
+            {
+                "tipo_movimiento": TipoMovimientoStock.AJUSTE,
+                "cantidad": 1,
+                "motivo": "intento de ajuste",
+            },
+            producto=producto,
+            tipo_fijo=TipoMovimientoStock.SALIDA,
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data["tipo_movimiento"], TipoMovimientoStock.SALIDA)
+
+    def test_usuario_no_termina_ni_borra_oc_terminada(self):
+        orden = OrdenCompra.objects.create(
+            elaborado_por=self.usuario,
+            origen=OrigenOrdenCompra.CREADO,
+            estado=EstadoOrdenCompra.TERMINADO,
+        )
+        self.client.login(username="fail_user", password=self.password)
+        terminar = self.client.post(reverse("ordencompra_terminar", args=[orden.pk]))
+        self.assertEqual(terminar.status_code, 302)
+        borrar = self.client.post(reverse("ordencompra_delete", args=[orden.pk]))
+        self.assertEqual(borrar.status_code, 302)
+        self.assertTrue(OrdenCompra.objects.filter(pk=orden.pk).exists())
+        orden.refresh_from_db()
+        self.assertEqual(orden.estado, EstadoOrdenCompra.TERMINADO)
+
+    def test_solicitud_folio_unico_sin_vacio(self):
+        s1 = SolicitudEquipo.objects.create(
+            solicitante=self.usuario,
+            titulo="Laptop nueva",
+            justificacion="Necesito equipo",
+        )
+        s2 = SolicitudEquipo.objects.create(
+            solicitante=self.usuario,
+            titulo="Monitor",
+            justificacion="Pantalla rota",
+        )
+        self.assertTrue(s1.folio.startswith("SOL-"))
+        self.assertTrue(s2.folio.startswith("SOL-"))
+        self.assertNotEqual(s1.folio, "")
+        self.assertNotEqual(s1.folio, s2.folio)
+
+    def test_una_sola_asignacion_activa_por_equipo(self):
+        from django.db import transaction
+
+        equipo = Equipo.objects.create(
+            codigo_inventario="FAIL-EQ-1",
+            categoria=self.categoria,
+            estado_equipo=EstadoEquipo.DISPONIBLE,
+        )
+        AsignacionEquipo.objects.create(
+            equipo=equipo,
+            personal=self.personal_activo,
+            estado_asignacion=EstadoAsignacion.ACTIVA,
+        )
+        extra = Personal.objects.create(
+            numero_empleado="FAIL-3",
+            nombre="Otro",
+            apellido_paterno="Tres",
+            activo=True,
+        )
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                AsignacionEquipo.objects.create(
+                    equipo=equipo,
+                    personal=extra,
+                    estado_asignacion=EstadoAsignacion.ACTIVA,
+                )
+
+    def test_asignar_form_omite_personal_inactivo(self):
+        from GestorApp.forms.equipo import EquipoAsignarForm
+
+        form = EquipoAsignarForm()
+        pks = set(form.fields["personal"].queryset.values_list("pk", flat=True))
+        self.assertIn(self.personal_activo.pk, pks)
+        self.assertNotIn(self.personal_inactivo.pk, pks)
+
+    def test_is_staff_sin_grupo_no_es_administrador(self):
+        from GestorApp.roles import get_user_role, is_administrador
+
+        staff = User.objects.create_user(
+            username="fail_staff",
+            password=self.password,
+            is_staff=True,
+        )
+        self.assertEqual(get_user_role(staff), ROLE_USUARIO)
+        self.assertFalse(is_administrador(staff))
+
+    def test_usuario_ve_detalle_de_equipo_asignado(self):
+        asignado = Equipo.objects.create(
+            codigo_inventario="FAIL-EQ-VIEW",
+            categoria=self.categoria,
+            estado_equipo=EstadoEquipo.ASIGNADO,
+        )
+        AsignacionEquipo.objects.create(
+            equipo=asignado,
+            personal=self.personal_activo,
+            estado_asignacion=EstadoAsignacion.ACTIVA,
+        )
+        ajeno = Equipo.objects.create(
+            codigo_inventario="FAIL-EQ-HIDE",
+            categoria=self.categoria,
+            estado_equipo=EstadoEquipo.DISPONIBLE,
+        )
+        self.client.login(username="fail_user", password=self.password)
+        ok = self.client.get(reverse("equipo_detail", args=[asignado.pk]))
+        self.assertEqual(ok.status_code, 200)
+        denied = self.client.get(reverse("equipo_detail", args=[ajeno.pk]))
+        self.assertEqual(denied.status_code, 302)
+
+    def test_cierre_desde_programado_inicia_y_completa(self):
+        equipo = Equipo.objects.create(
+            codigo_inventario="FAIL-EQ-MANT",
+            categoria=self.categoria,
+            estado_equipo=EstadoEquipo.DISPONIBLE,
+        )
+        man = Mantenimiento.objects.create(
+            equipo=equipo,
+            tipo_mantenimiento="Correctivo",
+            fecha_programada=date.today(),
+            estado_mantenimiento=EstadoMantenimiento.PROGRAMADO,
+        )
+        self.client.login(username="fail_tech", password=self.password)
+        fin = timezone.now().strftime("%Y-%m-%dT%H:%M")
+        response = self.client.post(
+            reverse("agendamantenimiento_create") + f"?mantenimiento={man.pk}",
+            {
+                "fecha_fin": fin,
+                "acciones_realizadas": "Se cambio el disco y se probo.",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        man.refresh_from_db()
+        equipo.refresh_from_db()
+        self.assertEqual(man.estado_mantenimiento, EstadoMantenimiento.COMPLETADO)
+        self.assertTrue(man.tiene_cierre)
+        self.assertEqual(equipo.estado_equipo, EstadoEquipo.DISPONIBLE)
+        self.assertTrue(
+            equipo.movimientos.filter(tipo_movimiento=TipoMovimiento.MANTENIMIENTO).exists()
+        )
+
+    def test_cobertura_activa_no_permite_solape(self):
+        tech2 = User.objects.create_user(username="fail_tech2", password=self.password)
+        set_user_role(tech2, ROLE_TECNICO)
+        primera = CoberturaTickets(
+            ausente=self.tech,
+            suplente=tech2,
+            fecha_inicio=date.today(),
+            fecha_fin=date.today() + timedelta(days=3),
+            activa=True,
+            creado_por=self.tech,
+        )
+        primera.full_clean()
+        primera.save()
+        solape = CoberturaTickets(
+            ausente=self.tech,
+            suplente=tech2,
+            fecha_inicio=date.today() + timedelta(days=1),
+            fecha_fin=date.today() + timedelta(days=5),
+            activa=True,
+            creado_por=self.tech,
+        )
+        with self.assertRaises(ValidationError):
+            solape.full_clean()
+
+    def test_tecnico_no_edita_cobertura_ajena(self):
+        tech2 = User.objects.create_user(username="fail_tech2b", password=self.password)
+        set_user_role(tech2, ROLE_TECNICO)
+        ajeno = User.objects.create_user(username="fail_tech3", password=self.password)
+        set_user_role(ajeno, ROLE_TECNICO)
+        cobertura = CoberturaTickets.objects.create(
+            ausente=self.tech,
+            suplente=tech2,
+            fecha_inicio=date.today(),
+            fecha_fin=date.today() + timedelta(days=2),
+            activa=True,
+            creado_por=self.tech,
+        )
+        self.client.login(username="fail_tech3", password=self.password)
+        response = self.client.get(reverse("cobertura_update", args=[cobertura.pk]))
+        self.assertEqual(response.status_code, 404)
+
+
 
 
 

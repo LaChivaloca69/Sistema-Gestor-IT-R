@@ -1,20 +1,21 @@
 """Shared helpers: tickets/OC permissions, dates, equipo movements."""
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 
 from django.contrib import messages
 from django.core.exceptions import ValidationError
-from django.db.models import Count, Exists, OuterRef, Q
+from django.db import transaction
+from django.db.models import Count, Q
 from django.shortcuts import redirect
 from django.utils import timezone
 
 from .. import historial
-from ..cobertura import ticket_asignados_q_for_user
-from ..roles import is_admin_user, is_operativo
+from ..roles import is_admin_user, is_administrador, is_operativo
 from ..models import (
     AsignacionEquipo,
     Equipo,
     EstadoAsignacion,
     EstadoEquipo,
+    EstadoOrdenCompra,
     EstadoSupport,
     MovimientoEquipo,
     ModuloHistorial,
@@ -23,6 +24,7 @@ from ..models import (
     Personal,
     PrioridadSupport,
     SLA_HORAS_POR_PRIORIDAD,
+    SolicitudEquipo,
     TicketIT,
     TipoMovimiento,
     TipoTicketSupport,
@@ -106,6 +108,73 @@ def user_can_manage_orden(user, orden):
     if is_operativo(user):
         return True
     return orden.elaborado_por_id == user.id
+
+
+def user_can_terminar_orden(user, orden):
+    return bool(user and is_operativo(user) and user_can_manage_orden(user, orden))
+
+
+def user_can_delete_orden(user, orden):
+    if not user_can_manage_orden(user, orden):
+        return False
+    if orden.equipos.exists():
+        return False
+    if orden.estado == EstadoOrdenCompra.TERMINADO:
+        return False
+    return True
+
+
+def user_can_view_equipo(user, equipo):
+    """Operativo ve todo; Usuario solo lo asignado (o kit) y lo de su solicitud."""
+    if not user or not user.is_authenticated or equipo is None:
+        return False
+    if is_operativo(user):
+        return True
+    personal = None
+    try:
+        personal = user.personal_profile
+    except Personal.DoesNotExist:
+        personal = None
+    if personal is not None:
+        if AsignacionEquipo.objects.filter(
+            personal=personal,
+            equipo=equipo,
+            estado_asignacion=EstadoAsignacion.ACTIVA,
+        ).exists():
+            return True
+        if equipo.equipo_padre_id and AsignacionEquipo.objects.filter(
+            personal=personal,
+            equipo_id=equipo.equipo_padre_id,
+            estado_asignacion=EstadoAsignacion.ACTIVA,
+        ).exists():
+            return True
+        if AsignacionEquipo.objects.filter(
+            personal=personal,
+            estado_asignacion=EstadoAsignacion.ACTIVA,
+            equipo__perifericos=equipo,
+        ).exists():
+            return True
+    if SolicitudEquipo.objects.filter(equipo=equipo, solicitante=user).exists():
+        return True
+    if personal is not None and SolicitudEquipo.objects.filter(
+        equipo=equipo, personal=personal
+    ).exists():
+        return True
+    return False
+
+
+def user_can_manage_cobertura(user, cobertura):
+    if not user or not user.is_authenticated or cobertura is None:
+        return False
+    if is_administrador(user):
+        return True
+    if not is_operativo(user):
+        return False
+    return user.id in {
+        cobertura.ausente_id,
+        cobertura.suplente_id,
+        cobertura.creado_por_id,
+    }
 
 
 def _tickets_sla_vencidos_q(now=None):
@@ -209,10 +278,12 @@ def _ticket_dashboard_context(user):
 
 
 def _parse_date(value):
+    """Convierte texto ISO (YYYY-MM-DD) a date. Acepta espacios alrededor."""
+    value = (value or "").strip()
     if not value:
         return None
     try:
-        return datetime.strptime(value, "%Y-%m-%d").date()
+        return date.fromisoformat(value)
     except ValueError:
         return None
 
@@ -310,6 +381,30 @@ def _cerrar_asignaciones_activas(equipo, exclude_pk=None, observaciones=None):
         )
         updated += 1
     return updated
+
+
+def _crear_asignacion_activa(equipo, personal, observaciones=None, cierre_obs=None):
+    """Cierra activas y crea una Activa, serializado con lock de fila del equipo."""
+    with transaction.atomic():
+        locked = Equipo.objects.select_for_update().get(pk=equipo.pk)
+        existente = (
+            AsignacionEquipo.objects.select_for_update()
+            .filter(equipo=locked, estado_asignacion=EstadoAsignacion.ACTIVA)
+            .order_by("-fecha_asignacion", "-pk")
+            .first()
+        )
+        if existente:
+            _cerrar_asignaciones_activas(
+                locked,
+                observaciones=cierre_obs or "Cerrada automaticamente por reasignacion.",
+            )
+        asignacion = AsignacionEquipo.objects.create(
+            equipo=locked,
+            personal=personal,
+            estado_asignacion=EstadoAsignacion.ACTIVA,
+            observaciones=observaciones or None,
+        )
+        return locked, asignacion, existente
 
 
 def _reconciliar_estado_equipo(equipo, save=True):

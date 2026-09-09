@@ -1,3 +1,5 @@
+from django.conf import settings
+
 from .roles import get_user_role, is_administrador, is_operativo, is_tecnico
 from .breadcrumbs import build_breadcrumbs
 from .nav_badges import build_nav_badges, build_nav_notifications
@@ -10,6 +12,7 @@ def roles(request):
         "is_admin_role": is_administrador(user) if user else False,
         "is_tecnico_role": is_tecnico(user) if user else False,
         "is_operativo_role": is_operativo(user) if user else False,
+        "signup_enabled": bool(getattr(settings, "SIGNUP_ENABLED", False)),
     }
 
 

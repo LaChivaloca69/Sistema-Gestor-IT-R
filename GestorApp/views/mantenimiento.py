@@ -1,102 +1,33 @@
 """Mantenimientos y agenda."""
-from datetime import date, datetime, timedelta
+from datetime import timedelta
 
-from django import forms
 from django.contrib import messages
-from django.contrib.auth import get_user_model, login
-from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
-from django.core.files.base import ContentFile
 from django.core.paginator import Paginator
-from django.db import transaction
-from django.db.models import Count, Q, Sum, Max, F
-from django.http import HttpResponse, JsonResponse
+from django.db import IntegrityError, transaction
+from django.db.models import Count, Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-from django.urls import NoReverseMatch, reverse
 
-from .. import document_engine
 from .. import historial
-from ..cobertura import coberturas_activas_para_suplente, ticket_asignados_q_for_user
 from ..forms.mantenimiento import AgendaMantenimientoForm, MantenimientoForm
-from ..roles import (
-    ROLE_ADMIN,
-    ROLE_CHOICES,
-    ROLE_TECNICO,
-    ROLE_USUARIO,
-    admin_required,
-    get_user_role,
-    is_admin_user,
-    is_operativo,
-    operativo_required,
-    set_user_role,
-)
 from ..models import (
     AccionHistorial,
     AgendaMantenimiento,
-    Answer,
-    Area,
     AsignacionEquipo,
-    Bitacora,
-    CategoriaEquipo,
-    DetalleOrdenCompra,
-    Edificio,
     Equipo,
     EstadoAsignacion,
     EstadoEquipo,
     EstadoMantenimiento,
-    EstadoOrdenCompra,
-    EstadoSupport,
-    HistorialActividad,
-    IvaOpcion,
     Mantenimiento,
     ModuloHistorial,
-    MovimientoEquipo,
-    NivelHistorial,
-    OrdenCompra,
-    OrigenAltaEquipo,
-    OrigenOrdenCompra,
-    Personal,
-    PlantillaDocumento,
-    PrioridadSupport,
-    Proveedor,
-    Puesto,
-    SLA_HORAS_POR_PRIORIDAD,
-    SeguimientoTicket,
-    TicketIT,
-    TipoMoneda,
     TipoMovimiento,
     TipoMantenimiento,
-    TipoProveedor,
-    TipoTicketSupport,
-    TipoPlantillaDocumento,
-    Ubicacion,
-    ZonaEdificio,
 )
 from .helpers import (
-    _apply_date_filters,
-    _cerrar_asignaciones_activas,
     _crear_movimiento,
-    _deny_ticket_access,
-    _end_of_month,
-    _get_equipo_asignacion_activa,
     _get_equipo_responsable,
-    _month_bounds,
-    _ordenes_for_user,
     _parse_date,
-    _quick_range_bounds,
-    _reconciliar_estado_equipo,
-    _ticket_dashboard_context,
-    _ticket_has_seguimientos,
-    _tickets_abiertos_qs,
-    _tickets_for_user,
-    _tickets_sla_por_vencer_q,
-    _tickets_sla_vencidos_q,
-    user_can_delete_ticket,
-    user_can_edit_ticket,
-    user_can_manage_orden,
-    user_can_manage_ticket_flow,
-    user_can_view_ticket,
 )
 
 
@@ -263,16 +194,6 @@ def _mantenimientos_alerta_context(
     return data
 
 
-def _parse_date_param(value):
-    value = (value or "").strip()
-    if not value:
-        return None
-    try:
-        return date.fromisoformat(value)
-    except ValueError:
-        return None
-
-
 def _crear_proximo_mantenimiento_desde_cierre(agenda, crear=True):
     """
     Si el cierre trae proxima_fecha y crear=True, programa el siguiente ciclo
@@ -414,8 +335,8 @@ def mantenimiento_list(request):
     selected_equipo = (request.GET.get("equipo") or "").strip()
     selected_tecnico = (request.GET.get("tecnico") or "").strip()
     selected_orden = (request.GET.get("orden") or "programada").strip()
-    fecha_desde = _parse_date_param(request.GET.get("fecha_desde"))
-    fecha_hasta = _parse_date_param(request.GET.get("fecha_hasta"))
+    fecha_desde = _parse_date(request.GET.get("fecha_desde"))
+    fecha_hasta = _parse_date(request.GET.get("fecha_hasta"))
     today = timezone.localdate()
     horizon = today + timedelta(days=MANTENIMIENTO_ALERTA_DIAS)
 
@@ -789,15 +710,53 @@ def agendamantenimiento_create(request):
     fixed = None
     if mantenimiento_id:
         fixed = get_object_or_404(Mantenimiento, pk=mantenimiento_id)
-        if not fixed.puede_completar:
+        if not fixed.puede_completar and not fixed.puede_iniciar:
             messages.error(request, "Ese mantenimiento no se puede cerrar en su estado actual.")
             return redirect("mantenimiento_detail", pk=fixed.pk)
 
     if request.method == "POST":
         form = AgendaMantenimientoForm(request.POST, mantenimiento=fixed)
         if form.is_valid():
-            agenda = form.save()
-            _sync_equipo_fin_mantenimiento(agenda.mantenimiento, request=request)
+            try:
+                with transaction.atomic():
+                    mantenimiento = fixed or form.cleaned_data.get("mantenimiento")
+                    from_programado = False
+                    if mantenimiento:
+                        locked = Mantenimiento.objects.select_for_update().get(
+                            pk=mantenimiento.pk
+                        )
+                        from_programado = (
+                            locked.estado_mantenimiento == EstadoMantenimiento.PROGRAMADO
+                        )
+                    agenda = form.save()
+                    if from_programado:
+                        _sync_equipo_inicio_mantenimiento(
+                            agenda.mantenimiento, request=request
+                        )
+                    _sync_equipo_fin_mantenimiento(
+                        agenda.mantenimiento, request=request
+                    )
+            except IntegrityError:
+                destino = (
+                    fixed.pk
+                    if fixed is not None
+                    else (form.cleaned_data.get("mantenimiento") or None)
+                )
+                messages.error(
+                    request,
+                    "Este mantenimiento ya tiene un cierre. Recarga la pagina.",
+                )
+                if destino:
+                    return redirect("mantenimiento_detail", pk=getattr(destino, "pk", destino))
+                return redirect("mantenimiento_list")
+            except ValidationError as exc:
+                messages.error(
+                    request,
+                    "; ".join(exc.messages) if getattr(exc, "messages", None) else str(exc),
+                )
+                if fixed is not None:
+                    return redirect("mantenimiento_detail", pk=fixed.pk)
+                return redirect("mantenimiento_list")
             historial.registrar_creacion(
                 request,
                 modulo=ModuloHistorial.MANTENIMIENTO,

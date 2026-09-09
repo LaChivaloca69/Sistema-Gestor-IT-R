@@ -1,67 +1,26 @@
 """Forms de tickets, seguimientos, bitácora y answers."""
 from datetime import datetime
-from decimal import Decimal
 
 from django import forms
 from django.contrib.auth import get_user_model
-from django.contrib.auth.forms import UserCreationForm
-from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
-from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from .. import document_engine
-from ..cobertura import operativo_user_choices
 from ..media_security import validate_ticket_adjunto_upload
 from ..models import (
-    AccionHistorial,
-    AgendaMantenimiento,
     Answer,
-    Area,
-    AsignacionEquipo,
     Bitacora,
-    CategoriaEquipo,
-    CoberturaTickets,
     ComentarioTicket,
     ComentarioTicketAdjunto,
-    DetalleOrdenCompra,
-    Edificio,
     Equipo,
-    EstadoAsignacion,
-    EstadoEquipo,
-    EstadoMantenimiento,
-    EstadoOrdenCompra,
-    EstadoSolicitudEquipo,
     EstadoSupport,
-    IvaOpcion,
-    Mantenimiento,
-    MovimientoEquipo,
-    OrdenCompra,
-    OrigenAltaEquipo,
-    Personal,
-    PlantillaDocumento,
-    Proveedor,
-    Puesto,
     SeguimientoTicket,
-    SolicitudEquipo,
     TicketIT,
-    TipoPlantillaDocumento,
-    TipoProveedor,
-    Ubicacion,
-    UrgenciaSolicitudEquipo,
-    ZonaEdificio,
 )
 from ..roles import (
-    ROLE_ADMIN,
-    ROLE_CHOICES,
-    ROLE_TECNICO,
-    ROLE_USUARIO,
-    get_user_role,
-    is_admin_user,
     is_operativo,
     operativo_users_queryset,
-    set_user_role,
 )
 from .common import (  # noqa: F401 — reexportado para vistas
     _get_personal_active_assignment,
@@ -229,10 +188,7 @@ class TicketITForm(forms.ModelForm):
 
     def save(self, commit=True):
         instance = super().save(commit=False)
-        client_value = self.cleaned_data.get("fecha_support_client")
-        client_datetime = self._parse_client_datetime(client_value)
-        if client_datetime and not instance.pk:
-            instance.fecha_support = client_datetime
+        # El SLA usa la hora del servidor; se ignora el reloj del navegador.
 
         if (
             self.request_user
@@ -342,6 +298,8 @@ class SeguimientoTicketForm(forms.ModelForm):
 
     def save(self, commit=True):
         instance = super().save(commit=False)
+        if not instance.pk and self.request_user:
+            instance.usuario = self.request_user
         if self.fixed_ticket is not None:
             instance.ticket = self.fixed_ticket
         if commit:
@@ -550,6 +508,8 @@ class AnswerForm(forms.ModelForm):
         instance = super().save(commit=False)
         if self.fixed_bitacora is not None:
             instance.bitacora = self.fixed_bitacora
+        if not instance.pk and self.request_user:
+            instance.usuario = self.request_user
         if not instance.fecha_answer:
             instance.fecha_answer = timezone.now()
         if commit:

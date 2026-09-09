@@ -1,23 +1,15 @@
 """Plantillas y órdenes de compra."""
-from datetime import date, datetime, timedelta
 
-from django import forms
 from django.contrib import messages
-from django.contrib.auth import get_user_model, login
-from django.contrib.auth.password_validation import validate_password
-from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
-from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Count, Prefetch, Q, Sum, Max, F
+from django.db.models import Count, Prefetch
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-from django.urls import NoReverseMatch, reverse
 
 from .. import document_engine
 from .. import historial
-from ..cobertura import coberturas_activas_para_suplente, ticket_asignados_q_for_user
 from ..forms.compras import (
     DetalleOrdenCompraCapturaFormSet,
     DetalleOrdenCompraFormSet,
@@ -25,85 +17,36 @@ from ..forms.compras import (
     OrdenCompraSubirForm,
     PlantillaDocumentoForm,
 )
+from ..forms.common import _get_user_personal
 from ..roles import (
-    ROLE_ADMIN,
-    ROLE_CHOICES,
-    ROLE_TECNICO,
-    ROLE_USUARIO,
-    admin_required,
     get_user_role,
     is_admin_user,
     is_operativo,
-    operativo_required,
-    set_user_role,
 )
 from ..models import (
     AccionHistorial,
-    AgendaMantenimiento,
-    Answer,
-    Area,
     AsignacionEquipo,
-    Bitacora,
-    CategoriaEquipo,
-    DetalleOrdenCompra,
-    Edificio,
     Equipo,
     EstadoAsignacion,
     EstadoEquipo,
-    EstadoMantenimiento,
     EstadoOrdenCompra,
-    EstadoSupport,
-    HistorialActividad,
     IvaOpcion,
-    Mantenimiento,
     ModuloHistorial,
-    MovimientoEquipo,
     NivelHistorial,
     OrdenCompra,
-    OrigenAltaEquipo,
     OrigenOrdenCompra,
-    Personal,
     PlantillaDocumento,
-    PrioridadSupport,
     Proveedor,
-    Puesto,
-    SLA_HORAS_POR_PRIORIDAD,
-    SeguimientoTicket,
-    TicketIT,
     TipoCategoriaInventario,
     TipoMoneda,
-    TipoMovimiento,
-    TipoMantenimiento,
-    TipoProveedor,
-    TipoTicketSupport,
-    TipoPlantillaDocumento,
-    Ubicacion,
-    ZonaEdificio,
 )
 from .helpers import (
     _apply_date_filters,
-    _cerrar_asignaciones_activas,
-    _crear_movimiento,
-    _deny_ticket_access,
-    _end_of_month,
-    _get_equipo_asignacion_activa,
-    _get_equipo_responsable,
-    _month_bounds,
     _ordenes_for_user,
     _parse_date,
-    _quick_range_bounds,
-    _reconciliar_estado_equipo,
-    _ticket_dashboard_context,
-    _ticket_has_seguimientos,
-    _tickets_abiertos_qs,
-    _tickets_for_user,
-    _tickets_sla_por_vencer_q,
-    _tickets_sla_vencidos_q,
-    user_can_delete_ticket,
-    user_can_edit_ticket,
     user_can_manage_orden,
-    user_can_manage_ticket_flow,
-    user_can_view_ticket,
+    user_can_delete_orden,
+    user_can_terminar_orden,
 )
 
 
@@ -217,6 +160,7 @@ def ordencompra_list(request):
             "fecha_hasta": fecha_hasta_raw,
             "solo_propias": not is_operativo(request.user),
             "puede_alta_inventario": is_operativo(request.user),
+            "puede_terminar_oc": is_operativo(request.user),
         },
     )
 
@@ -228,7 +172,7 @@ def ordencompra_choose(request):
 def ordencompra_create(request):
     orden_vacia = OrdenCompra()
     if request.method == "POST":
-        form = OrdenCompraCrearForm(request.POST, instance=orden_vacia)
+        form = OrdenCompraCrearForm(request.POST, instance=orden_vacia, restrict_estado=not is_operativo(request.user))
         formset = DetalleOrdenCompraFormSet(request.POST, instance=orden_vacia)
         if form.is_valid() and formset.is_valid():
             with transaction.atomic():
@@ -253,6 +197,7 @@ def ordencompra_create(request):
     else:
         form = OrdenCompraCrearForm(
             instance=orden_vacia,
+            restrict_estado=not is_operativo(request.user),
             initial={
                 "fecha": timezone.localdate(),
                 "tipo_moneda": TipoMoneda.MXN,
@@ -277,7 +222,9 @@ def ordencompra_create(request):
 
 def ordencompra_upload(request):
     if request.method == "POST":
-        form = OrdenCompraSubirForm(request.POST, request.FILES)
+        form = OrdenCompraSubirForm(
+            request.POST, request.FILES, restrict_estado=not is_operativo(request.user)
+        )
         if form.is_valid():
             orden = form.save(commit=False)
             orden.origen = OrigenOrdenCompra.SUBIDO
@@ -295,7 +242,7 @@ def ordencompra_upload(request):
             messages.success(request, "Orden de compra subida correctamente.")
             return redirect("ordencompra_list")
     else:
-        form = OrdenCompraSubirForm()
+        form = OrdenCompraSubirForm(restrict_estado=not is_operativo(request.user))
 
     return render(
         request,
@@ -335,7 +282,12 @@ def ordencompra_update(request, pk):
 
     if orden.origen == OrigenOrdenCompra.SUBIDO:
         if request.method == "POST":
-            form = OrdenCompraSubirForm(request.POST, request.FILES, instance=orden)
+            form = OrdenCompraSubirForm(
+                request.POST,
+                request.FILES,
+                instance=orden,
+                restrict_estado=not is_operativo(request.user),
+            )
             if form.is_valid():
                 nuevo_estado = form.cleaned_data.get("estado")
                 if (
@@ -359,7 +311,9 @@ def ordencompra_update(request, pk):
                 messages.success(request, "Orden de compra actualizada correctamente.")
                 return redirect("ordencompra_update", pk=orden.pk)
         else:
-            form = OrdenCompraSubirForm(instance=orden)
+            form = OrdenCompraSubirForm(
+                instance=orden, restrict_estado=not is_operativo(request.user)
+            )
         return render(
             request,
             "ordencompra/form_subir.html",
@@ -378,7 +332,9 @@ def ordencompra_update(request, pk):
         )
 
     if request.method == "POST":
-        form = OrdenCompraCrearForm(request.POST, instance=orden)
+        form = OrdenCompraCrearForm(
+            request.POST, instance=orden, restrict_estado=not is_operativo(request.user)
+        )
         formset = DetalleOrdenCompraFormSet(request.POST, instance=orden)
         if form.is_valid() and formset.is_valid():
             nuevo_estado = form.cleaned_data.get("estado")
@@ -412,7 +368,9 @@ def ordencompra_update(request, pk):
                 messages.success(request, "Orden de compra actualizada correctamente.")
             return redirect("ordencompra_update", pk=orden.pk)
     else:
-        form = OrdenCompraCrearForm(instance=orden)
+        form = OrdenCompraCrearForm(
+            instance=orden, restrict_estado=not is_operativo(request.user)
+        )
         formset = DetalleOrdenCompraFormSet(instance=orden)
 
     return render(
@@ -441,8 +399,8 @@ def ordencompra_terminar(request, pk):
         OrdenCompra.objects.prefetch_related("detalles"),
         pk=pk,
     )
-    if not user_can_manage_orden(request.user, orden):
-        messages.error(request, "No tienes permisos para esta orden de compra.")
+    if not user_can_terminar_orden(request.user, orden):
+        messages.error(request, "Solo personal de IT puede marcar una orden como Terminada.")
         return redirect("ordencompra_list")
 
     if orden.estado == EstadoOrdenCompra.TERMINADO and orden.lista_para_inventario:
@@ -525,8 +483,11 @@ def ordencompra_terminar(request, pk):
 
 def ordencompra_delete(request, pk):
     orden = get_object_or_404(OrdenCompra, pk=pk)
-    if not user_can_manage_orden(request.user, orden):
-        messages.error(request, "No tienes permisos para esta orden de compra.")
+    if not user_can_delete_orden(request.user, orden):
+        messages.error(
+            request,
+            "No se puede eliminar esta orden: esta Terminada o ya tiene equipos ligados.",
+        )
         return redirect("ordencompra_list")
     if request.method == "POST":
         folio = orden.folio_orden
@@ -562,10 +523,7 @@ def ordencompra_delete(request, pk):
 
 def mis_equipos(request):
     """Equipos (maquinas) asignados al personal del usuario, con kit anidado."""
-    try:
-        personal = request.user.personal_profile
-    except Personal.DoesNotExist:
-        personal = None
+    personal = _get_user_personal(request.user)
 
     asignaciones = AsignacionEquipo.objects.none()
     if personal is not None:

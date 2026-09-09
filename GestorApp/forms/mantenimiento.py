@@ -1,65 +1,18 @@
 """Forms de mantenimiento y agenda."""
-from datetime import datetime
-from decimal import Decimal
 
 from django import forms
 from django.contrib.auth import get_user_model
-from django.contrib.auth.forms import UserCreationForm
-from django.contrib.auth.models import User
-from django.core.exceptions import ValidationError
-from django.db import transaction
-from django.db.models import Q
-from django.utils import timezone
 
-from .. import document_engine
-from ..cobertura import operativo_user_choices
 from ..models import (
-    AccionHistorial,
     AgendaMantenimiento,
-    Answer,
-    Area,
-    AsignacionEquipo,
-    Bitacora,
-    CategoriaEquipo,
-    CoberturaTickets,
-    DetalleOrdenCompra,
-    Edificio,
-    Equipo,
-    EstadoAsignacion,
-    EstadoEquipo,
     EstadoMantenimiento,
-    EstadoOrdenCompra,
-    EstadoSolicitudEquipo,
-    EstadoSupport,
-    IvaOpcion,
     Mantenimiento,
-    MovimientoEquipo,
-    OrdenCompra,
-    OrigenAltaEquipo,
-    Personal,
-    PlantillaDocumento,
     Proveedor,
-    Puesto,
-    SeguimientoTicket,
-    SolicitudEquipo,
-    TicketIT,
-    TipoPlantillaDocumento,
-    TipoProveedor,
-    Ubicacion,
-    UrgenciaSolicitudEquipo,
-    ZonaEdificio,
 )
 from ..roles import (
-    ROLE_ADMIN,
-    ROLE_CHOICES,
-    ROLE_TECNICO,
-    ROLE_USUARIO,
-    get_user_role,
-    is_admin_user,
-    is_operativo,
     operativo_users_queryset,
-    set_user_role,
 )
+from .common import _get_user_personal
 
 
 class MantenimientoForm(forms.ModelForm):
@@ -116,10 +69,7 @@ class MantenimientoForm(forms.ModelForm):
         for user in user_qs:
             label = user.get_full_name().strip()
             if not label:
-                try:
-                    personal = user.personal_profile
-                except Personal.DoesNotExist:
-                    personal = None
+                personal = _get_user_personal(user)
                 if personal:
                     label_parts = [
                         personal.nombre,
@@ -267,13 +217,17 @@ class AgendaMantenimientoForm(forms.ModelForm):
         return cleaned
 
     def save(self, commit=True):
+        is_new = self.instance.pk is None
         instance = super().save(commit=False)
         if getattr(self, "fixed_mantenimiento", None) is not None:
             instance.mantenimiento = self.fixed_mantenimiento
         if commit:
             instance.save()
             self.save_m2m()
-            mantenimiento = instance.mantenimiento
-            mantenimiento.marcar_completado()
+            if is_new:
+                mantenimiento = instance.mantenimiento
+                if mantenimiento.estado_mantenimiento == EstadoMantenimiento.PROGRAMADO:
+                    mantenimiento.iniciar(save=True)
+                mantenimiento.marcar_completado()
         return instance
 

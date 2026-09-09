@@ -178,7 +178,7 @@
 				<td>{{ item.tecnico_responsable|default:"-" }}</td>
 				<td>
 					<div class="row-actions">
-						{% if item.puede_completar %}
+						{% if item.puede_completar or item.puede_iniciar %}
 						<a class="btn btn-primary btn-sm" href="{% url 'agendamantenimiento_create' %}?mantenimiento={{ item.pk }}">Cerrar</a>
 						{% else %}
 						<a class="btn btn-primary btn-sm" href="{% url 'mantenimiento_detail' item.pk %}">Abrir</a>
@@ -196,7 +196,7 @@
 									</form>
 								</li>
 								{% endif %}
-								{% if item.puede_completar %}
+								{% if item.puede_completar or item.puede_iniciar %}
 								<li><a class="dropdown-item" href="{% url 'agendamantenimiento_create' %}?mantenimiento={{ item.pk }}">Registrar cierre</a></li>
 								{% endif %}
 								{% if item.puede_cancelar %}

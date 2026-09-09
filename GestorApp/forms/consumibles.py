@@ -13,7 +13,6 @@ from ..models import (
     TipoCategoriaInventario,
     TipoMovimientoStock,
     Ubicacion,
-    UnidadConsumible,
 )
 
 
@@ -108,6 +107,7 @@ class MovimientoStockForm(forms.Form):
 
     def __init__(self, *args, producto=None, tipo_fijo=None, **kwargs):
         self.producto = producto
+        self.tipo_fijo = tipo_fijo
         super().__init__(*args, **kwargs)
         self.fields["responsable"].queryset = Personal.objects.filter(activo=True).order_by(
             "numero_empleado", "nombre", "apellido_paterno"
@@ -132,9 +132,20 @@ class MovimientoStockForm(forms.Form):
             elif tipo_fijo == TipoMovimientoStock.ENTRADA:
                 self.fields["orden_compra"].required = False
 
+    def clean_tipo_movimiento(self):
+        if self.tipo_fijo:
+            return self.tipo_fijo
+        return self.cleaned_data["tipo_movimiento"]
+
+    def clean(self):
+        cleaned = super().clean()
+        if self.tipo_fijo:
+            cleaned["tipo_movimiento"] = self.tipo_fijo
+        return cleaned
+
     def clean_cantidad(self):
         cantidad = self.cleaned_data["cantidad"]
-        tipo = self.cleaned_data.get("tipo_movimiento") or self.fields["tipo_movimiento"].initial
+        tipo = self.tipo_fijo or self.cleaned_data.get("tipo_movimiento")
         if self.producto and tipo == TipoMovimientoStock.SALIDA:
             if cantidad > (self.producto.stock_actual or Decimal("0")):
                 raise ValidationError(

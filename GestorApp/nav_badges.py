@@ -31,14 +31,17 @@ def _compute_nav_badges(user):
     abiertos = _tickets_abiertos_qs(user)
     sla = abiertos.filter(_tickets_sla_vencidos_q(timezone.now())).count()
     sin_check = abiertos.filter(seguimientos__isnull=True).count()
-    tickets_badge = sla or sin_check
+    tickets_badge = sla + sin_check
     if tickets_badge:
+        title_parts = []
+        if sla:
+            title_parts.append(f"{sla} fuera de SLA")
+        if sin_check:
+            title_parts.append(f"{sin_check} sin seguimiento")
         badges["tickets"] = {
             "count": tickets_badge,
             "tone": "danger" if sla else "warn",
-            "title": (
-                f"{sla} fuera de SLA" if sla else f"{sin_check} sin seguimiento"
-            ),
+            "title": " · ".join(title_parts),
             "sla": sla,
             "sin_check": sin_check,
         }
@@ -145,7 +148,7 @@ def build_nav_notifications(user, badges=None):
                     "icon": "bi-ticket-perforated",
                 }
             )
-        elif tickets.get("sin_check"):
+        if tickets.get("sin_check"):
             items.append(
                 {
                     "id": "tickets-sin-check",
@@ -204,11 +207,30 @@ def build_nav_notifications(user, badges=None):
             }
         )
 
+    cons = badges.get("consumibles")
+    if cons:
+        items.append(
+            {
+                "id": "consumibles",
+                "tone": cons["tone"],
+                "label": f"{cons['count']} consumible(s) con stock bajo",
+                "url": _safe_reverse("producto_consumible_list", "alerta=bajo"),
+                "icon": "bi-droplet",
+            }
+        )
+
     # Filtrar urls rotas
     items = [item for item in items if item.get("url")]
     total = sum(
         badges[key]["count"]
-        for key in ("tickets", "seguimiento", "mantenimientos", "equipos", "solicitudes")
+        for key in (
+            "tickets",
+            "seguimiento",
+            "mantenimientos",
+            "equipos",
+            "solicitudes",
+            "consumibles",
+        )
         if key in badges
     )
     return items, total

@@ -12,7 +12,7 @@
 		<button class="btn btn-primary" type="submit">Iniciar</button>
 	</form>
 	{% endif %}
-	{% if object.puede_completar %}
+	{% if object.puede_completar or object.puede_iniciar %}
 	<a class="btn btn-primary" href="{% url 'agendamantenimiento_create' %}?mantenimiento={{ object.pk }}">Registrar cierre</a>
 	{% endif %}
 	{% if object.puede_cancelar %}
@@ -126,7 +126,7 @@
 		</div>
 		{% else %}
 		<p class="text-muted mb-3">Aun no hay cierre. Completa el mantenimiento para registrar acciones y fechas.</p>
-		{% if object.puede_completar %}
+		{% if object.puede_completar or object.puede_iniciar %}
 		<a class="btn btn-primary" href="{% url 'agendamantenimiento_create' %}?mantenimiento={{ object.pk }}">Registrar cierre</a>
 		{% endif %}
 		{% endif %}

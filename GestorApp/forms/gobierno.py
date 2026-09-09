@@ -1,65 +1,23 @@
 """Forms de gobierno: coberturas y solicitudes."""
-from datetime import datetime
-from decimal import Decimal
 
 from django import forms
-from django.contrib.auth import get_user_model
-from django.contrib.auth.forms import UserCreationForm
-from django.contrib.auth.models import User
-from django.core.exceptions import ValidationError
-from django.db import transaction
-from django.db.models import Q
 from django.utils import timezone
 
-from .. import document_engine
 from ..cobertura import operativo_user_choices
 from ..models import (
-    AccionHistorial,
-    AgendaMantenimiento,
-    Answer,
-    Area,
-    AsignacionEquipo,
-    Bitacora,
     CategoriaEquipo,
     CoberturaTickets,
-    DetalleOrdenCompra,
-    Edificio,
     Equipo,
-    EstadoAsignacion,
     EstadoEquipo,
-    EstadoMantenimiento,
-    EstadoOrdenCompra,
     EstadoSolicitudEquipo,
-    EstadoSupport,
-    IvaOpcion,
-    Mantenimiento,
-    MovimientoEquipo,
-    OrdenCompra,
-    OrigenAltaEquipo,
     Personal,
-    PlantillaDocumento,
-    Proveedor,
-    Puesto,
-    SeguimientoTicket,
     SolicitudEquipo,
-    TicketIT,
-    TipoPlantillaDocumento,
-    TipoProveedor,
-    Ubicacion,
-    UrgenciaSolicitudEquipo,
-    ZonaEdificio,
 )
 from ..roles import (
-    ROLE_ADMIN,
-    ROLE_CHOICES,
-    ROLE_TECNICO,
-    ROLE_USUARIO,
-    get_user_role,
-    is_admin_user,
+    is_administrador,
     is_operativo,
-    operativo_users_queryset,
-    set_user_role,
 )
+from .common import _get_user_personal
 
 
 
@@ -73,7 +31,8 @@ class CoberturaTicketsForm(forms.ModelForm):
             "motivo": forms.TextInput(attrs={"placeholder": "Vacaciones, incapacidad..."}),
         }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, request_user=None, **kwargs):
+        self.request_user = request_user
         super().__init__(*args, **kwargs)
         qs = operativo_user_choices()
         self.fields["ausente"].queryset = qs
@@ -95,6 +54,32 @@ class CoberturaTicketsForm(forms.ModelForm):
             self.add_error("suplente", "Debe ser distinto al ausente.")
         if inicio and fin and fin < inicio:
             self.add_error("fecha_fin", "No puede ser anterior al inicio.")
+        if (
+            self.request_user
+            and not is_administrador(self.request_user)
+            and ausente
+            and suplente
+            and self.request_user.id
+            not in {getattr(ausente, "id", None), getattr(suplente, "id", None)}
+        ):
+            self.add_error(
+                None,
+                "Debes ser el tecnico ausente o el suplente de esta cobertura.",
+            )
+        if cleaned.get("activa") and ausente and inicio and fin:
+            solapes = CoberturaTickets.objects.filter(
+                ausente=ausente,
+                activa=True,
+                fecha_inicio__lte=fin,
+                fecha_fin__gte=inicio,
+            )
+            if self.instance.pk:
+                solapes = solapes.exclude(pk=self.instance.pk)
+            if solapes.exists():
+                self.add_error(
+                    "fecha_inicio",
+                    "Ya hay una cobertura activa de este ausente en esas fechas.",
+                )
         return cleaned
 
 
@@ -134,10 +119,7 @@ class SolicitudEquipoForm(forms.ModelForm):
         )
         if user and not is_operativo(user):
             # Usuario final: personal fijo a su perfil si existe
-            try:
-                personal = user.personal_profile
-            except Personal.DoesNotExist:
-                personal = None
+            personal = _get_user_personal(user)
             if personal:
                 self.fields["personal"].queryset = Personal.objects.filter(pk=personal.pk)
                 self.fields["personal"].initial = personal

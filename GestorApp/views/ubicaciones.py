@@ -1,114 +1,35 @@
 """Ubicaciones físicas y categorías de equipo."""
-from datetime import date, datetime, timedelta
 
-from django import forms
 from django.contrib import messages
-from django.contrib.auth import get_user_model, login
-from django.contrib.auth.password_validation import validate_password
-from django.core.exceptions import ValidationError
-from django.core.files.base import ContentFile
-from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Count, Q, Sum, Max, F
+from django.db.models import Count, Q
 from django.db.models.deletion import ProtectedError
-from django.http import HttpResponse, JsonResponse
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.utils import timezone
-from django.urls import NoReverseMatch, reverse
+from django.urls import reverse
 from django.utils.http import urlencode
 from django.views.decorators.http import require_POST
 
-from .. import document_engine
-from .. import historial
-from ..cobertura import coberturas_activas_para_suplente, ticket_asignados_q_for_user
 from ..forms.ubicaciones import (
     CategoriaEquipoForm,
     EdificioForm,
     UbicacionForm,
     ZonaEdificioForm,
 )
-from ..roles import (
-    ROLE_ADMIN,
-    ROLE_CHOICES,
-    ROLE_TECNICO,
-    ROLE_USUARIO,
-    admin_required,
-    get_user_role,
-    is_admin_user,
-    is_operativo,
-    operativo_required,
-    set_user_role,
-)
 from ..models import (
-    AccionHistorial,
-    AgendaMantenimiento,
-    Answer,
-    Area,
-    AsignacionEquipo,
-    Bitacora,
     CategoriaEquipo,
-    DetalleOrdenCompra,
     Edificio,
     Equipo,
-    EstadoAsignacion,
     EstadoEquipo,
-    EstadoMantenimiento,
-    EstadoOrdenCompra,
-    EstadoSupport,
-    HistorialActividad,
-    IvaOpcion,
-    Mantenimiento,
-    ModuloHistorial,
-    MovimientoEquipo,
-    NivelHistorial,
-    OrdenCompra,
-    OrigenAltaEquipo,
-    OrigenOrdenCompra,
-    Personal,
-    PlantillaDocumento,
-    PrioridadSupport,
     ProductoConsumible,
-    Proveedor,
-    Puesto,
-    SLA_HORAS_POR_PRIORIDAD,
-    SeguimientoTicket,
     TicketIT,
     TipoCategoriaInventario,
-    TipoMoneda,
-    TipoMovimiento,
-    TipoMantenimiento,
-    TipoProveedor,
-    TipoTicketSupport,
-    TipoPlantillaDocumento,
     Ubicacion,
     ZonaEdificio,
 )
 from .helpers import (
-    _apply_date_filters,
-    _cerrar_asignaciones_activas,
-    _crear_movimiento,
-    _deny_ticket_access,
-    _end_of_month,
-    _get_equipo_asignacion_activa,
-    _get_equipo_responsable,
     _get_espacio_stock_default,
-    _month_bounds,
-    _ordenes_for_user,
-    _parse_date,
-    _quick_range_bounds,
-    _reconciliar_estado_equipo,
     _set_espacio_stock_default,
-    _ticket_dashboard_context,
-    _ticket_has_seguimientos,
-    _tickets_abiertos_qs,
-    _tickets_for_user,
-    _tickets_sla_por_vencer_q,
-    _tickets_sla_vencidos_q,
-    user_can_delete_ticket,
-    user_can_edit_ticket,
-    user_can_manage_orden,
-    user_can_manage_ticket_flow,
-    user_can_view_ticket,
 )
 
 def _parse_int_param(value):

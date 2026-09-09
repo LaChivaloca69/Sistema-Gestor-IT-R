@@ -1,24 +1,17 @@
 """Inventario de equipos."""
 import csv
-from datetime import date, datetime, timedelta
+from datetime import timedelta
 
-from django import forms
 from django.contrib import messages
-from django.contrib.auth import get_user_model, login
-from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
-from django.core.files.base import ContentFile
 from django.core.paginator import Paginator
-from django.db import transaction
-from django.db.models import BooleanField, Case, Count, Exists, F, Max, OuterRef, Q, Sum, Value, When
+from django.db import IntegrityError, transaction
+from django.db.models import BooleanField, Case, Count, Exists, F, Max, OuterRef, Q, Value, When
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-from django.urls import NoReverseMatch, reverse
 
-from .. import document_engine
 from .. import historial
-from ..cobertura import coberturas_activas_para_suplente, ticket_asignados_q_for_user
 from ..forms.equipo import (
     EquipoAsignarForm,
     EquipoBajaForm,
@@ -29,98 +22,73 @@ from ..forms.equipo import (
     PerifericoReemplazarForm,
     PerifericoVincularEquipoForm,
 )
-from ..roles import (
-    ROLE_ADMIN,
-    ROLE_CHOICES,
-    ROLE_TECNICO,
-    ROLE_USUARIO,
-    admin_required,
-    get_user_role,
-    is_admin_user,
-    is_operativo,
-    operativo_required,
-    set_user_role,
-)
 from ..inventory_types import get_inventario_ui, inventario_ui_for_equipo, resolve_inventario_tipo
 from ..models import (
     AccionHistorial,
-    AgendaMantenimiento,
-    Answer,
-    Area,
     AsignacionEquipo,
-    Bitacora,
     CategoriaEquipo,
     DetalleOrdenCompra,
-    Edificio,
     Equipo,
     EstadoAsignacion,
     EstadoEquipo,
-    EstadoMantenimiento,
-    EstadoOrdenCompra,
-    EstadoSupport,
-    HistorialActividad,
-    IvaOpcion,
     Mantenimiento,
     ModuloHistorial,
     MovimientoEquipo,
     NivelHistorial,
     OrdenCompra,
     OrigenAltaEquipo,
-    OrigenOrdenCompra,
     Personal,
-    PlantillaDocumento,
-    PrioridadSupport,
-    Proveedor,
-    Puesto,
-    SLA_HORAS_POR_PRIORIDAD,
-    SeguimientoTicket,
     TicketIT,
     TipoCategoriaInventario,
-    TipoMoneda,
     TipoMovimiento,
-    TipoMantenimiento,
-    TipoProveedor,
-    TipoTicketSupport,
-    TipoPlantillaDocumento,
     Ubicacion,
-    ZonaEdificio,
 )
 from .helpers import (
     _apply_date_filters,
     _aplicar_asignacion_a_equipo,
     _cerrar_asignaciones_activas,
+    _crear_asignacion_activa,
     _crear_movimiento,
-    _deny_ticket_access,
     _desvincular_periferico,
-    _end_of_month,
     _get_equipo_asignacion_activa,
     _get_equipo_responsable,
     _get_espacio_stock_default,
     _liberar_equipo_tras_devolucion,
     _month_bounds,
-    _ordenes_for_user,
     _parse_date,
     _quick_range_bounds,
     _reconciliar_estado_equipo,
     _reemplazar_periferico,
     _sync_perifericos_con_padre,
-    _ticket_dashboard_context,
-    _ticket_has_seguimientos,
-    _tickets_abiertos_qs,
-    _tickets_for_user,
-    _tickets_sla_por_vencer_q,
-    _tickets_sla_vencidos_q,
     _vincular_periferico_a_equipo,
-    user_can_delete_ticket,
-    user_can_edit_ticket,
-    user_can_manage_orden,
-    user_can_manage_ticket_flow,
-    user_can_view_ticket,
+    user_can_view_equipo,
 )
+from ..roles import is_operativo, _deny
 
 EQUIPO_LIST_PAGE_SIZE = 20
 EQUIPO_ASIGNACION_ALERTA_DIAS = 180
 EQUIPO_MANTENIMIENTO_LARGO_DIAS = 14
+
+
+def _save_equipo_form_con_cupo(form):
+    """Guarda el alta/edicion re-checando cupo de OC con lock de fila."""
+    with transaction.atomic():
+        detalle = form.cleaned_data.get("detalle_orden")
+        origen = form.cleaned_data.get("origen_alta")
+        if detalle and origen == OrigenAltaEquipo.COMPRA:
+            locked = DetalleOrdenCompra.objects.select_for_update().get(pk=detalle.pk)
+            exclude_id = form.instance.pk if form.instance and form.instance.pk else None
+            if locked.cantidad_disponible(exclude_equipo_id=exclude_id) <= 0:
+                form.add_error(
+                    "detalle_orden",
+                    (
+                        f"Ya no hay cupo en esta linea "
+                        f"({locked.descripcion}: {locked.cantidad_recibida(exclude_equipo_id=exclude_id)}"
+                        f"/{locked.cantidad_esperada})."
+                    ),
+                )
+                return None
+        return form.save()
 
 
 def _mark_inventario_nav(request, inv):
@@ -546,7 +514,11 @@ def equipo_list(request, tipo=None):
 
 def equipo_detail(request, pk):
     equipo = get_object_or_404(_equipo_queryset(), pk=pk)
+    if not user_can_view_equipo(request.user, equipo):
+        return _deny(request, "No tienes permisos para ver este equipo.")
     inv = _mark_inventario_nav(request, inventario_ui_for_equipo(equipo))
+    if not is_operativo(request.user):
+        inv = {**inv, "list_url": "mis_equipos"}
     asignacion_activa = _get_equipo_asignacion_activa(equipo)
     perifericos = []
     if equipo.es_equipo_principal:
@@ -587,6 +559,7 @@ def equipo_detail(request, pk):
                 equipo.es_periferico and equipo.equipo_padre_id
             ),
             "mostrar_kit": equipo.es_equipo_principal,
+            "solo_lectura": not is_operativo(request.user),
         },
     )
 
@@ -643,31 +616,32 @@ def equipo_create(request, tipo=None):
     if request.method == "POST":
         form = EquipoForm(request.POST, request.FILES, tipo=tipo)
         if form.is_valid():
-            equipo = form.save()
-            _reconciliar_estado_equipo(equipo)
-            historial.registrar_creacion(
-                request,
-                modulo=ModuloHistorial.EQUIPO,
-                titulo=f"{inv['singular_title']} dado de alta: {equipo.codigo_inventario}",
-                objeto=equipo,
-                enlace_nombre="equipo_detail",
-                metadata={
-                    "origen_alta": equipo.origen_alta,
-                    "orden_compra_id": equipo.orden_compra_id,
-                    "detalle_orden_id": equipo.detalle_orden_id,
-                    "tipo_inventario": tipo,
-                },
-            )
-            _crear_movimiento(
-                equipo,
-                TipoMovimiento.DADA_DE_ALTA,
-                origen=None,
-                destino=equipo.ubicacion,
-                responsable=_get_equipo_responsable(equipo),
-                request=request,
-            )
-            messages.success(request, f"{inv['singular_title']} creado correctamente.")
-            return redirect("equipo_detail", pk=equipo.pk)
+            equipo = _save_equipo_form_con_cupo(form)
+            if equipo is not None:
+                _reconciliar_estado_equipo(equipo)
+                historial.registrar_creacion(
+                    request,
+                    modulo=ModuloHistorial.EQUIPO,
+                    titulo=f"{inv['singular_title']} dado de alta: {equipo.codigo_inventario}",
+                    objeto=equipo,
+                    enlace_nombre="equipo_detail",
+                    metadata={
+                        "origen_alta": equipo.origen_alta,
+                        "orden_compra_id": equipo.orden_compra_id,
+                        "detalle_orden_id": equipo.detalle_orden_id,
+                        "tipo_inventario": tipo,
+                    },
+                )
+                _crear_movimiento(
+                    equipo,
+                    TipoMovimiento.DADA_DE_ALTA,
+                    origen=None,
+                    destino=equipo.ubicacion,
+                    responsable=_get_equipo_responsable(equipo),
+                    request=request,
+                )
+                messages.success(request, f"{inv['singular_title']} creado correctamente.")
+                return redirect("equipo_detail", pk=equipo.pk)
     else:
         initial = {}
         if orden is not None:
@@ -708,42 +682,43 @@ def equipo_update(request, pk):
     if request.method == "POST":
         form = EquipoForm(request.POST, request.FILES, instance=equipo, tipo=tipo)
         if form.is_valid():
-            equipo = form.save()
-            _reconciliar_estado_equipo(equipo)
-            historial.registrar_actualizacion(
-                request,
-                modulo=ModuloHistorial.EQUIPO,
-                titulo=f"{inv['singular_title']} actualizado: {equipo.codigo_inventario}",
-                objeto=equipo,
-                form=form,
-                enlace_nombre="equipo_detail",
-            )
-            movimiento_creado = False
-            if (
-                estado_anterior != equipo.estado_equipo
-                and equipo.estado_equipo == EstadoEquipo.EN_MANTENIMIENTO
-            ):
-                _crear_movimiento(
-                    equipo,
-                    TipoMovimiento.MANTENIMIENTO,
-                    origen=equipo.ubicacion,
-                    destino=equipo.ubicacion,
-                    responsable=_get_equipo_responsable(equipo),
-                    request=request,
+            equipo = _save_equipo_form_con_cupo(form)
+            if equipo is not None:
+                _reconciliar_estado_equipo(equipo)
+                historial.registrar_actualizacion(
+                    request,
+                    modulo=ModuloHistorial.EQUIPO,
+                    titulo=f"{inv['singular_title']} actualizado: {equipo.codigo_inventario}",
+                    objeto=equipo,
+                    form=form,
+                    enlace_nombre="equipo_detail",
                 )
-                movimiento_creado = True
+                movimiento_creado = False
+                if (
+                    estado_anterior != equipo.estado_equipo
+                    and equipo.estado_equipo == EstadoEquipo.EN_MANTENIMIENTO
+                ):
+                    _crear_movimiento(
+                        equipo,
+                        TipoMovimiento.MANTENIMIENTO,
+                        origen=equipo.ubicacion,
+                        destino=equipo.ubicacion,
+                        responsable=_get_equipo_responsable(equipo),
+                        request=request,
+                    )
+                    movimiento_creado = True
 
-            if not movimiento_creado and ubicacion_anterior != equipo.ubicacion:
-                _crear_movimiento(
-                    equipo,
-                    TipoMovimiento.CAMBIO_UBICACION,
-                    origen=ubicacion_anterior,
-                    destino=equipo.ubicacion,
-                    responsable=_get_equipo_responsable(equipo),
-                    request=request,
-                )
-            messages.success(request, f"{inv['singular_title']} actualizado correctamente.")
-            return redirect("equipo_detail", pk=equipo.pk)
+                if not movimiento_creado and ubicacion_anterior != equipo.ubicacion:
+                    _crear_movimiento(
+                        equipo,
+                        TipoMovimiento.CAMBIO_UBICACION,
+                        origen=ubicacion_anterior,
+                        destino=equipo.ubicacion,
+                        responsable=_get_equipo_responsable(equipo),
+                        request=request,
+                    )
+                messages.success(request, f"{inv['singular_title']} actualizado correctamente.")
+                return redirect("equipo_detail", pk=equipo.pk)
     else:
         form = EquipoForm(instance=equipo, tipo=tipo)
     return render(
@@ -944,18 +919,18 @@ def equipo_asignar(request, pk):
         if form.is_valid():
             personal = form.cleaned_data["personal"]
             observaciones = form.cleaned_data.get("observaciones") or ""
-            existente = _get_equipo_asignacion_activa(equipo)
-            if existente:
-                _cerrar_asignaciones_activas(
+            try:
+                equipo, asignacion, existente = _crear_asignacion_activa(
                     equipo,
-                    observaciones="Cerrada automaticamente por reasignacion.",
+                    personal,
+                    observaciones=observaciones or None,
                 )
-            asignacion = AsignacionEquipo.objects.create(
-                equipo=equipo,
-                personal=personal,
-                estado_asignacion=EstadoAsignacion.ACTIVA,
-                observaciones=observaciones or None,
-            )
+            except IntegrityError:
+                messages.error(
+                    request,
+                    "Ese equipo ya tiene una asignacion activa. Recarga e intenta de nuevo.",
+                )
+                return redirect("equipo_detail", pk=pk)
             _reconciliar_estado_equipo(equipo)
             ubicacion_anterior, ubicacion_nueva = _aplicar_asignacion_a_equipo(
                 equipo, personal, request=request

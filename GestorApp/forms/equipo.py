@@ -1,65 +1,19 @@
 """Forms de inventario de equipos."""
-from datetime import datetime
-from decimal import Decimal
 
 from django import forms
-from django.contrib.auth import get_user_model
-from django.contrib.auth.forms import UserCreationForm
-from django.contrib.auth.models import User
-from django.core.exceptions import ValidationError
-from django.db import transaction
-from django.db.models import Q
 from django.utils import timezone
 
-from .. import document_engine
-from ..cobertura import operativo_user_choices
 from ..models import (
-    AccionHistorial,
-    AgendaMantenimiento,
-    Answer,
-    Area,
-    AsignacionEquipo,
-    Bitacora,
     CategoriaEquipo,
-    CoberturaTickets,
     DetalleOrdenCompra,
-    Edificio,
     Equipo,
-    EstadoAsignacion,
     EstadoEquipo,
-    EstadoMantenimiento,
     EstadoOrdenCompra,
-    EstadoSolicitudEquipo,
-    EstadoSupport,
-    IvaOpcion,
-    Mantenimiento,
-    MovimientoEquipo,
     OrdenCompra,
     OrigenAltaEquipo,
     Personal,
-    PlantillaDocumento,
-    Proveedor,
-    Puesto,
-    SeguimientoTicket,
-    SolicitudEquipo,
-    TicketIT,
     TipoCategoriaInventario,
-    TipoPlantillaDocumento,
-    TipoProveedor,
     Ubicacion,
-    UrgenciaSolicitudEquipo,
-    ZonaEdificio,
-)
-from ..roles import (
-    ROLE_ADMIN,
-    ROLE_CHOICES,
-    ROLE_TECNICO,
-    ROLE_USUARIO,
-    get_user_role,
-    is_admin_user,
-    is_operativo,
-    operativo_users_queryset,
-    set_user_role,
 )
 
 
@@ -376,7 +330,7 @@ class EquipoAsignarForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["personal"].queryset = Personal.objects.order_by(
+        self.fields["personal"].queryset = Personal.objects.filter(activo=True).order_by(
             "numero_empleado",
             "nombre",
             "apellido_paterno",

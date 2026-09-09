@@ -19,9 +19,9 @@ def ensure_default_schedules():
         return False
 
     now = timezone.now()
-    # Proxima corrida nocturna ~02:00 local
-    next_night = now.replace(hour=2, minute=0, second=0, microsecond=0)
-    if next_night <= now:
+    local = timezone.localtime(now)
+    next_night = local.replace(hour=2, minute=0, second=0, microsecond=0)
+    if next_night <= local:
         next_night += timedelta(days=1)
 
     Schedule.objects.update_or_create(

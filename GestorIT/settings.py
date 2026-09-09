@@ -198,6 +198,9 @@ HISTORIAL_RETENCION = {
     "proteger_criticos": True,
 }
 
+# Registro publico de cuentas. En fabrica dejar False; el Admin crea personal.
+SIGNUP_ENABLED = False
+
 # Auth redirects
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'home'

@@ -147,7 +147,7 @@ urlpatterns = [
         views.operativo_required(views.equipo_detalle_orden_choices),
         name='equipo_detalle_orden_choices',
     ),
-    path('Equipos/<int:pk>/', views.operativo_required(views.equipo_detail), name='equipo_detail'),
+    path('Equipos/<int:pk>/', login_required(views.equipo_detail), name='equipo_detail'),
     path('Equipos/update/<int:pk>/', views.operativo_required(views.equipo_update), name='equipo_update'),
     path('Equipos/delete/<int:pk>/', views.admin_required(views.equipo_delete), name='equipo_delete'),
     path('Equipos/<int:pk>/baja/', views.admin_required(views.equipo_dar_baja), name='equipo_dar_baja'),

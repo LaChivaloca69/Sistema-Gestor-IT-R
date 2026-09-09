@@ -73,9 +73,16 @@ class Personal(models.Model):
 
 
 @receiver(post_delete, sender=Personal)
-def delete_user_for_personal(sender, instance, **kwargs):
-    if instance.user_id:
-        get_user_model().objects.filter(pk=instance.user_id).delete()
+def deactivate_user_for_personal(sender, instance, **kwargs):
+    """No borra el User: desactiva la cuenta para no perder tickets/solicitudes."""
+    if not instance.user_id:
+        return
+    user = get_user_model().objects.filter(pk=instance.user_id).first()
+    if not user or user.is_superuser:
+        return
+    if user.is_active:
+        user.is_active = False
+        user.save(update_fields=["is_active"])
 
 # ------------ MODELO DE PROVEEDORES------------
 class TipoProveedor(models.TextChoices):
@@ -148,9 +155,20 @@ class Proveedor(models.Model):
         return f"{cls.CODIGO_PREFIX}{1:0{cls.CODIGO_WIDTH}d}"
 
     def save(self, *args, **kwargs):
-        if not (self.codigo_interno or "").strip():
+        if (self.codigo_interno or "").strip():
+            self.codigo_interno = self.codigo_interno.strip()
+            super().save(*args, **kwargs)
+            return
+
+        for _ in range(3):
             self.codigo_interno = self._next_codigo_interno()
-        super().save(*args, **kwargs)
+            try:
+                super().save(*args, **kwargs)
+                return
+            except IntegrityError:
+                self.codigo_interno = None
+
+        raise IntegrityError("No se pudo generar un codigo interno unico para el proveedor.")
 
 # ------------ MODELOS DE UBICACION, EDIFICIO ------------
 class Edificio(models.Model):
@@ -318,7 +336,7 @@ class Equipo(models.Model):
         verbose_name="Equipo padre",
         help_text="Solo perifericos: maquina a la que estan vinculados.",
     )
-    fecha_alta = models.DateField(default=timezone.now)
+    fecha_alta = models.DateField(default=timezone.localdate)
     fecha_baja = models.DateField(blank=True, null=True)
     motivo_baja = models.CharField(max_length=255, blank=True, null=True)
     activo = models.BooleanField(default=True)
@@ -523,6 +541,15 @@ class AsignacionEquipo(models.Model):
     estado_asignacion = models.CharField(max_length=20, choices=EstadoAsignacion.choices, default=EstadoAsignacion.ACTIVA)
     observaciones = models.CharField(max_length=255, blank=True, null=True)
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["equipo"],
+                condition=models.Q(estado_asignacion="Activa"),
+                name="uniq_asignacion_activa_por_equipo",
+            )
+        ]
+
 # ------------ MODELOS DE MANTENIMIENTO ------------
 class TipoMantenimiento(models.TextChoices):
     PREVENTIVO = "Preventivo", "Preventivo"
@@ -572,10 +599,10 @@ class Mantenimiento(models.Model):
 
     @property
     def puede_completar(self):
-        return self.estado_mantenimiento in {
-            EstadoMantenimiento.PROGRAMADO,
-            EstadoMantenimiento.EN_PROCESO,
-        } and not self.tiene_cierre
+        return (
+            self.estado_mantenimiento == EstadoMantenimiento.EN_PROCESO
+            and not self.tiene_cierre
+        )
 
     @property
     def puede_reabrir(self):
@@ -601,6 +628,10 @@ class Mantenimiento(models.Model):
         return self.estado_mantenimiento
 
     def marcar_completado(self, save=True):
+        if self.estado_mantenimiento != EstadoMantenimiento.EN_PROCESO:
+            raise ValidationError(
+                "Solo se puede completar un mantenimiento En Proceso."
+            )
         self.estado_mantenimiento = EstadoMantenimiento.COMPLETADO
         if save:
             self.save(update_fields=['estado_mantenimiento'])
@@ -1216,7 +1247,7 @@ class OrdenCompra(models.Model):
         choices=OrigenOrdenCompra.choices,
         default=OrigenOrdenCompra.CREADO,
     )
-    fecha = models.DateField(default=timezone.now, blank=True, null=True)
+    fecha = models.DateField(default=timezone.localdate, blank=True, null=True)
     proveedor = models.ForeignKey(
         Proveedor,
         on_delete=models.SET_NULL,
@@ -1662,6 +1693,24 @@ class CoberturaTickets(models.Model):
             raise ValidationError("El ausente y el suplente deben ser personas distintas.")
         if self.fecha_inicio and self.fecha_fin and self.fecha_fin < self.fecha_inicio:
             raise ValidationError("La fecha fin no puede ser anterior al inicio.")
+        if (
+            self.activa
+            and self.ausente_id
+            and self.fecha_inicio
+            and self.fecha_fin
+        ):
+            solapes = CoberturaTickets.objects.filter(
+                ausente_id=self.ausente_id,
+                activa=True,
+                fecha_inicio__lte=self.fecha_fin,
+                fecha_fin__gte=self.fecha_inicio,
+            )
+            if self.pk:
+                solapes = solapes.exclude(pk=self.pk)
+            if solapes.exists():
+                raise ValidationError(
+                    "Ya hay una cobertura activa de este ausente en esas fechas."
+                )
 
     @property
     def vigente_hoy(self):
@@ -1750,12 +1799,33 @@ class SolicitudEquipo(models.Model):
     def __str__(self):
         return f"{self.folio or 'SOL'} - {self.titulo}"
 
+    @classmethod
+    def _next_folio(cls):
+        folios = (
+            cls.objects.filter(folio__startswith=cls.FOLIO_PREFIX)
+            .order_by("-folio")
+            .values_list("folio", flat=True)
+        )
+        for folio in folios:
+            suffix = folio[len(cls.FOLIO_PREFIX):]
+            if suffix.isdigit():
+                return f"{cls.FOLIO_PREFIX}{int(suffix) + 1:0{cls.FOLIO_WIDTH}d}"
+        return f"{cls.FOLIO_PREFIX}{1:0{cls.FOLIO_WIDTH}d}"
+
     def save(self, *args, **kwargs):
-        creating = self.pk is None
-        super().save(*args, **kwargs)
-        if creating and not self.folio:
-            self.folio = f"{self.FOLIO_PREFIX}{self.pk:0{self.FOLIO_WIDTH}d}"
-            super().save(update_fields=["folio"])
+        if self.folio:
+            super().save(*args, **kwargs)
+            return
+
+        for _ in range(3):
+            self.folio = self._next_folio()
+            try:
+                super().save(*args, **kwargs)
+                return
+            except IntegrityError:
+                self.folio = ""
+
+        raise IntegrityError("No se pudo generar un folio unico para la solicitud de equipo.")
 
     @property
     def puede_cancelar_solicitante(self):

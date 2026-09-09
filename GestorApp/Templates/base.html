@@ -155,7 +155,9 @@
             </form>
             {% else %}
             <a class="btn btn-outline-light btn-sm" href="{% url 'login' %}">Iniciar sesion</a>
+            {% if signup_enabled %}
             <a class="btn btn-primary btn-sm" href="{% url 'signup' %}">Crear usuario</a>
+            {% endif %}
             {% endif %}
         </div>
     </header>

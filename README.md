@@ -8,7 +8,7 @@ Una sola app de negocio (`GestorApp`) dentro del proyecto Django (`GestorIT`). L
 
 ---
 
-## Qué cubre el sistema
+## Qué necesidades cubre el sistema
 
 | Módulo | Qué hace |
 |--------|----------|
@@ -37,16 +37,49 @@ Los avisos (SLA, checks, mantenimientos, solicitudes) se ven en **Inicio**, la *
 | Auth | `django.contrib.auth.User` (sin `AUTH_USER_MODEL` propio) |
 
 Dependencias: [requirements.txt](requirements.txt).
+``` powershell
+# Dependencias necesarias para Sistema Gestor IT.
+# --- Nucleo Django ---
+Django==6.0.7
+asgiref==3.12.1
+sqlparse==0.5.5
+tzdata==2026.3
+typing_extensions==4.16.0
 
+# --- UI ---
+django-bootstrap5==26.2
+
+# --- Base de datos ---
+psycopg2-binary==2.9.12
+
+# --- Jobs en background ---
+django-q2==1.10.0
+django-picklefield==3.4.0
+
+# --- Imagenes (ImageField) ---
+Pillow==12.3.0
+
+# --- Documentos ---
+docxtpl==0.20.2
+python-docx==1.2.0
+openpyxl==3.1.5
+et_xmlfile==2.0.0
+lxml==6.1.1
+Jinja2==3.1.6
+MarkupSafe==3.0.3
+pypdf==6.14.2
+
+```
+    
 ---
 
 ## Roles
 
-Tres grupos de Django (un usuario tiene un solo rol de negocio):
+Tres grupos o roles de Django (Solamente un rol por usuario):
 
 | Grupo | Quién | Alcance típico |
 |-------|-------|----------------|
-| `Usuario` | Empleado final | Tickets propios, mis equipos, solicitudes, órdenes propias |
+| `Usuario` | Empleado final | Tickets propios, mis equipos, solicitudes |
 | `Tecnico IT` | Operación diaria | Inventario, tickets globales, mantenimiento, coberturas |
 | `Administrador` | Gobierno | Personal, borrados, plantillas, retención, matriz |
 
@@ -57,9 +90,14 @@ Detalle: [ROLES.md](documentacion/Docs1/ROLES.md).
 ---
 
 ## Instalación (desarrollo)
+Hardware (Minimo Recomendado)
+| Recurso | Mínimo | Recomendado |
+| CPU | 2 vCPU | 4 vCPU |
+| RAM | 8 GB (SO + Postgres + app + qcluster) | 16 GB |
+| Disco | 40–60 GB libres en SSD | 100 GB+ |
+
 
 Requisitos: Python 3, PostgreSQL, Git.
-
 ```powershell
 git clone https://github.com/LaChivaloca69/Sistema-Gestor-IT-R.git
 cd Sistema-Gestor-IT-R
@@ -94,6 +132,7 @@ Tests de humo:
 ```powershell
 python manage.py test GestorApp.tests
 ```
+
 Comandos github 
 ``` powershell
 # Ver estado de cambios
@@ -121,8 +160,6 @@ git push -u origin main
 # Muestra el historial de cambios
 git log --oneline
 ```
-
-
 
 ---
 

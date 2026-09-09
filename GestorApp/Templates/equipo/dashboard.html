@@ -10,7 +10,7 @@
 {% include "partials/page_header_close.html" %}
 
 <section class="kpi-grid kpi-grid--ops mb-4">
-	<a class="kpi-card" href="{% url 'equipo_list' %}?estado_equipo=Disponible">
+	<a class="kpi-card" href="{% url 'equipo_list' %}?estado_equipo=En+Stock">
 		<span class="kpi-card__label">Disponibles</span>
 		<strong class="kpi-card__value">{{ equipo_dashboard.disponibles }}</strong>
 		<small>{{ equipo_dashboard.activos }} activos</small>

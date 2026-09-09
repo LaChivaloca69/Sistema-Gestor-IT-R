@@ -8,6 +8,7 @@ from django.utils import timezone
 
 from . import historial
 from .cobertura import coberturas_activas_para_suplente
+from .forms.common import _get_user_personal
 from .forms.gobierno import (
     CoberturaTicketsForm,
     SolicitudEquipoForm,
@@ -20,13 +21,13 @@ from .models import (
     EstadoAsignacion,
     EstadoSolicitudEquipo,
     ModuloHistorial,
-    Personal,
     SolicitudEquipo,
     TipoMovimiento,
 )
 from .permissions_matrix import matrix_for_template
-from .roles import is_operativo
+from .roles import _deny, is_administrador, is_operativo
 from .sla_guide import sla_guide_for_template
+from .views.helpers import user_can_manage_cobertura
 
 
 # ---- Matriz de permisos ----
@@ -42,12 +43,23 @@ def sla_guia(request):
 
 # ---- Coberturas ----
 
+def _coberturas_qs_for(user):
+    qs = CoberturaTickets.objects.select_related(
+        "ausente", "suplente", "creado_por"
+    )
+    if not is_administrador(user):
+        qs = qs.filter(
+            Q(ausente=user) | Q(suplente=user) | Q(creado_por=user)
+        )
+    return qs
+
+
 def cobertura_list(request):
     today = timezone.localdate()
-    items = CoberturaTickets.objects.select_related(
-        "ausente", "suplente", "creado_por"
-    ).order_by("-fecha_inicio", "-pk")
+    items = _coberturas_qs_for(request.user).order_by("-fecha_inicio", "-pk")
     filtro = request.GET.get("filtro", "vigentes")
+    if filtro == "todas" and not is_administrador(request.user):
+        filtro = "mias"
     if filtro == "vigentes":
         items = items.filter(activa=True, fecha_inicio__lte=today, fecha_fin__gte=today)
     elif filtro == "activas":
@@ -74,7 +86,7 @@ def cobertura_list(request):
 
 def cobertura_create(request):
     if request.method == "POST":
-        form = CoberturaTicketsForm(request.POST)
+        form = CoberturaTicketsForm(request.POST, request_user=request.user)
         if form.is_valid():
             obj = form.save(commit=False)
             obj.creado_por = request.user
@@ -91,7 +103,7 @@ def cobertura_create(request):
             messages.success(request, "Cobertura creada.")
             return redirect("cobertura_list")
     else:
-        form = CoberturaTicketsForm()
+        form = CoberturaTicketsForm(request_user=request.user)
     return render(
         request,
         "gobierno/cobertura_form.html",
@@ -100,9 +112,13 @@ def cobertura_create(request):
 
 
 def cobertura_update(request, pk):
-    obj = get_object_or_404(CoberturaTickets, pk=pk)
+    obj = get_object_or_404(_coberturas_qs_for(request.user), pk=pk)
+    if not user_can_manage_cobertura(request.user, obj):
+        return _deny(request, "No puedes editar esta cobertura.")
     if request.method == "POST":
-        form = CoberturaTicketsForm(request.POST, instance=obj)
+        form = CoberturaTicketsForm(
+            request.POST, instance=obj, request_user=request.user
+        )
         if form.is_valid():
             form.save()
             historial.registrar_historial(
@@ -117,7 +133,7 @@ def cobertura_update(request, pk):
             messages.success(request, "Cobertura actualizada.")
             return redirect("cobertura_list")
     else:
-        form = CoberturaTicketsForm(instance=obj)
+        form = CoberturaTicketsForm(instance=obj, request_user=request.user)
     return render(
         request,
         "gobierno/cobertura_form.html",
@@ -126,7 +142,9 @@ def cobertura_update(request, pk):
 
 
 def cobertura_delete(request, pk):
-    obj = get_object_or_404(CoberturaTickets, pk=pk)
+    obj = get_object_or_404(_coberturas_qs_for(request.user), pk=pk)
+    if not user_can_manage_cobertura(request.user, obj):
+        return _deny(request, "No puedes eliminar esta cobertura.")
     if request.method == "POST":
         etiqueta = str(obj)
         obj.delete()
@@ -186,10 +204,7 @@ def solicitud_equipo_create(request):
             obj = form.save(commit=False)
             obj.solicitante = request.user
             if getattr(form.fields.get("personal"), "disabled", False):
-                try:
-                    personal = request.user.personal_profile
-                except Personal.DoesNotExist:
-                    personal = None
+                personal = _get_user_personal(request.user)
                 if personal:
                     obj.personal = personal
             obj.save()
@@ -270,11 +285,12 @@ def solicitud_equipo_detail(request, pk):
 
 def _asignar_equipo_desde_solicitud(request, solicitud, equipo):
     """Asigna equipo disponible al personal de la solicitud."""
+    from django.db import IntegrityError
+
     from .views import (
         _aplicar_asignacion_a_equipo,
-        _cerrar_asignaciones_activas,
+        _crear_asignacion_activa,
         _crear_movimiento,
-        _get_equipo_asignacion_activa,
         _reconciliar_estado_equipo,
     )
 
@@ -284,18 +300,15 @@ def _asignar_equipo_desde_solicitud(request, solicitud, equipo):
     if not equipo.puede_asignarse:
         return False, "El equipo no esta disponible para asignar."
 
-    existente = _get_equipo_asignacion_activa(equipo)
-    if existente:
-        _cerrar_asignaciones_activas(
+    try:
+        equipo, asignacion, existente = _crear_asignacion_activa(
             equipo,
-            observaciones="Cerrada automaticamente por solicitud de equipo.",
+            personal,
+            observaciones=f"Desde solicitud {solicitud.folio}",
+            cierre_obs="Cerrada automaticamente por solicitud de equipo.",
         )
-    asignacion = AsignacionEquipo.objects.create(
-        equipo=equipo,
-        personal=personal,
-        estado_asignacion=EstadoAsignacion.ACTIVA,
-        observaciones=f"Desde solicitud {solicitud.folio}",
-    )
+    except IntegrityError:
+        return False, "No se pudo asignar: el equipo ya tiene una asignacion activa."
     _reconciliar_estado_equipo(equipo)
     ubicacion_anterior, ubicacion_nueva = _aplicar_asignacion_a_equipo(
         equipo, personal, request=request

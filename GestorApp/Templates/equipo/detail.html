@@ -5,6 +5,7 @@
 {% block content %}
 {% include "partials/page_header_open.html" with title=object.codigo_inventario description="Detalle en inventario." %}
 	<a class="btn btn-outline-secondary" href="{% url inv.list_url %}">Volver</a>
+	{% if is_operativo_role %}
 	<a class="btn btn-outline-primary" href="{% url 'equipo_update' object.pk %}">Editar</a>
 	{% if object.puede_cambiar_ubicacion %}
 	<a class="btn btn-outline-secondary" href="{% url 'equipo_cambiar_ubicacion' object.pk %}">Espacio fisico</a>
@@ -34,6 +35,7 @@
 	</form>
 	{% endif %}
 	<a class="btn btn-outline-secondary" href="{% url 'mantenimiento_create' %}?equipo={{ object.pk }}">Programar mant.</a>
+	{% endif %}
 {% include "partials/page_header_close.html" %}
 
 <p class="text-muted small mb-3">
@@ -153,7 +155,7 @@
 		{% endif %}
 
 		<div class="mt-3 d-flex flex-wrap gap-2">
-			{% if object.puede_dar_de_baja %}
+			{% if is_admin_role and object.puede_dar_de_baja %}
 			<a class="btn btn-outline-danger btn-sm" href="{% url 'equipo_dar_baja' object.pk %}">Dar de baja</a>
 			{% endif %}
 			{% if object.puede_eliminar_fisico %}

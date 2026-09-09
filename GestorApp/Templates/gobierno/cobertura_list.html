@@ -31,7 +31,9 @@
 			<option value="vigentes" {% if filtro == "vigentes" %}selected{% endif %}>Vigentes hoy</option>
 			<option value="activas" {% if filtro == "activas" %}selected{% endif %}>Activas (cualquier fecha)</option>
 			<option value="mias" {% if filtro == "mias" %}selected{% endif %}>Donde participo</option>
+			{% if is_admin_role %}
 			<option value="todas" {% if filtro == "todas" %}selected{% endif %}>Todas</option>
+			{% endif %}
 		</select>
 	</div>
 	<div class="filters-actions">
@@ -71,7 +73,7 @@
 				<td>
 					{% url 'cobertura_update' item.pk as update_url %}
 					{% url 'cobertura_delete' item.pk as delete_url %}
-					{% include "partials/row_actions.html" with update_url=update_url delete_url=delete_url %}
+					{% include "partials/row_actions.html" with update_url=update_url delete_url=delete_url allow_row_delete=True %}
 				</td>
 			</tr>
 			{% empty %}

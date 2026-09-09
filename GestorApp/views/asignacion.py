@@ -1,107 +1,32 @@
 """Asignaciones de equipo (solo maquinas principales + kit)."""
-from datetime import date, datetime, timedelta
 
-from django import forms
 from django.contrib import messages
-from django.contrib.auth import get_user_model, login
-from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
-from django.core.files.base import ContentFile
-from django.core.paginator import Paginator
-from django.db import transaction
-from django.db.models import Count, Prefetch, Q, Sum, Max, F
-from django.http import HttpResponse, JsonResponse
+from django.db import IntegrityError, transaction
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
-from django.utils import timezone
-from django.urls import NoReverseMatch, reverse
 
-from .. import document_engine
 from .. import historial
-from ..cobertura import coberturas_activas_para_suplente, ticket_asignados_q_for_user
 from ..forms.asignacion import AsignacionEquipoForm
-from ..roles import (
-    ROLE_ADMIN,
-    ROLE_CHOICES,
-    ROLE_TECNICO,
-    ROLE_USUARIO,
-    admin_required,
-    get_user_role,
-    is_admin_user,
-    is_operativo,
-    operativo_required,
-    set_user_role,
-)
 from ..models import (
-    AccionHistorial,
-    AgendaMantenimiento,
-    Answer,
-    Area,
     AsignacionEquipo,
-    Bitacora,
-    CategoriaEquipo,
-    DetalleOrdenCompra,
-    Edificio,
     Equipo,
     EstadoAsignacion,
     EstadoEquipo,
-    EstadoMantenimiento,
-    EstadoOrdenCompra,
-    EstadoSupport,
-    HistorialActividad,
-    IvaOpcion,
-    Mantenimiento,
     ModuloHistorial,
-    MovimientoEquipo,
-    NivelHistorial,
-    OrdenCompra,
-    OrigenAltaEquipo,
-    OrigenOrdenCompra,
     Personal,
-    PlantillaDocumento,
-    PrioridadSupport,
-    Proveedor,
-    Puesto,
-    SLA_HORAS_POR_PRIORIDAD,
-    SeguimientoTicket,
-    TicketIT,
     TipoCategoriaInventario,
-    TipoMoneda,
     TipoMovimiento,
-    TipoMantenimiento,
-    TipoProveedor,
-    TipoTicketSupport,
-    TipoPlantillaDocumento,
-    Ubicacion,
-    ZonaEdificio,
 )
 from .helpers import (
-    _apply_date_filters,
     _aplicar_asignacion_a_equipo,
     _cerrar_asignaciones_activas,
     _crear_movimiento,
-    _deny_ticket_access,
-    _end_of_month,
-    _get_equipo_asignacion_activa,
     _get_equipo_responsable,
     _liberar_equipo_tras_devolucion,
-    _month_bounds,
-    _ordenes_for_user,
-    _parse_date,
-    _quick_range_bounds,
     _reconciliar_estado_equipo,
     _sync_perifericos_con_padre,
-    _ticket_dashboard_context,
-    _ticket_has_seguimientos,
-    _tickets_abiertos_qs,
-    _tickets_for_user,
-    _tickets_sla_por_vencer_q,
-    _tickets_sla_vencidos_q,
     _vincular_periferico_a_equipo,
-    user_can_delete_ticket,
-    user_can_edit_ticket,
-    user_can_manage_orden,
-    user_can_manage_ticket_flow,
-    user_can_view_ticket,
 )
 
 
@@ -267,17 +192,26 @@ def asignacionequipo_create(request):
             personal = form.cleaned_data.get("personal")
             estado = form.cleaned_data.get("estado_asignacion")
             existente_activo = False
-            if equipo and estado == EstadoAsignacion.ACTIVA:
-                existente_activo = AsignacionEquipo.objects.filter(
-                    equipo=equipo,
-                    estado_asignacion=EstadoAsignacion.ACTIVA,
-                ).exists()
-                if existente_activo:
-                    _cerrar_asignaciones_activas(
-                        equipo,
-                        observaciones="Cerrada automaticamente por reasignacion.",
-                    )
-            asignacion = form.save()
+            try:
+                with transaction.atomic():
+                    if equipo and estado == EstadoAsignacion.ACTIVA:
+                        equipo = Equipo.objects.select_for_update().get(pk=equipo.pk)
+                        existente_activo = AsignacionEquipo.objects.filter(
+                            equipo=equipo,
+                            estado_asignacion=EstadoAsignacion.ACTIVA,
+                        ).exists()
+                        if existente_activo:
+                            _cerrar_asignaciones_activas(
+                                equipo,
+                                observaciones="Cerrada automaticamente por reasignacion.",
+                            )
+                    asignacion = form.save()
+            except IntegrityError:
+                messages.error(
+                    request,
+                    "Ese equipo ya tiene una asignacion activa. Recarga e intenta de nuevo.",
+                )
+                return redirect("asignacionequipo_list")
             ubicacion_anterior = None
             ubicacion_nueva = None
             if equipo and personal and estado == EstadoAsignacion.ACTIVA:
@@ -332,17 +266,23 @@ def asignacionequipo_update(request, pk):
             estado = form.cleaned_data.get("estado_asignacion")
             equipo = form.cleaned_data.get("equipo")
             personal = form.cleaned_data.get("personal")
-            if (
-                equipo
-                and estado == EstadoAsignacion.ACTIVA
-                and estado_anterior != EstadoAsignacion.ACTIVA
-            ):
-                _cerrar_asignaciones_activas(
-                    equipo,
-                    exclude_pk=asignacion.pk,
-                    observaciones="Cerrada automaticamente por reasignacion.",
+            try:
+                with transaction.atomic():
+                    if equipo and estado == EstadoAsignacion.ACTIVA:
+                        equipo = Equipo.objects.select_for_update().get(pk=equipo.pk)
+                        if estado_anterior != EstadoAsignacion.ACTIVA:
+                            _cerrar_asignaciones_activas(
+                                equipo,
+                                exclude_pk=asignacion.pk,
+                                observaciones="Cerrada automaticamente por reasignacion.",
+                            )
+                    asignacion = form.save()
+            except IntegrityError:
+                messages.error(
+                    request,
+                    "Ese equipo ya tiene una asignacion activa. Recarga e intenta de nuevo.",
                 )
-            asignacion = form.save()
+                return redirect("asignacionequipo_list")
             ubicacion_anterior = None
             ubicacion_nueva = None
             if (
@@ -480,6 +420,14 @@ def asignacion_kit_migracion(request):
                     )
                     .first()
                 )
+                if padre is not None:
+                    mismo_custodio = AsignacionEquipo.objects.filter(
+                        personal=asig.personal,
+                        equipo=padre,
+                        estado_asignacion=EstadoAsignacion.ACTIVA,
+                    ).exists()
+                    if not mismo_custodio:
+                        padre = None
             elif periferico.equipo_padre_id:
                 # Ya vinculado: solo cerrar asignacion suelta.
                 _cerrar_asignaciones_activas(

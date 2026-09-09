@@ -420,7 +420,9 @@
 		<p class="lead-text">Inicia sesion para acceder al panel operativo.</p>
 		<div class="actions">
 			<a class="btn btn-primary" href="{% url 'login' %}">Iniciar sesion</a>
+			{% if signup_enabled %}
 			<a class="btn btn-outline-secondary" href="{% url 'signup' %}">Crear usuario</a>
+			{% endif %}
 		</div>
 	</div>
 </section>
