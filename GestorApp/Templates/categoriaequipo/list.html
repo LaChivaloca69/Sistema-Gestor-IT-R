@@ -3,7 +3,7 @@
 {% block title %}Categorias de inventario{% endblock %}
 
 {% block content %}
-{% include "partials/page_header_open.html" with title="Categorias de inventario" description="Categorias por tipo: Equipo, Periferico, Herramienta o Consumible. Prefiere desactivar si ya hay historial." %}
+{% include "partials/page_header_open.html" with title="Categorias de inventario" %}
 	<a class="btn btn-primary" href="{% url 'categoriaequipo_create' %}">Nueva categoria</a>
 {% include "partials/page_header_close.html" %}
 

@@ -277,7 +277,7 @@ def producto_consumible_movimiento(request, pk, tipo=None):
                     "; ".join(exc.messages) if hasattr(exc, "messages") else str(exc),
                 )
             else:
-                messages.success(request, f"{tipo_mov} registrada correctamente.")
+                messages.success(request, f"{tipo_mov} registrada.")
                 return redirect("producto_consumible_detail", pk=pk)
     else:
         form = MovimientoStockForm(producto=producto, tipo_fijo=tipo_fijo)

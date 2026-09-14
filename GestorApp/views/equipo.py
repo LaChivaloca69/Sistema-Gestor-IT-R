@@ -640,7 +640,7 @@ def equipo_create(request, tipo=None):
                     responsable=_get_equipo_responsable(equipo),
                     request=request,
                 )
-                messages.success(request, f"{inv['singular_title']} creado correctamente.")
+                messages.success(request, f"{inv['singular_title']} creado.")
                 return redirect("equipo_detail", pk=equipo.pk)
     else:
         initial = {}
@@ -717,7 +717,7 @@ def equipo_update(request, pk):
                         responsable=_get_equipo_responsable(equipo),
                         request=request,
                     )
-                messages.success(request, f"{inv['singular_title']} actualizado correctamente.")
+                messages.success(request, f"{inv['singular_title']} actualizado.")
                 return redirect("equipo_detail", pk=equipo.pk)
     else:
         form = EquipoForm(instance=equipo, tipo=tipo)
@@ -751,7 +751,7 @@ def equipo_delete(request, pk):
             nivel=NivelHistorial.CRITICO,
         )
         equipo.delete()
-        messages.success(request, f"{inv['singular_title']} eliminado correctamente.")
+        messages.success(request, f"{inv['singular_title']} eliminado.")
         return redirect(list_url)
     return render(
         request,

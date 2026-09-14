@@ -5,9 +5,9 @@
 
 {% block content %}
 {% if object %}
-{% include "partials/page_header_open.html" with title=inv.editar_label description="Editar informacion. Los datos de OC solo aparecen si el origen es Compra." %}
+{% include "partials/page_header_open.html" with title=inv.editar_label description="Si el origen es Compra, se muestran datos de la orden." %}
 {% else %}
-{% include "partials/page_header_open.html" with title=inv.nuevo_label description="Captura la informacion principal. Los datos de OC solo aparecen si el origen es Compra." %}
+{% include "partials/page_header_open.html" with title=inv.nuevo_label description="Si el origen es Compra, se piden datos de la orden." %}
 {% endif %}
 	{% if object %}
 	<a class="btn btn-outline-primary" href="{% url 'equipo_detail' object.pk %}">Ver detalle</a>

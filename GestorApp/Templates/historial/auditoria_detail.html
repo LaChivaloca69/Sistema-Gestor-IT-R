@@ -4,7 +4,7 @@
 
 {% block content %}
 {% include "partials/page_header_open.html" with title=object.titulo description="Detalle del evento de auditoria." %}
-	<a class="btn btn-outline-secondary" href="{% url 'movimientoequipo_list' %}">Volver a auditoria</a>
+	<a class="btn btn-outline-secondary" href="{% url 'historial_actividad_list' %}">Volver a auditoria</a>
 	{% if enlace_url %}
 	<a class="btn btn-primary" href="{{ enlace_url }}">Abrir relacionado</a>
 	{% endif %}

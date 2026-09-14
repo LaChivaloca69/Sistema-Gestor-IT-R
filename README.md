@@ -1,10 +1,12 @@
-# Sistema Gestor IT
+# Sistema Web para la gestion de inventario y Mesa de ayuda TI
 
-Aplicación web Django para gestionar el área de TI de una fábrica: inventario de equipos, tickets de soporte, mantenimiento, órdenes de compra, personal y gobierno de roles.
+Aplicación web Django para gestionar el área de TI: inventario de equipos, consumibles, tickets de soporte, mantenimiento, órdenes de compra, personal y gobierno de roles.
 
-Una sola app de negocio (`GestorApp`) dentro del proyecto Django (`GestorIT`). Los “módulos” de la documentación son dominios funcionales, no apps Django separadas.
+Una sola app de negocio (`GestorApp`) dentro del proyecto Django (`GestorIT`).
 
-**Última revisión:** agosto 2026 (código actual del repositorio).
+**Documentacion:** ver [documentacion/README.md](documentacion/README.md). El manual de negocio esta en [documentacion/negocio/](documentacion/negocio/).
+
+**Última revisión:** septiembre 2026.
 
 ---
 
@@ -83,15 +85,17 @@ Tres grupos o roles de Django (Solamente un rol por usuario):
 | `Tecnico IT` | Operación diaria | Inventario, tickets globales, mantenimiento, coberturas |
 | `Administrador` | Gobierno | Personal, borrados, plantillas, retención, matriz |
 
-El registro (`/signup/`) crea `User` + `Personal` con rol **Usuario**. El Administrador eleva roles desde Personal.
+El registro publico (`/signup/`) esta desactivado por defecto. El Administrador da de alta Personal y asigna roles.
 
-Detalle: [ROLES.md](documentacion/Docs1/ROLES.md).
+Detalle de negocio: [documentacion/negocio/04_roles_y_permisos.md](documentacion/negocio/04_roles_y_permisos.md).
 
 ---
 
 ## Instalación (desarrollo)
-Hardware (Minimo Recomendado)
+Hardware (Minimo Recomendado):
+
 | Recurso | Mínimo | Recomendado |
+|---------|--------|-------------|
 | CPU | 2 vCPU | 4 vCPU |
 | RAM | 8 GB (SO + Postgres + app + qcluster) | 16 GB |
 | Disco | 40–60 GB libres en SSD | 100 GB+ |
@@ -177,28 +181,23 @@ Sistema-Gestor-IT-R/
 │   └── management/commands/
 ├── static/GestorApp/         # CSS / JS
 ├── media/                    # Uploads (equipos, tickets, OC, plantillas)
-├── documentacion/Docs1/      # Documentación técnica
+├── documentacion/
+│   ├── README.md             # Indice de documentacion
+│   ├── negocio/              # Manual de negocio (vigente)
+│   └── tecnico/              # Manual tecnico (pendiente)
 ├── manage.py
 └── requirements.txt
 ```
 
 ---
 
-## Documentación técnica
+## Documentacion
 
 | Documento | Contenido |
 |-----------|-----------|
-| [MODELS.md](documentacion/Docs1/MODELS.md) | Modelos Django, choices, relaciones y métodos |
-| [DocModels.md](documentacion/Docs1/DocModels.md) | Diccionario de datos (tablas / campos) |
-| [DocTemplates.md](documentacion/Docs1/DocTemplates.md) | Templates, layout y partials |
-| [Reestructuracion_Views.md](documentacion/Docs1/Reestructuracion_Views.md) | Split de `views/` y `forms/` |
-| [TICKETS.md](documentacion/Docs1/TICKETS.md) | Flujo, SLA y seguimientos |
-| [MANTENIMIENTO.md](documentacion/Docs1/MANTENIMIENTO.md) | Órdenes, cierres y próximo ciclo |
-| [INVENTARIO.md](documentacion/Docs1/INVENTARIO.md) | Equipos, OC, asignaciones, movimientos |
-| [ROLES.md](documentacion/Docs1/ROLES.md) | Roles, decoradores, matriz de acceso |
-| [MODULOS.md](documentacion/Docs1/MODULOS.md) | Arquitectura funcional y mapa de archivos |
-| [CASOS_DE_USO.md](documentacion/Docs1/CASOS_DE_USO.md) | Qué puede hacer cada actor |
-| [MEJORAS_CALIDAD_Y_GOBIERNO.md](documentacion/Docs1/MEJORAS_CALIDAD_Y_GOBIERNO.md) | Cache, jobs, auditoría, media, gobierno |
+| [documentacion/README.md](documentacion/README.md) | Indice general |
+| [documentacion/negocio/](documentacion/negocio/) | Manual de negocio y uso (17 capitulos) |
+| [documentacion/tecnico/](documentacion/tecnico/) | Manual tecnico del codigo (nivel A, vigente) |
 
 ---
 

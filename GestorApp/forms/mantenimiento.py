@@ -177,8 +177,7 @@ class AgendaMantenimientoForm(forms.ModelForm):
         help_texts = {
             "mantenimiento": "Seleccione el mantenimiento a cerrar.",
             "acciones_realizadas": "Describa las acciones realizadas durante el mantenimiento.",
-            "observaciones": "Opcional. Puede agregar observaciones adicionales.",
-            "proxima_fecha_mantenimiento": "Opcional. Genera aviso de proximo ciclo en el panel (sin email).",
+            "proxima_fecha_mantenimiento": "Si indicas fecha, se puede programar el siguiente ciclo.",
         }
         widgets = {
             "fecha_inicio": forms.DateTimeInput(attrs={"type": "datetime-local"}),

@@ -5,9 +5,9 @@
 
 {% block content %}
 {% if object %}
-{% include "partials/page_header_open.html" with title="Editar mantenimiento" description="Captura la programacion. El estado se controla con acciones (Iniciar / Cerrar / Cancelar / Reabrir)." %}
+{% include "partials/page_header_open.html" with title="Editar mantenimiento" description="Programacion del mantenimiento." %}
 {% else %}
-{% include "partials/page_header_open.html" with title="Nuevo mantenimiento" description="Captura la programacion. El estado se controla con acciones (Iniciar / Cerrar / Cancelar / Reabrir)." %}
+{% include "partials/page_header_open.html" with title="Nuevo mantenimiento" description="Programacion del mantenimiento." %}
 {% endif %}
 	{% if object %}
 		<a class="btn btn-outline-primary" href="{% url 'mantenimiento_detail' object.pk %}">Ver detalle</a>

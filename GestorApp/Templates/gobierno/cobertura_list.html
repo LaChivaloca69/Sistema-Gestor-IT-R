@@ -16,7 +16,6 @@
 				{% for c in mis_coberturas %}
 					{{ c.ausente.username }}{% if not forloop.last %}, {% endif %}
 				{% endfor %}
-				· Usa el filtro <em>Asignados a mi</em> en Tickets.
 			</p>
 		</div>
 		<a class="btn btn-sm btn-outline-secondary" href="{% url 'ticketit_list' %}?scope=asignados">Ver asignados</a>

@@ -3,8 +3,8 @@
 {% block title %}Archivar historial{% endblock %}
 
 {% block content %}
-{% include "partials/page_header_open.html" with title="Archivar historial" description="Archiva eventos viejos o purgalos de forma permanente segun la politica configurada." %}
-	<a class="btn btn-outline-secondary" href="{% url 'movimientoequipo_list' %}">Ver historial</a>
+{% include "partials/page_header_open.html" with title="Archivar historial" description="Archivar oculta. Purgar borra de forma permanente." %}
+	<a class="btn btn-outline-secondary" href="{% url 'historial_actividad_list' %}">Ver historial</a>
 {% include "partials/page_header_close.html" %}
 
 <div class="row g-3 mb-4">
@@ -65,12 +65,8 @@
 <div class="card shadow-sm border-0">
 	<div class="card-body">
 		<p class="eyebrow mb-2">Ejecutar</p>
-		<p class="text-muted">Archivar solo oculta registros. Purgar los elimina de la base de datos y no se pueden recuperar.</p>
-		{% if background_jobs_sync %}
-		<p class="text-muted small">Modo sync activo (<code>BACKGROUND_JOBS_SYNC</code>): la accion corre en este request.</p>
-		{% else %}
-		<p class="text-muted small">Se encola en background (django-q). Si el worker no esta corriendo, se ejecuta en este request como respaldo.</p>
-		{% endif %}
+		<p class="text-muted">Archivar oculta. Purgar borra de forma permanente.</p>
+		<p class="text-muted small">La tarea puede tardar unos segundos.</p>
 
 		<form method="post" class="stack-form" style="max-width: 520px;">
 			{% csrf_token %}
@@ -93,7 +89,7 @@
 
 			<div class="d-flex flex-wrap gap-2 mt-3">
 				<button class="btn btn-primary" type="submit">Encolar / ejecutar retencion</button>
-				<a class="btn btn-outline-secondary" href="{% url 'movimientoequipo_list' %}?estado=archivado">Ver archivados</a>
+				<a class="btn btn-outline-secondary" href="{% url 'historial_actividad_list' %}?estado=archivado">Ver archivados</a>
 			</div>
 		</form>
 	</div>

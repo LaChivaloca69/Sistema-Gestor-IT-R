@@ -30,7 +30,7 @@
 {% include "partials/page_header_close.html" %}
 
 {% if not can_edit and not can_manage_flow %}
-<p class="text-muted small mb-3">La edicion del ticket queda bloqueada cuando ya esta en atencion. Puedes seguir publicando comentarios y adjuntos.</p>
+<p class="text-muted small mb-3">En atencion: solo comentarios.</p>
 {% endif %}
 {% if can_manage_flow and object.tiene_seguimientos and not can_delete %}
 <p class="text-muted small mb-3">Este ticket tiene seguimientos; no se puede eliminar hasta quitar los checks.</p>
@@ -165,7 +165,7 @@
 			</div>
 		</form>
 		{% elif object.status == "Cerrado" %}
-		<p class="text-muted small mb-3">El ticket esta cerrado. IT puede dejar notas; para responder como solicitante, pide que lo reabran.</p>
+		<p class="text-muted small mb-3">Ticket cerrado.</p>
 		{% endif %}
 
 		<div class="ticket-timeline">
@@ -200,14 +200,11 @@
 				</ul>
 				{% endif %}
 				{% if item.perm_can_delete %}
-				<form method="post" action="{% url 'ticketit_comentario_delete' object.pk item.pk %}" class="mt-2">
-					{% csrf_token %}
-					<button class="btn btn-outline-danger btn-sm" type="submit">Eliminar</button>
-				</form>
+				<a class="btn btn-outline-danger btn-sm mt-2" href="{% url 'ticketit_comentario_delete' object.pk item.pk %}">Eliminar</a>
 				{% endif %}
 			</article>
 			{% empty %}
-			<p class="text-muted mb-0">Aun no hay comentarios. Usa este hilo para evidencia extra (fotos, PDF) sin cambiar el estado del ticket.</p>
+			<p class="text-muted mb-0">Sin comentarios.</p>
 			{% endfor %}
 		</div>
 	</section>

@@ -22,7 +22,6 @@
 				{% for c in mis_coberturas %}
 					{% if forloop.first %}{{ c.fecha_fin|date:"Y-m-d" }}{% endif %}
 				{% endfor %}).
-				En el filtro <em>Asignados a mi</em> aparecen tambien los suyos.
 			</p>
 		</div>
 		<a class="btn btn-sm btn-outline-secondary" href="{% url 'cobertura_list' %}">Ver coberturas</a>

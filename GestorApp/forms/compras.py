@@ -133,7 +133,7 @@ class OrdenCompraCrearForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.restrict_estado = restrict_estado
         self.fields["folio_orden"].required = False
-        self.fields["folio_orden"].help_text = "Dejalo vacio para generar uno automatico (OC-000001)."
+        self.fields["folio_orden"].help_text = "Vacio = folio automatico."
         self.fields["proveedor"].queryset = Proveedor.objects.filter(activo=True).order_by("nombre_proveedor")
         self.fields["proveedor"].required = True
         self.fields["plantilla"].queryset = PlantillaDocumento.objects.filter(activo=True).order_by("nombre")
@@ -142,7 +142,7 @@ class OrdenCompraCrearForm(forms.ModelForm):
         self.fields["iva_porcentaje"].required = False
         if restrict_estado:
             self.fields["estado"].disabled = True
-            self.fields["estado"].help_text = "Solo IT puede marcar la orden como Terminada."
+            self.fields["estado"].help_text = "Solo IT puede terminarla."
             if not (self.instance and self.instance.pk):
                 self.fields["estado"].initial = EstadoOrdenCompra.BORRADOR
 
@@ -176,7 +176,7 @@ class OrdenCompraSubirForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.restrict_estado = restrict_estado
         self.fields["folio_orden"].required = False
-        self.fields["folio_orden"].help_text = "Dejalo vacio para generar uno automatico (OC-000001)."
+        self.fields["folio_orden"].help_text = "Vacio = folio automatico."
         tiene_pdf = bool(
             self.instance and self.instance.pk and getattr(self.instance, "archivo_pdf", None)
         )
@@ -187,7 +187,7 @@ class OrdenCompraSubirForm(forms.ModelForm):
             )
         if restrict_estado:
             self.fields["estado"].disabled = True
-            self.fields["estado"].help_text = "Solo IT puede marcar la orden como Terminada."
+            self.fields["estado"].help_text = "Solo IT puede terminarla."
             if not (self.instance and self.instance.pk):
                 self.fields["estado"].initial = EstadoOrdenCompra.BORRADOR
 

@@ -3,7 +3,7 @@
 {% block title %}Consumibles{% endblock %}
 
 {% block content %}
-{% include "partials/page_header_open.html" with title="Consumibles" description="Stock por cantidad: cables, alcohol, toallas y demas insumos IT." %}
+{% include "partials/page_header_open.html" with title="Consumibles" description="Stock por cantidad." %}
 	<a class="btn btn-outline-secondary" href="{% url 'consumible_dashboard' %}">Dashboard</a>
 	<a class="btn btn-outline-secondary" href="{% url 'movimiento_stock_list' %}">Kardex</a>
 	<a class="btn btn-primary" href="{% url 'producto_consumible_create' %}">Nuevo producto</a>

@@ -90,8 +90,8 @@ _MODULE = {
     "movimientoequipo_update": ("Inventario", None, "Editar movimiento", "movimientoequipo_registros"),
     "movimientoequipo_delete": ("Inventario", None, "Eliminar movimiento", "movimientoequipo_registros"),
     # Operaciones
-    "movimientoequipo_list": ("Operaciones", None, "Historial de actividad", None),
-    "historial_actividad_detail": ("Operaciones", None, "Detalle", "movimientoequipo_list"),
+    "historial_actividad_list": ("Operaciones", None, "Historial de actividad", None),
+    "historial_actividad_detail": ("Operaciones", None, "Detalle", "historial_actividad_list"),
     "asignacionequipo_list": ("Operaciones", None, "Asignaciones", None),
     "asignacion_kit_migracion": ("Operaciones", None, "Migrar kit", "asignacionequipo_list"),
     "asignacionequipo_create": ("Operaciones", None, "Nueva asignacion", "asignacionequipo_list"),

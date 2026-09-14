@@ -4,10 +4,10 @@
 
 {% block content %}
 {% if object %}
-{% include "partials/page_header_open.html" with title="Editar consumible" description="El stock se ajusta solo con movimientos (entrada, salida o ajuste)." %}
+{% include "partials/page_header_open.html" with title="Editar consumible" description="Producto de stock." %}
 	<a class="btn btn-outline-primary" href="{% url 'producto_consumible_detail' object.pk %}">Ver detalle</a>
 {% else %}
-{% include "partials/page_header_open.html" with title="Nuevo consumible" description="Crea el producto con stock en cero; luego registra una entrada inicial." %}
+{% include "partials/page_header_open.html" with title="Nuevo consumible" description="Luego registra una entrada para cargar stock." %}
 {% endif %}
 	<a class="btn btn-outline-secondary" href="{% url 'producto_consumible_list' %}">Volver</a>
 {% include "partials/page_header_close.html" %}

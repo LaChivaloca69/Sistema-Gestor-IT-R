@@ -400,7 +400,7 @@
                                 <span class="sidebar-link__text">Asignaciones</span>
                                 <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>
                             </a>
-                            <a class="sidebar-link {% if request.resolver_match.url_name == 'movimientoequipo_list' or request.resolver_match.url_name == 'historial_actividad_detail' %}active{% endif %}" href="{% url 'movimientoequipo_list' %}" data-nav-id="historial" data-nav-label="Historial de actividad auditoria sistema" title="Historial de actividad">
+                            <a class="sidebar-link {% if request.resolver_match.url_name == 'historial_actividad_list' or request.resolver_match.url_name == 'historial_actividad_detail' %}active{% endif %}" href="{% url 'historial_actividad_list' %}" data-nav-id="historial" data-nav-label="Historial de actividad auditoria sistema" title="Historial de actividad">
                                 <span class="sidebar-link__icon" aria-hidden="true"><i class="bi bi-clock-history"></i></span>
                                 <span class="sidebar-link__text">Historial de actividad</span>
                                 <span class="sidebar-fav-pin" role="button" tabindex="0" aria-label="Fijar en favoritos" data-fav-pin></span>

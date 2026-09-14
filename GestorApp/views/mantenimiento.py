@@ -486,7 +486,7 @@ def mantenimiento_create(request):
                 enlace_nombre="mantenimiento_detail",
                 enlace_pk=mantenimiento.pk,
             )
-            messages.success(request, "Mantenimiento creado correctamente.")
+            messages.success(request, "Mantenimiento creado.")
             return redirect("mantenimiento_detail", pk=mantenimiento.pk)
     else:
         initial = {}
@@ -516,7 +516,7 @@ def mantenimiento_update(request, pk):
                 enlace_nombre="mantenimiento_detail",
                 enlace_pk=mantenimiento.pk,
             )
-            messages.success(request, "Mantenimiento actualizado correctamente.")
+            messages.success(request, "Mantenimiento actualizado.")
             return redirect("mantenimiento_detail", pk=mantenimiento.pk)
     else:
         form = MantenimientoForm(instance=mantenimiento)
@@ -542,7 +542,7 @@ def mantenimiento_delete(request, pk):
             objeto=mantenimiento,
         )
         mantenimiento.delete()
-        messages.success(request, "Mantenimiento eliminado correctamente.")
+        messages.success(request, "Mantenimiento eliminado.")
         return redirect("mantenimiento_list")
     return render(request, "mantenimiento/confirm_delete.html", {"object": mantenimiento})
 
@@ -770,7 +770,7 @@ def agendamantenimiento_create(request):
                 agenda,
                 crear=form.cleaned_data.get("crear_proximo_ciclo", False),
             )
-            messages.success(request, "Mantenimiento cerrado correctamente.")
+            messages.success(request, "Mantenimiento cerrado.")
             _mensaje_proximo_ciclo(request, proximo, motivo)
             if motivo == "creado" and proximo is not None:
                 return redirect("mantenimiento_detail", pk=proximo.pk)
@@ -808,7 +808,7 @@ def agendamantenimiento_update(request, pk):
                 agenda,
                 crear=form.cleaned_data.get("crear_proximo_ciclo", False),
             )
-            messages.success(request, "Cierre actualizado correctamente.")
+            messages.success(request, "Cierre actualizado.")
             _mensaje_proximo_ciclo(request, proximo, motivo)
             if motivo == "creado" and proximo is not None:
                 return redirect("mantenimiento_detail", pk=proximo.pk)
@@ -841,7 +841,7 @@ def agendamantenimiento_delete(request, pk):
                 _sync_equipo_inicio_mantenimiento(mantenimiento, request=request)
             except ValidationError:
                 pass
-        messages.success(request, "Cierre eliminado correctamente.")
+        messages.success(request, "Cierre eliminado.")
         return redirect("mantenimiento_detail", pk=mantenimiento.pk)
     return render(request, "agendamantenimiento/confirm_delete.html", {"object": agenda})
 

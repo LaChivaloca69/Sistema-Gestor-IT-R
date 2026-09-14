@@ -819,7 +819,7 @@ def signup(request):
         if form.is_valid():
             user = form.save()
             login(request, user)
-            messages.success(request, "Usuario creado correctamente.")
+            messages.success(request, "Usuario creado.")
             return redirect("home")
     else:
         form = UserRegisterForm()

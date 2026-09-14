@@ -4,7 +4,7 @@
 {% block title %}Importar inventario{% endblock %}
 
 {% block content %}
-{% include "partials/page_header_open.html" with title="Importar inventario" description="Carga masiva de equipos y perifericos desde Excel. Los perifericos se importan sin kit; vinculalos despues desde la ficha del equipo." %}
+{% include "partials/page_header_open.html" with title="Importar inventario" description="Carga equipos y perifericos desde Excel." %}
 	<a class="btn btn-outline-secondary" href="{% url 'inventario_importar_plantilla' %}">Descargar plantilla</a>
 	<a class="btn btn-outline-secondary" href="{% url 'equipo_dashboard' %}">Volver al panel</a>
 {% include "partials/page_header_close.html" %}

@@ -60,7 +60,7 @@ def plantilla_create(request):
         form = PlantillaDocumentoForm(request.POST, request.FILES)
         if form.is_valid():
             form.save()
-            messages.success(request, "Plantilla creada correctamente.")
+            messages.success(request, "Plantilla creada.")
             return redirect("plantilla_list")
     else:
         form = PlantillaDocumentoForm()
@@ -73,7 +73,7 @@ def plantilla_update(request, pk):
         form = PlantillaDocumentoForm(request.POST, request.FILES, instance=plantilla)
         if form.is_valid():
             form.save()
-            messages.success(request, "Plantilla actualizada correctamente.")
+            messages.success(request, "Plantilla actualizada.")
             return redirect("plantilla_list")
     else:
         form = PlantillaDocumentoForm(instance=plantilla)
@@ -84,7 +84,7 @@ def plantilla_delete(request, pk):
     plantilla = get_object_or_404(PlantillaDocumento, pk=pk)
     if request.method == "POST":
         plantilla.delete()
-        messages.success(request, "Plantilla eliminada correctamente.")
+        messages.success(request, "Plantilla eliminada.")
         return redirect("plantilla_list")
     return render(request, "plantilladocumento/confirm_delete.html", {"object": plantilla})
 
@@ -192,7 +192,7 @@ def ordencompra_create(request):
                 metadata={"origen": orden.origen},
             )
             _intentar_generar_pdf(orden, request)
-            messages.success(request, "Orden de compra creada correctamente.")
+            messages.success(request, "Orden de compra creada.")
             return redirect("ordencompra_list")
     else:
         form = OrdenCompraCrearForm(
@@ -239,7 +239,7 @@ def ordencompra_upload(request):
                 enlace_nombre="ordencompra_update",
                 metadata={"origen": OrigenOrdenCompra.SUBIDO},
             )
-            messages.success(request, "Orden de compra subida correctamente.")
+            messages.success(request, "Orden de compra subida.")
             return redirect("ordencompra_list")
     else:
         form = OrdenCompraSubirForm(restrict_estado=not is_operativo(request.user))
@@ -308,7 +308,7 @@ def ordencompra_update(request, pk):
                     form=form,
                     enlace_nombre="ordencompra_update",
                 )
-                messages.success(request, "Orden de compra actualizada correctamente.")
+                messages.success(request, "Orden de compra actualizada.")
                 return redirect("ordencompra_update", pk=orden.pk)
         else:
             form = OrdenCompraSubirForm(
@@ -365,7 +365,7 @@ def ordencompra_update(request, pk):
                     "Orden terminada y lista para inventariar. Puedes dar de alta equipos.",
                 )
             else:
-                messages.success(request, "Orden de compra actualizada correctamente.")
+                messages.success(request, "Orden de compra actualizada.")
             return redirect("ordencompra_update", pk=orden.pk)
     else:
         form = OrdenCompraCrearForm(
@@ -516,7 +516,7 @@ def ordencompra_delete(request, pk):
             nivel=nivel,
         )
         orden.delete()
-        messages.success(request, "Orden de compra eliminada correctamente.")
+        messages.success(request, "Orden de compra eliminada.")
         return redirect("ordencompra_list")
     return render(request, "ordencompra/confirm_delete.html", {"object": orden})
 

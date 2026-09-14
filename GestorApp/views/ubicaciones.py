@@ -555,7 +555,7 @@ def edificio_create(request):
         form = EdificioForm(request.POST)
         if form.is_valid():
             form.save()
-            messages.success(request, "Edificio creado correctamente.")
+            messages.success(request, "Edificio creado.")
             return redirect(_mapa_sedes_url(edificio=form.instance.pk))
     else:
         form = EdificioForm()
@@ -568,7 +568,7 @@ def edificio_update(request, pk):
         form = EdificioForm(request.POST, instance=edificio)
         if form.is_valid():
             form.save()
-            messages.success(request, "Edificio actualizado correctamente.")
+            messages.success(request, "Edificio actualizado.")
             return redirect(_mapa_sedes_url(edificio=edificio.pk))
     else:
         form = EdificioForm(instance=edificio)
@@ -627,7 +627,7 @@ def edificio_delete(request, pk):
             )
             return redirect("edificio_delete", pk=pk)
 
-        messages.success(request, f'Edificio "{nombre}" eliminado correctamente.')
+        messages.success(request, f'Edificio "{nombre}" eliminado.')
         return redirect("mapa_sedes")
 
     avisos = list(referencias)
@@ -657,7 +657,7 @@ def zonaedificio_create(request):
         form = ZonaEdificioForm(request.POST)
         if form.is_valid():
             sector = form.save()
-            messages.success(request, "Sector creado correctamente.")
+            messages.success(request, "Sector creado.")
             return redirect(
                 _mapa_sedes_url(edificio=sector.edificio_id, sector=sector.pk)
             )
@@ -675,7 +675,7 @@ def zonaedificio_update(request, pk):
         form = ZonaEdificioForm(request.POST, instance=zona)
         if form.is_valid():
             sector = form.save()
-            messages.success(request, "Sector actualizado correctamente.")
+            messages.success(request, "Sector actualizado.")
             return redirect(
                 _mapa_sedes_url(edificio=sector.edificio_id, sector=sector.pk)
             )
@@ -730,7 +730,7 @@ def zonaedificio_delete(request, pk):
             )
             return redirect("zonaedificio_delete", pk=pk)
 
-        messages.success(request, f'Sector "{nombre}" eliminado correctamente.')
+        messages.success(request, f'Sector "{nombre}" eliminado.')
         return redirect(_mapa_sedes_url(edificio=edificio_id))
 
     return render(
@@ -770,7 +770,7 @@ def ubicacion_create(request):
         form = UbicacionForm(request.POST)
         if form.is_valid():
             espacio = form.save()
-            messages.success(request, "Espacio fisico creado correctamente.")
+            messages.success(request, "Espacio fisico creado.")
             return redirect(
                 _mapa_sedes_url(
                     edificio=espacio.edificio_id,
@@ -800,7 +800,7 @@ def ubicacion_update(request, pk):
         form = UbicacionForm(request.POST, instance=ubicacion)
         if form.is_valid():
             espacio = form.save()
-            messages.success(request, "Espacio fisico actualizado correctamente.")
+            messages.success(request, "Espacio fisico actualizado.")
             return redirect(
                 _mapa_sedes_url(
                     edificio=espacio.edificio_id,
@@ -819,7 +819,7 @@ def ubicacion_delete(request, pk):
         edificio_id = ubicacion.edificio_id
         sector_id = ubicacion.zona_id
         ubicacion.delete()
-        messages.success(request, "Espacio fisico eliminado correctamente.")
+        messages.success(request, "Espacio fisico eliminado.")
         return redirect(_mapa_sedes_url(edificio=edificio_id, sector=sector_id))
     return render(request, "ubicacion/confirm_delete.html", {"object": ubicacion})
 
@@ -865,7 +865,7 @@ def categoriaequipo_create(request):
         form = CategoriaEquipoForm(request.POST)
         if form.is_valid():
             form.save()
-            messages.success(request, "Categoria creada correctamente.")
+            messages.success(request, "Categoria creada.")
             return redirect("categoriaequipo_list")
     else:
         initial = {}
@@ -882,7 +882,7 @@ def categoriaequipo_update(request, pk):
         form = CategoriaEquipoForm(request.POST, instance=categoria)
         if form.is_valid():
             form.save()
-            messages.success(request, "Categoria actualizada correctamente.")
+            messages.success(request, "Categoria actualizada.")
             return redirect("categoriaequipo_list")
     else:
         form = CategoriaEquipoForm(instance=categoria)
@@ -943,7 +943,7 @@ def categoriaequipo_delete(request, pk):
             )
             return redirect("categoriaequipo_delete", pk=pk)
 
-        messages.success(request, f'Categoria "{nombre}" eliminada correctamente.')
+        messages.success(request, f'Categoria "{nombre}" eliminada.')
         return redirect("categoriaequipo_list")
 
     return render(

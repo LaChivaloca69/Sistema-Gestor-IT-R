@@ -3,7 +3,7 @@
 {% block title %}Mis equipos{% endblock %}
 
 {% block content %}
-{% include "partials/page_header_open.html" with title="Mis equipos" description="Maquinas asignadas a tu usuario y los perifericos de cada kit." %}
+{% include "partials/page_header_open.html" with title="Mis equipos" description="Equipos asignados a ti." %}
 	{% if asignaciones %}
 		<a class="btn btn-outline-secondary" href="{% url 'solicitud_equipo_create' %}">Solicitar equipo</a>
 		<a class="btn btn-primary" href="{% url 'ticketit_create' %}">Solicitar mantenimiento (ticket)</a>

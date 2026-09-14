@@ -198,7 +198,7 @@ def ticketit_detail(request, pk):
                 enlace_pk=ticket.pk,
                 metadata={"ticket_id": ticket.pk},
             )
-            messages.success(request, "Seguimiento registrado correctamente.")
+            messages.success(request, "Seguimiento registrado.")
             return redirect("ticketit_detail", pk=ticket.pk)
 
     if can_add_seguimiento and seguimiento_form is None:
@@ -298,23 +298,28 @@ def ticketit_comentario_delete(request, pk, comentario_id):
     if not user_can_view_ticket(request.user, ticket):
         return _deny_ticket_access(request)
     comentario = get_object_or_404(ComentarioTicket, pk=comentario_id, ticket=ticket)
-    if request.method != "POST":
-        return redirect("ticketit_detail", pk=ticket.pk)
     if not user_can_delete_comentario(request.user, comentario):
         messages.error(request, "No puedes eliminar este comentario.")
         return redirect("ticketit_detail", pk=ticket.pk)
 
-    historial.registrar_eliminacion(
+    if request.method == "POST":
+        historial.registrar_eliminacion(
+            request,
+            modulo=ModuloHistorial.TICKET,
+            titulo=f"Comentario eliminado en {ticket.folio_ticket}",
+            objeto=comentario,
+            entidad_relacionada=ticket,
+            descripcion=(comentario.mensaje or "")[:400],
+        )
+        comentario.delete()
+        messages.success(request, "Comentario eliminado.")
+        return redirect("ticketit_detail", pk=ticket.pk)
+
+    return render(
         request,
-        modulo=ModuloHistorial.TICKET,
-        titulo=f"Comentario eliminado en {ticket.folio_ticket}",
-        objeto=comentario,
-        entidad_relacionada=ticket,
-        descripcion=(comentario.mensaje or "")[:400],
+        "ticketit/comentario_confirm_delete.html",
+        {"object": comentario, "ticket": ticket},
     )
-    comentario.delete()
-    messages.success(request, "Comentario eliminado.")
-    return redirect("ticketit_detail", pk=ticket.pk)
 
 
 def ticketit_create(request):
@@ -347,7 +352,7 @@ def ticketit_create(request):
                 enlace_nombre="ticketit_detail",
                 metadata={"estado": ticket.status, "prioridad": ticket.prioridad},
             )
-            messages.success(request, "Support creado correctamente.")
+            messages.success(request, "Ticket creado.")
             return redirect("ticketit_detail", pk=ticket.pk)
     else:
         initial = {}
@@ -397,7 +402,7 @@ def ticketit_update(request, pk):
                 form=form,
                 enlace_nombre="ticketit_detail",
             )
-            messages.success(request, "Support actualizado correctamente.")
+            messages.success(request, "Ticket actualizado.")
             return redirect("ticketit_detail", pk=ticket.pk)
     else:
         form = TicketITForm(instance=ticket, request_user=request.user)
@@ -437,7 +442,7 @@ def ticketit_delete(request, pk):
             nivel=NivelHistorial.CRITICO,
         )
         ticket.delete()
-        messages.success(request, "Support eliminado correctamente.")
+        messages.success(request, "Ticket eliminado.")
         return redirect("ticketit_list")
     return render(
         request,
@@ -645,7 +650,7 @@ def seguimientoticket_create(request):
                 enlace_pk=seguimiento.ticket_id,
                 metadata={"ticket_id": seguimiento.ticket_id},
             )
-            messages.success(request, "Check creado correctamente.")
+            messages.success(request, "Check creado.")
             if seguimiento.ticket_id:
                 return redirect("ticketit_detail", pk=seguimiento.ticket_id)
             return redirect("seguimientoticket_list")
@@ -680,7 +685,7 @@ def seguimientoticket_update(request, pk):
                 enlace_nombre="ticketit_detail",
                 enlace_pk=seguimiento.ticket_id,
             )
-            messages.success(request, "Check actualizado correctamente.")
+            messages.success(request, "Check actualizado.")
             if seguimiento.ticket_id:
                 return redirect("ticketit_detail", pk=seguimiento.ticket_id)
             return redirect("seguimientoticket_list")
@@ -704,7 +709,7 @@ def seguimientoticket_delete(request, pk):
         )
         ticket_pk = seguimiento.ticket_id
         seguimiento.delete()
-        messages.success(request, "Check eliminado correctamente.")
+        messages.success(request, "Check eliminado.")
         if ticket_pk and request.GET.get("next") == "ticket":
             return redirect("ticketit_detail", pk=ticket_pk)
         return redirect("seguimientoticket_list")
@@ -763,7 +768,7 @@ def bitacora_detail(request, pk):
                 enlace_nombre="bitacora_detail",
                 enlace_pk=bitacora.pk,
             )
-            messages.success(request, "Respuesta registrada correctamente.")
+            messages.success(request, "Respuesta registrada.")
             return redirect("bitacora_detail", pk=bitacora.pk)
 
     if can_manage and answer_form is None:
@@ -797,7 +802,7 @@ def bitacora_create(request):
                 enlace_nombre="bitacora_detail",
                 enlace_pk=bitacora.pk,
             )
-            messages.success(request, "Bitacora creada correctamente.")
+            messages.success(request, "Bitacora creada.")
             return redirect("bitacora_detail", pk=bitacora.pk)
     else:
         form = BitacoraForm()
@@ -819,7 +824,7 @@ def bitacora_update(request, pk):
                 enlace_nombre="bitacora_detail",
                 enlace_pk=bitacora.pk,
             )
-            messages.success(request, "Bitacora actualizada correctamente.")
+            messages.success(request, "Bitacora actualizada.")
             return redirect("bitacora_detail", pk=bitacora.pk)
     else:
         form = BitacoraForm(instance=bitacora)
@@ -842,7 +847,7 @@ def bitacora_delete(request, pk):
             objeto=bitacora,
         )
         bitacora.delete()
-        messages.success(request, "Bitacora eliminada correctamente.")
+        messages.success(request, "Bitacora eliminada.")
         return redirect("bitacora_list")
     return render(request, "bitacora/confirm_delete.html", {"object": bitacora})
 
@@ -902,7 +907,7 @@ def answer_create(request):
                 enlace_nombre="bitacora_detail",
                 enlace_pk=answer.bitacora_id,
             )
-            messages.success(request, "Respuesta creada correctamente.")
+            messages.success(request, "Respuesta creada.")
             if answer.bitacora_id:
                 return redirect("bitacora_detail", pk=answer.bitacora_id)
             return redirect("answer_list")
@@ -936,7 +941,7 @@ def answer_update(request, pk):
                 enlace_nombre="bitacora_detail",
                 enlace_pk=answer.bitacora_id,
             )
-            messages.success(request, "Respuesta actualizada correctamente.")
+            messages.success(request, "Respuesta actualizada.")
             if answer.bitacora_id:
                 return redirect("bitacora_detail", pk=answer.bitacora_id)
             return redirect("answer_list")
@@ -964,7 +969,7 @@ def answer_delete(request, pk):
             objeto=answer,
         )
         answer.delete()
-        messages.success(request, "Respuesta eliminada correctamente.")
+        messages.success(request, "Respuesta eliminada.")
         if bitacora_pk and request.GET.get("next") == "bitacora":
             return redirect("bitacora_detail", pk=bitacora_pk)
         return redirect("answer_list")

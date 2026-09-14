@@ -3,7 +3,7 @@
 {% block title %}Historial de actividad{% endblock %}
 
 {% block content %}
-{% include "partials/page_header_open.html" with title="Historial de actividad" description="Caja negra filtrable: quien hizo que, en que modulo y cuando." %}
+{% include "partials/page_header_open.html" with title="Historial de actividad" description="Registro de actividad del sistema." %}
 	<a class="btn btn-outline-secondary" href="{% url 'movimientoequipo_registros' %}">Movimientos de equipo</a>
 	{% if is_admin_role %}
 	<a class="btn btn-outline-secondary" href="{% url 'historial_retencion_admin' %}">Archivar historial</a>
@@ -80,7 +80,7 @@
 	</div>
 	<div class="filters-actions">
 		<button class="btn btn-primary" type="submit">Filtrar</button>
-		<a class="btn btn-outline-secondary" href="{% url 'movimientoequipo_list' %}">Limpiar</a>
+		<a class="btn btn-outline-secondary" href="{% url 'historial_actividad_list' %}">Limpiar</a>
 	</div>
 </form>
 

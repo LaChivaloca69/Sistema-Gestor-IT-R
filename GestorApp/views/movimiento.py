@@ -106,7 +106,7 @@ def _export_movimientos_csv(queryset):
     return response
 
 
-def movimientoequipo_list(request):
+def historial_actividad_list(request):
     """Auditoria / historial general de actividad (filtrable)."""
     items = HistorialActividad.objects.select_related("usuario").order_by("-fecha", "-pk")
     selected_modulo = request.GET.get("modulo", "")
@@ -182,7 +182,7 @@ def movimientoequipo_list(request):
         "fecha_desde": request.GET.get("fecha_desde", ""),
         "fecha_hasta": request.GET.get("fecha_hasta", ""),
     }
-    return render(request, "movimientoequipo/list.html", context)
+    return render(request, "historial/list.html", context)
 
 
 def historial_actividad_detail(request, pk):

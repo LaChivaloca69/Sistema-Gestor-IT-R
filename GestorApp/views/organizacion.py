@@ -54,7 +54,7 @@ def area_create(request):
         form = AreaForm(request.POST)
         if form.is_valid():
             form.save()
-            messages.success(request, "Area creada correctamente.")
+            messages.success(request, "Departamento creado.")
             return redirect("area_list")
     else:
         form = AreaForm()
@@ -66,7 +66,7 @@ def area_update(request, pk):
         form = AreaForm(request.POST, instance=area)
         if form.is_valid():
             form.save()
-            messages.success(request, "Area actualizada correctamente.")
+            messages.success(request, "Departamento actualizado.")
             return redirect("area_list")
     else:
         form = AreaForm(instance=area)
@@ -76,7 +76,7 @@ def area_delete(request, pk):
     area = get_object_or_404(Area, pk=pk)
     if request.method == "POST":
         area.delete()
-        messages.success(request, "Area eliminada correctamente.")
+        messages.success(request, "Departamento eliminado.")
         return redirect("area_list")
     return render(request, "area/confirm_delete.html", {"object": area})
 
@@ -90,7 +90,7 @@ def puesto_create(request):
         form = PuestoForm(request.POST)
         if form.is_valid():
             form.save()
-            messages.success(request, "Puesto creado correctamente.")
+            messages.success(request, "Puesto creado.")
             return redirect("puesto_list")
     else:
         form = PuestoForm()
@@ -103,7 +103,7 @@ def puesto_update(request, pk):
         form = PuestoForm(request.POST, instance=puesto)
         if form.is_valid():
             form.save()
-            messages.success(request, "Puesto actualizado correctamente.")
+            messages.success(request, "Puesto actualizado.")
             return redirect("puesto_list")
     else:
         form = PuestoForm(instance=puesto)
@@ -114,7 +114,7 @@ def puesto_delete(request, pk):
     puesto = get_object_or_404(Puesto, pk=pk)
     if request.method == "POST":
         puesto.delete()
-        messages.success(request, "Puesto eliminado correctamente.")
+        messages.success(request, "Puesto eliminado.")
         return redirect("puesto_list")
     return render(request, "puesto/confirm_delete.html", {"object": puesto})
 
@@ -340,7 +340,7 @@ def personal_create(request):
                 objeto=personal,
                 enlace_nombre="personal_update",
             )
-            messages.success(request, "Personal creado correctamente.")
+            messages.success(request, "Personal creado.")
             return redirect("personal_list")
     else:
         form = PersonalForm(request_user=request.user)
@@ -372,7 +372,7 @@ def personal_update(request, pk):
                 form=form,
                 enlace_nombre="personal_update",
             )
-            messages.success(request, "Personal actualizado correctamente.")
+            messages.success(request, "Personal actualizado.")
             if equipos_actualizados:
                 messages.info(
                     request,
@@ -436,7 +436,7 @@ def personal_delete(request, pk):
                 nivel=NivelHistorial.CRITICO,
             )
             personal.delete()
-        messages.success(request, "Personal eliminado correctamente.")
+        messages.success(request, "Personal eliminado.")
         return redirect("personal_list")
     return render(request, "personal/confirm_delete.html", {"object": personal})
 
@@ -480,7 +480,7 @@ def proveedor_create(request):
         form = ProveedorForm(request.POST)
         if form.is_valid():
             form.save()
-            messages.success(request, "Proveedor creado correctamente.")
+            messages.success(request, "Proveedor creado.")
             return redirect("proveedor_list")
     else:
         form = ProveedorForm()
@@ -493,7 +493,7 @@ def proveedor_update(request, pk):
         form = ProveedorForm(request.POST, instance=proveedor)
         if form.is_valid():
             form.save()
-            messages.success(request, "Proveedor actualizado correctamente.")
+            messages.success(request, "Proveedor actualizado.")
             return redirect("proveedor_list")
     else:
         form = ProveedorForm(instance=proveedor)
@@ -504,7 +504,7 @@ def proveedor_delete(request, pk):
     proveedor = get_object_or_404(Proveedor, pk=pk)
     if request.method == "POST":
         proveedor.delete()
-        messages.success(request, "Proveedor eliminado correctamente.")
+        messages.success(request, "Proveedor eliminado.")
         return redirect("proveedor_list")
     return render(request, "proveedor/confirm_delete.html", {"object": proveedor})
 

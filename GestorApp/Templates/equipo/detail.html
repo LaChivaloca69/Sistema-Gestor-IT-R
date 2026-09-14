@@ -44,8 +44,7 @@
 	Este periferico forma parte del kit de
 	<a href="{% url 'equipo_detail' object.equipo_padre_id %}">{{ object.equipo_padre.codigo_inventario }}</a>.
 	{% elif mostrar_asignacion %}
-	<strong>Disponible / Asignado</strong> se sincronizan con la asignacion activa.
-	<strong>En Mantenimiento</strong> y <strong>Baja</strong> prevalecen sobre la asignacion.
+	Estado segun asignacion y mantenimiento.
 	{% elif inv.tipo == "Herramienta" %}
 	Las herramientas se inventarian por ubicacion y estado; no se asignan a personal.
 	{% endif %}

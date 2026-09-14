@@ -5,7 +5,7 @@
 
 {% block content %}
 {% if object %}
-{% include "partials/page_header_open.html" with title="Editar categoria" description="Define nombre, tipo de inventario y estado. Si ya hay historial, desactiva en lugar de eliminar." %}
+{% include "partials/page_header_open.html" with title="Editar categoria" %}
 	{% if object.activo %}
 	<form method="post" action="{% url 'categoriaequipo_toggle_activo' object.pk %}" class="d-inline">
 		{% csrf_token %}
@@ -21,7 +21,7 @@
 	<a class="btn btn-outline-danger" href="{% url 'categoriaequipo_delete' object.pk %}">Eliminar</a>
 	{% endif %}
 {% else %}
-{% include "partials/page_header_open.html" with title="Nueva categoria" description="Define nombre, tipo de inventario y estado." %}
+{% include "partials/page_header_open.html" with title="Nueva categoria" %}
 {% endif %}
 	<a class="btn btn-outline-secondary" href="{% url 'categoriaequipo_list' %}">Volver</a>
 {% include "partials/page_header_close.html" %}

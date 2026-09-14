@@ -160,9 +160,9 @@ class TicketITForm(forms.ModelForm):
             if "area" in self.fields:
                 self.fields["area"].help_text = ""
             if "puesto" in self.fields:
-                self.fields["puesto"].help_text = "Favor de comprobar que el puesto sea correcto."
+                self.fields["puesto"].help_text = ""
             if "tipo_equipo" in self.fields:
-                self.fields["tipo_equipo"].help_text = "Favor de comprobar que el tipo de equipo sea correcto."
+                self.fields["tipo_equipo"].help_text = ""
 
     def clean_imagen(self):
         from ..media_security import validate_image_upload

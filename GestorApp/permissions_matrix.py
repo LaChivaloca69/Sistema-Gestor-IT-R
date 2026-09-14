@@ -147,7 +147,7 @@ PERMISSION_MATRIX = [
         False,
         False,
         True,
-        "Documentacion de quien puede que.",
+        "Resumen de permisos por rol.",
     ),
     (
         "Admin",
@@ -155,7 +155,7 @@ PERMISSION_MATRIX = [
         False,
         False,
         True,
-        "Documentacion de tiempos y estados de tickets. No modifica nada.",
+        "Tiempos y estados de tickets.",
     ),
     (
         "Admin",

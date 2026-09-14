@@ -428,7 +428,7 @@ class AuditoriaHistorialTests(TestCase):
 
     def test_auditoria_list_filters_by_user_and_module(self):
         self.client.login(username="audit_admin", password=self.password)
-        url = reverse("movimientoequipo_list")
+        url = reverse("historial_actividad_list")
 
         resp = self.client.get(url, {"usuario": str(self.other.pk), "modulo": "ticket"})
         self.assertEqual(resp.status_code, 200)
@@ -456,7 +456,7 @@ class AuditoriaHistorialTests(TestCase):
             enlace_pk=1,
         )
         self.client.login(username="audit_admin", password=self.password)
-        resp = self.client.get(reverse("movimientoequipo_list"))
+        resp = self.client.get(reverse("historial_actividad_list"))
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Cobertura: suplente cubre a ausente")
         self.assertContains(resp, reverse("cobertura_list"))
@@ -933,7 +933,7 @@ class TicketComentarioTests(TestCase):
 
         self.client.login(username="cmt_user", password=self.password)
         detail = self.client.get(reverse("ticketit_detail", args=[self.ticket.pk]))
-        self.assertContains(detail, "El ticket esta cerrado")
+        self.assertContains(detail, "Ticket cerrado.")
         self.assertNotContains(detail, "Publicar")
 
         response = self.client.post(self._create_url(), {"mensaje": "Sigue fallando"})
@@ -960,9 +960,14 @@ class TicketComentarioTests(TestCase):
             mensaje="Borrar esto",
         )
         self.client.login(username="cmt_user", password=self.password)
-        response = self.client.post(
-            reverse("ticketit_comentario_delete", args=[self.ticket.pk, comentario.pk])
+        delete_url = reverse(
+            "ticketit_comentario_delete", args=[self.ticket.pk, comentario.pk]
         )
+        confirm = self.client.get(delete_url)
+        self.assertEqual(confirm.status_code, 200)
+        self.assertTemplateUsed(confirm, "ticketit/comentario_confirm_delete.html")
+        self.assertContains(confirm, "Borrar esto")
+        response = self.client.post(delete_url)
         self.assertEqual(response.status_code, 302)
         self.assertFalse(ComentarioTicket.objects.filter(pk=comentario.pk).exists())
 
@@ -973,9 +978,13 @@ class TicketComentarioTests(TestCase):
             mensaje="No borrar",
         )
         self.client.login(username="cmt_otro", password=self.password)
-        response = self.client.post(
-            reverse("ticketit_comentario_delete", args=[self.ticket.pk, comentario.pk])
+        delete_url = reverse(
+            "ticketit_comentario_delete", args=[self.ticket.pk, comentario.pk]
         )
+        confirm = self.client.get(delete_url)
+        self.assertEqual(confirm.status_code, 302)
+        self.assertTrue(ComentarioTicket.objects.filter(pk=comentario.pk).exists())
+        response = self.client.post(delete_url)
         self.assertEqual(response.status_code, 302)
         self.assertTrue(ComentarioTicket.objects.filter(pk=comentario.pk).exists())
 
@@ -1188,13 +1197,13 @@ class SlaGuiaAdminTests(TestCase):
         self.assertContains(response, "4 h")
         self.assertContains(response, "168")
         self.assertContains(response, "Por vencer")
-        self.assertContains(response, "Esta pantalla solo documenta")
+        self.assertContains(response, "Los tiempos se definen en la configuracion del sistema.")
         self.assertNotContains(response, "SLA_HORAS_POR_PRIORIDAD")
 
     def test_tecnico_no_entra(self):
         self.client.login(username="sla_tech", password=self.password)
         response = self.client.get(reverse("sla_guia"))
-        self.assertNotEqual(response.status_code, 200)
+        self.assertRedirects(response, reverse("home"))
 
 
 class TicketSelectorProblemaTests(TestCase):
@@ -1448,12 +1457,12 @@ class SecurityAndUIFixesTests(TestCase):
         # Usuario normal no puede acceder a delete
         self.client.login(username="sec_user", password=self.password)
         res_user = self.client.get(reverse("ticketit_delete", args=[self.ticket.pk]))
-        self.assertNotEqual(res_user.status_code, 200)
+        self.assertRedirects(res_user, reverse("home"))
 
         # Técnico tampoco puede acceder a delete
         self.client.login(username="sec_tech", password=self.password)
         res_tech = self.client.get(reverse("ticketit_delete", args=[self.ticket.pk]))
-        self.assertNotEqual(res_tech.status_code, 200)
+        self.assertRedirects(res_tech, reverse("home"))
 
         # Admin sí puede acceder
         self.client.login(username="sec_admin", password=self.password)
@@ -1469,8 +1478,10 @@ class SecurityAndUIFixesTests(TestCase):
 
         # Usuario normal no entra
         self.client.login(username="sec_user", password=self.password)
-        self.assertNotEqual(self.client.get(reverse("permisos_matriz")).status_code, 200)
-        self.assertNotEqual(self.client.get(reverse("sla_guia")).status_code, 200)
+        self.assertRedirects(
+            self.client.get(reverse("permisos_matriz")), reverse("home")
+        )
+        self.assertRedirects(self.client.get(reverse("sla_guia")), reverse("home"))
 
     def test_punto_7_solicitud_detail_form_action_uses_revisar_endpoint(self):
         cat = CategoriaEquipo.objects.create(nombre_categoria="Laptop Sec")

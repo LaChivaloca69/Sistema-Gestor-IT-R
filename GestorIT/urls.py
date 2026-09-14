@@ -7,6 +7,7 @@ from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.contrib.auth.decorators import login_required
 from django.urls import path
+from django.views.generic import RedirectView
 
 from GestorApp import views
 from GestorApp import gobierno_views
@@ -253,12 +254,21 @@ urlpatterns = [
         name='producto_consumible_movimiento',
     ),
 
-    # ------------- Movimiento de equipos Urls -------------
-    path('MovimientoEquipos/', views.operativo_required(views.movimientoequipo_list), name='movimientoequipo_list'),
+    # ------------- Historial / auditoria + movimientos de equipo -------------
+    path(
+        'Auditoria/',
+        views.operativo_required(views.historial_actividad_list),
+        name='historial_actividad_list',
+    ),
     path(
         'Auditoria/<int:pk>/',
         views.operativo_required(views.historial_actividad_detail),
         name='historial_actividad_detail',
+    ),
+    # URL antigua: redirige al listado de auditoria.
+    path(
+        'MovimientoEquipos/',
+        RedirectView.as_view(pattern_name='historial_actividad_list', permanent=False, query_string=True),
     ),
     path('MovimientoEquipos/registros/', views.operativo_required(views.movimientoequipo_registros), name='movimientoequipo_registros'),
     path('MovimientoEquipos/create/', views.operativo_required(views.movimientoequipo_create), name='movimientoequipo_create'),

@@ -5,9 +5,9 @@
 
 {% block content %}
 {% if object %}
-{% include "partials/page_header_open.html" with title="Editar cierre" description="Registra acciones y fechas. Al guardar, el mantenimiento pasa a Completado y el equipo se restaura." %}
+{% include "partials/page_header_open.html" with title="Editar cierre" description="Acciones realizadas y fechas del cierre." %}
 {% else %}
-{% include "partials/page_header_open.html" with title="Cerrar mantenimiento" description="Registra acciones y fechas. Al guardar, el mantenimiento pasa a Completado y el equipo se restaura." %}
+{% include "partials/page_header_open.html" with title="Cerrar mantenimiento" description="Acciones realizadas y fechas del cierre." %}
 {% endif %}
 	{% if mantenimiento %}
 		<a class="btn btn-outline-primary" href="{% url 'mantenimiento_detail' mantenimiento.pk %}">Ver mantenimiento</a>

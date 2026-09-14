@@ -41,7 +41,6 @@ class MovimientoEquipoForm(forms.ModelForm):
         }
         help_texts = {
             "responsable": "Responsable actual del equipo.",
-            "observaciones": "Opcional. Puedes agregar comentarios sobre el movimiento.",
             "tipo_movimiento": (
                 "Preferible usar las acciones del detalle del equipo "
                 "(asignar, devolver, ubicacion, baja). Este registro es solo auditoria."

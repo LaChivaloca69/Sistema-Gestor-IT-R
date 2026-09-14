@@ -3,7 +3,7 @@
 {% block title %}Asignaciones de equipo{% endblock %}
 
 {% block content %}
-{% include "partials/page_header_open.html" with title="Asignaciones de equipo" description="Una fila por maquina principal. Los perifericos se ven en el kit del equipo." %}
+{% include "partials/page_header_open.html" with title="Asignaciones de equipo" description="Asignaciones activas y historial." %}
 	{% if sueltas_count %}
 	<a class="btn btn-outline-warning" href="{% url 'asignacion_kit_migracion' %}">Migrar kit ({{ sueltas_count }})</a>
 	{% endif %}

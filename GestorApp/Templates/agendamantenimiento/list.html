@@ -3,7 +3,7 @@
 {% block title %}Cierres de mantenimiento{% endblock %}
 
 {% block content %}
-{% include "partials/page_header_open.html" with title="Cierres de mantenimiento" description="Registro de acciones realizadas, fechas y proximo ciclo. No es una agenda de recordatorios." %}
+{% include "partials/page_header_open.html" with title="Cierres de mantenimiento" description="Acciones, fechas y proximo ciclo." %}
 	<a class="btn btn-outline-secondary" href="{% url 'mantenimiento_list' %}">Mantenimientos</a>
 	<a class="btn btn-primary" href="{% url 'agendamantenimiento_create' %}">Registrar cierre</a>
 {% include "partials/page_header_close.html" %}

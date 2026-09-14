@@ -246,7 +246,7 @@ def asignacionequipo_create(request):
                     responsable=personal or _get_equipo_responsable(equipo),
                     request=request,
                 )
-            messages.success(request, "Asignacion creada correctamente.")
+            messages.success(request, "Asignacion creada.")
             if equipo:
                 return redirect("equipo_detail", pk=equipo.pk)
             return redirect("asignacionequipo_list")
@@ -342,7 +342,7 @@ def asignacionequipo_update(request, pk):
                     responsable=asignacion.personal,
                     request=request,
                 )
-            messages.success(request, "Asignacion actualizada correctamente.")
+            messages.success(request, "Asignacion actualizada.")
             return redirect("equipo_detail", pk=asignacion.equipo_id)
     else:
         form = AsignacionEquipoForm(instance=asignacion)
@@ -371,7 +371,7 @@ def asignacionequipo_delete(request, pk):
                 _liberar_equipo_tras_devolucion(equipo, request=request)
             else:
                 _sync_perifericos_con_padre(equipo, request=request)
-        messages.success(request, "Asignacion eliminada correctamente.")
+        messages.success(request, "Asignacion eliminada.")
         if equipo:
             return redirect("equipo_detail", pk=equipo.pk)
         return redirect("asignacionequipo_list")

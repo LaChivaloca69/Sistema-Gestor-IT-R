@@ -5,9 +5,9 @@
 
 {% block content %}
 {% if object %}
-{% include "partials/page_header_open.html" with title="Editar espacio fisico" description="Captura la informacion principal del espacio." %}
+{% include "partials/page_header_open.html" with title="Editar espacio fisico" %}
 {% else %}
-{% include "partials/page_header_open.html" with title="Nuevo espacio fisico" description="Captura la informacion principal del espacio." %}
+{% include "partials/page_header_open.html" with title="Nuevo espacio fisico" %}
 {% endif %}
 	<a class="btn btn-outline-secondary" href="{% url 'mapa_sedes' %}">Volver</a>
 {% include "partials/page_header_close.html" %}

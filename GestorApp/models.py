@@ -702,7 +702,7 @@ class PrioridadSupport(models.TextChoices):
     URGENTE = "Urgente", "Urgente"
 
 
-# Horas calendario para respuesta/atencion segun prioridad (aviso en panel, sin email).
+# Horas calendario para respuesta/atencion segun prioridad (aviso en panel).
 SLA_HORAS_POR_PRIORIDAD = {
     PrioridadSupport.URGENTE: 4,
     PrioridadSupport.ALTA: 24,

@@ -153,6 +153,6 @@ def sla_guide_for_template():
             "No usa horario laboral ni pausas.",
             "Un comentario no mueve el SLA.",
             "Un check (seguimiento) no reinicia el reloj: sigue contando desde la creacion.",
-            "Esta pantalla solo documenta el comportamiento actual; no modifica tiempos.",
+            "Los tiempos se definen en la configuracion del sistema.",
         ],
     }
