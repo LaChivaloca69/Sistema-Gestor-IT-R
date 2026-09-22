@@ -110,3 +110,4 @@ from .home import (  # noqa: F401
 )
 from .consumibles import *  # noqa: F401,F403
 from .consumibles import _consumibles_alerta_context  # noqa: F401
+from .media import serve_protected_media  # noqa: F401

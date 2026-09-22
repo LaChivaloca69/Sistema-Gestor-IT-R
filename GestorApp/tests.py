@@ -1,4 +1,6 @@
 from datetime import date, timedelta
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
@@ -509,6 +511,36 @@ class MediaHardeningTests(TestCase):
         with override_settings(MEDIA_UPLOAD={"image_max_bytes": 50}):
             with self.assertRaises(ValidationError):
                 validate_image_upload(uploaded)
+
+
+class ProtectedMediaServeTests(TestCase):
+    def test_media_requiere_login_y_no_sale_de_media_root(self):
+        from GestorApp.views.media import resolve_media_file
+
+        user = User.objects.create_user(username="mediauser", password="StrongPass123!")
+        with TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            media_root = Path(tmp)
+            (media_root / "equipos").mkdir()
+            sample = media_root / "equipos" / "demo.png"
+            sample.write_bytes(
+                b"\x89PNG\r\n\x1a\n"
+                b"\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde"
+                b"\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82"
+            )
+            with override_settings(MEDIA_ROOT=str(media_root)):
+                anon = self.client.get("/media/equipos/demo.png")
+                self.assertEqual(anon.status_code, 302)
+                self.assertIn("/login/", anon.url)
+
+                self.client.force_login(user)
+                missing = self.client.get("/media/equipos/no-existe.png")
+                self.assertEqual(missing.status_code, 404)
+
+                found = resolve_media_file("equipos/demo.png")
+                self.assertIsNotNone(found)
+                self.assertTrue(found.is_file())
+                self.assertIsNone(resolve_media_file("equipos/../../demo.png"))
+                self.assertIsNone(resolve_media_file("equipos/no-existe.png"))
 
 
 class TicketCreateEquipoChoicesTests(TestCase):

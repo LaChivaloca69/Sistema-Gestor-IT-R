@@ -10,22 +10,64 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+import os
 from pathlib import Path
+
+from django.core.exceptions import ImproperlyConfigured
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR / ".env")
+
+
+def _env(name, default=""):
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value
+
+
+def _env_bool(name, default=False):
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_list(name):
+    raw = os.environ.get(name, "")
+    return [item.strip() for item in raw.split(",") if item.strip()]
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
+# En C:\GestorIT copia .env.example a .env y rellena valores. NSSM no hace falta
+# que repita las variables: Django las lee del .env al arrancar.
+# Sin .env (desarrollo en Cursor) quedan los valores de abajo.
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-3llh5tla!(gfx$b=cw4*wpd@z29#(i1f0x1&!e2n+7joxetub)'
+SECRET_KEY = _env(
+    "DJANGO_SECRET_KEY",
+    "django-insecure-3llh5tla!(gfx$b=cw4*wpd@z29#(i1f0x1&!e2n+7joxetub)",
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# Produccion: DJANGO_DEBUG=0
+DEBUG = _env_bool("DJANGO_DEBUG", True)
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = _env_list("DJANGO_ALLOWED_HOSTS")
+CSRF_TRUSTED_ORIGINS = _env_list("DJANGO_CSRF_TRUSTED_ORIGINS")
+
+if not DEBUG:
+    if (not SECRET_KEY) or SECRET_KEY.startswith("django-insecure"):
+        raise ImproperlyConfigured(
+            "Con DJANGO_DEBUG=0 define DJANGO_SECRET_KEY en el archivo .env (no uses la del repositorio)."
+        )
+    if not ALLOWED_HOSTS:
+        raise ImproperlyConfigured(
+            "Con DJANGO_DEBUG=0 define DJANGO_ALLOWED_HOSTS en el archivo .env (TIJITENG, IP, localhost)."
+        )
 
 
 # Application definition
@@ -44,6 +86,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -80,15 +123,15 @@ WSGI_APPLICATION = 'GestorIT.wsgi.application'
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
 
-# Usuario y contraseña de la base de datos PostgreSQL. Cambiar para mayor seguridad.
+# Usuario y contraseña de PostgreSQL. En produccion definir DB_* en NSSM.
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'GestorIT',
-        'USER': 'Admin',
-        'PASSWORD': '12345678',
-        'HOST': 'localhost',
-        'PORT': '5432',
+        'NAME': _env('DB_NAME', 'GestorIT'),
+        'USER': _env('DB_USER', 'Admin'),
+        'PASSWORD': _env('DB_PASSWORD', '12345678'),
+        'HOST': _env('DB_HOST', 'localhost'),
+        'PORT': _env('DB_PORT', '5432'),
     }
 }
 
@@ -127,11 +170,36 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+try:
+    STATIC_ROOT.mkdir(exist_ok=True)
+except OSError:
+    pass
 
-MEDIA_URL = 'media/'
+MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+try:
+    MEDIA_ROOT.mkdir(exist_ok=True)
+except OSError:
+    pass
+
+# WhiteNoise sirve CSS/JS con DEBUG=False (Waitress no los entrega solo).
+WHITENOISE_USE_FINDERS = DEBUG
+WHITENOISE_AUTOREFRESH = DEBUG
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": (
+            "whitenoise.storage.CompressedStaticFilesStorage"
+            if not DEBUG
+            else "django.contrib.staticfiles.storage.StaticFilesStorage"
+        ),
+    },
+}
 
 # Limites y reglas de subida (imagenes, PDF, plantillas).
 MEDIA_UPLOAD = {
@@ -205,3 +273,32 @@ SIGNUP_ENABLED = False
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'home'
 LOGOUT_REDIRECT_URL = 'home'
+
+LOG_DIR = BASE_DIR / 'logs'
+try:
+    LOG_DIR.mkdir(exist_ok=True)
+except OSError:
+    LOG_DIR = BASE_DIR
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'simple': {
+            'format': '{levelname} {asctime} {name} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'file': {
+            'class': 'logging.FileHandler',
+            'filename': str(LOG_DIR / 'django.log'),
+            'encoding': 'utf-8',
+            'formatter': 'simple',
+        },
+    },
+    'root': {
+        'handlers': ['file'],
+        'level': 'INFO',
+    },
+}

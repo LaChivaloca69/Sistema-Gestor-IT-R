@@ -9,6 +9,7 @@ Esta carpeta contiene la documentacion del proyecto en formato Markdown. Al fina
 | Carpeta | Contenido | Publico |
 |---------|-----------|---------|
 | `negocio/` | Manual de negocio y uso | Usuarios, tecnicos de piso, administradores funcionales |
+| `guia_usuario/` | Guia de uso de la pantalla (los tres roles) | Empleado, Tecnico IT y Administrador |
 | `tecnico/` | Manual tecnico (nivel A: mapa, archivos clave y flujos) | Quien mantiene o modifica el sistema |
 
 ## Estado
@@ -17,7 +18,8 @@ Esta carpeta contiene la documentacion del proyecto en formato Markdown. Al fina
 |-------|--------|
 | Manual de negocio (`negocio/`) | Disponible (17 capitulos) |
 | Manual tecnico (`tecnico/`) | Disponible (indice + 16 capitulos) |
-| Documento Word | Pendiente (al cerrar revision de ambas partes) |
+| Guia de usuario | Disponible: `guia_usuario/` (Markdown) y `Guia_de_usuario_GestorIT.docx` |
+| Documento Word unificado | Pendiente (al cerrar revision de ambas partes) |
 | Red local | Pendiente (no documentado aun) |
 
 ## Como leer
@@ -29,6 +31,12 @@ Esta carpeta contiene la documentacion del proyecto en formato Markdown. Al fina
 3. Guia del rol correspondiente
 4. Procesos por dominio
 5. `negocio/15_casos_de_uso.md`
+
+### Guia de usuario
+
+1. `guia_usuario/01_indice.md`
+2. Capitulo del rol (tareas comunes, operacion de TI o gobierno)
+3. El mismo texto en Word: `Guia_de_usuario_GestorIT.docx`
 
 ### Tecnico
 
