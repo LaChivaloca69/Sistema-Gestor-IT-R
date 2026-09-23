@@ -12,12 +12,15 @@ Quien mantiene o modifica el sistema: desarrolladores, administradores tecnicos 
 
 No sustituye el manual de negocio (`documentacion/negocio/`).
 
+**Si aun no conoces bien el codigo:** empieza por [`00b_guia_orientacion_cambios.md`](00b_guia_orientacion_cambios.md) (como ubicar un cambio sin romper zonas delicadas). Luego vuelve a este indice.
+
 ---
 
 ## Contenido
 
 | Archivo | Tema |
 |---------|------|
+| `00b_guia_orientacion_cambios.md` | Orientacion para cambiar codigo (tabla “Quiero…”, checklist, zonas de riesgo) |
 | `01_arquitectura.md` | Capas, stack y flujo de una peticion |
 | `02_mapa_carpetas.md` | Estructura del repositorio y paquetes |
 | `03_roles_en_codigo.md` | Groups, helpers y decoradores |

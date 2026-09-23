@@ -1,0 +1,119 @@
+NOTAS DE ENTREGA — Sistema Gestor IT
+====================================
+Nota a fecha del 22/09/2026 
+
+1. Contexto
+--------------------
+La carpeta Sistema-Gestor-IT-R es una copia del repositorio:
+
+  https://github.com/LaChivaloca69/Sistema-Gestor-IT-R
+
+Sirve para consultar el codigo, la documentacion y, si aplica, ejecutar el
+sistema en el entorno local o de servidor de TI.
+
+
+2. Funcion de ramas y por que son 2
+--------------------------------------
+En GitHub se tienen 2 ramas a fecha de escritura de este programa:
+
+  A) main
+     - Rama principal / estable de referencia.
+     - Es la linea base del proyecto.
+
+  B) realease/ejecutable
+     - Rama de la version pensada para correrse / entregarse.
+     - Incluye documentacion de guia de usuario (Word y Markdown) y ajustes
+       asociados a esa entrega.
+     - Nombre en GitHub: realease/ejecutable
+       (Nota: Falla ortografica en la palabra Release*).
+
+Como ver en que rama esta esta copia (PowerShell, dentro de la carpeta):
+
+  git branch
+  git status
+
+Como actualizar esta copia desde GitHub:
+
+  git fetch origin
+  git checkout realease/ejecutable
+  git pull origin realease/ejecutable
+
+Si necesita volver a la principal:
+
+  git checkout main
+  git pull origin main
+
+Regla practica:
+  - Consultar y probar: use realease/ejecutable (o la rama que le indiquen).
+  - Cambios seguros: cree una rama nueva a partir de la que le indiquen,
+    no edite main a ciegas.
+  - Antes de tocar algo critico: haga una copia de la carpeta o un commit /
+    respaldo.
+
+
+3. Estado del Proyecto(IMPORTANTE)
+------------------------------------------
+El proyecto esta en modo DEBUG (desarrollo).
+
+Eso facilita ver errores en pantalla y probar, pero NO es adecuado como
+configuracion final de produccion si deseas dejarlo ponerlo en marcha en un servidor.
+
+Antes de dejarlo en uso real / red:
+
+  1. Leer con atencion el archivo README.md (raiz del proyecto).
+  2. Revisar la carpeta documentacion/ (ver seccion 4).
+  3. Quitar el modo debug (DJANGO_DEBUG=0 o equivalente en .env / settings,
+     segun lo indicado en el README y la guia de puesta en marcha).
+  4. Revisar secretos, base de datos, ALLOWED_HOSTS y usuarios.
+  5. Probar login y un flujo basico (ticket, equipo o lo que usen).
+
+Si algo falla o hacen cambios:
+  - Hagan una copia de la carpeta, o
+  - Actualicen / restauren desde el repositorio de GitHub,
+  - Corrijan el problema y vuelvan a quitar DEBUG si lo habian dejado activo.
+
+
+4. Consultas de informacion
+------------------------------
+Empiece siempre por:
+
+  README.md
+    - Que es el sistema, stack, instalacion, roles, como arrancar.
+
+  documentacion/README.md
+    - Indice de toda la documentacion.
+
+Luego, segun lo que necesite:
+
+  documentacion/guia_usuario/
+    - Como usar la pantalla (Usuario, Tecnico IT, Administrador).
+    - El mismo contenido en Word:
+      documentacion/Guia_de_usuario_GestorIT.docx
+
+  documentacion/negocio/
+    - Manual de negocio: procesos, roles, casos de uso, FAQ.
+
+  documentacion/tecnico/
+    - Manual tecnico: arquitectura, modulos, codigo.
+
+  documentacion/Guia_puesta_en_marcha_GestorIT.docx
+    - Puesta en marcha / instalacion y publicacion.
+
+Imagenes de la guia de usuario:
+  documentacion/guia_usuario_imagenes/
+
+
+5. Recomendaciones
+-----------------------------------------------
+- Leer (README, documentacion, codigo).
+- Ejecutar pruebas: preferible en copia o entorno de prueba.
+- No borrar migraciones, media de usuarios ni .env de produccion.
+
+6. Contacto / Repositorio
+-------------------------
+Gmail: antonioalvarado6937@gmail.com
+Repositorio: https://github.com/LaChivaloca69/Sistema-Gestor-IT-R
+Rama de esta entrega: realease/ejecutable
+Rama principal: main
+
+Fin de la nota.

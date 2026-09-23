@@ -71,5 +71,5 @@ El Usuario ve un subconjunto (autoservicio). El Tecnico IT ve la operacion. El A
 ## 1.5 Temas pendientes fuera de este manual
 
 - Compartir la aplicacion en la red local desde una PC (se documentara mas adelante).
-- Manual tecnico del codigo.
-- Documento Word unificado.
+
+El manual tecnico vive en `documentacion/tecnico/`. Este manual de negocio en Word: `documentacion/Manual_negocio_GestorIT.docx`.
