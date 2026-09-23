@@ -2,6 +2,8 @@
 
 from django import forms
 from django.contrib.auth import get_user_model
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from ..models import (
@@ -192,7 +194,7 @@ class PersonalForm(forms.ModelForm):
             else:
                 try:
                     validate_password(password1)
-                except forms.ValidationError as exc:
+                except ValidationError as exc:
                     self.add_error("password1", exc)
 
         if action == "assign" and existing_user:

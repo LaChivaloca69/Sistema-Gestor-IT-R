@@ -16,11 +16,17 @@ Esta carpeta contiene la documentacion del proyecto en formato Markdown. Al fina
 
 | Parte | Estado |
 |-------|--------|
-| Manual de negocio (`negocio/`) | Disponible (17 capitulos) |
-| Manual tecnico (`tecnico/`) | Disponible (indice + 16 capitulos) |
+| Manual de negocio (`negocio/`) | Disponible (17 capitulos) + Word: `Manual_negocio_GestorIT.docx` |
+| Manual tecnico (`tecnico/`) | Disponible (indice + guia + 16 capitulos) + Word: `Manual_tecnico_GestorIT.docx` |
 | Guia de usuario | Disponible: `guia_usuario/` (Markdown) y `Guia_de_usuario_GestorIT.docx` |
-| Documento Word unificado | Pendiente (al cerrar revision de ambas partes) |
 | Red local | Pendiente (no documentado aun) |
+
+Para regenerar los Word de negocio y tecnico desde los Markdown::
+
+```text
+python documentacion/build_manuales_docx.py
+```
+
 
 ## Como leer
 
@@ -41,9 +47,10 @@ Esta carpeta contiene la documentacion del proyecto en formato Markdown. Al fina
 ### Tecnico
 
 1. `tecnico/00_indice.md`
-2. Arquitectura, carpetas y roles en codigo
-3. Capitulo del modulo a mantener
-4. Jobs, forms/media y tests segun necesidad
+2. Si el lector es nuevo en el codigo: `tecnico/00b_guia_orientacion_cambios.md`
+3. Arquitectura, carpetas y roles en codigo
+4. Capitulo del modulo a mantener
+5. Jobs, forms/media y tests segun necesidad
 
 ## Convenciones
 
